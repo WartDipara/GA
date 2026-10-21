@@ -88,6 +88,13 @@ def preprocessing_status(store, run_id):
             continue
         if kind == "plugin.preprocessing.download.progress":
             item["progress"] = event["payload"]
+        elif kind in (
+            "plugin.preprocessing.download.retry_scheduled",
+            "plugin.preprocessing.download.retry_waiting",
+        ):
+            item["retry"] = event["payload"]
+        elif kind == "plugin.preprocessing.download.request":
+            item.pop("retry", None)
         elif kind in ("call.failed", "call.incomplete"):
             item["status"] = "incomplete" if kind == "call.incomplete" else "blocked"
             item["error"] = event["payload"]["error"]
@@ -95,10 +102,9 @@ def preprocessing_status(store, run_id):
     return results
 
 
-async def prepare_apk(store, run_id, host, settings, source_file, item, span_id):
+async def prepare_apk(store, run_id, host, settings, source_file, item, span_id, aapt2):
     workspace_ref = item["workspace_ref"]
     workspace = within(store.run_dir(run_id), workspace_ref)
-    aapt2 = os.environ.get("GAME_AUTO_AAPT2") or os.environ.get("AAPT2_CMD") or None
     request = {
         "source_file": str(source_file.resolve()),
         "source_index": item["index"],
@@ -110,6 +116,8 @@ async def prepare_apk(store, run_id, host, settings, source_file, item, span_id)
         "max_apk_bytes": settings["max_apk_bytes"],
         "download_budget_bytes": item["download_budget_bytes"],
         "disk_reserve_bytes": item["disk_reserve_bytes"],
+        "timeout_seconds": settings["apk_timeout_seconds"],
+        "retry_max_seconds": settings["retry_max_seconds"],
     }
     validate(store.run_dir(run_id) / "contracts", "apk-prepare-request", request)
     item["status"] = "running"
@@ -120,6 +128,7 @@ async def prepare_apk(store, run_id, host, settings, source_file, item, span_id)
         )
     except FrameworkError as exc:
         if exc.code in (
+            ErrorCode.AAPT2_UNAVAILABLE,
             ErrorCode.TRACE_UNAVAILABLE,
             ErrorCode.CANCELLED,
             ErrorCode.CLOSED,
@@ -159,6 +168,12 @@ async def preprocess(store, run_id, host, manifest, submission, source_file):
     worker_count = settings["download_workers"]
     if type(worker_count) is not int or not 1 <= worker_count <= 5:
         raise FrameworkError(ErrorCode.INVALID_DOWNLOAD_WORKERS)
+    preflight_request = {
+        "aapt2_executable": os.environ.get("GAME_AUTO_AAPT2") or os.environ.get("AAPT2_CMD") or None
+    }
+    validate(contracts, "apk-preflight-request", preflight_request)
+    tools = await host.call("apk.preflight", preflight_request)
+    host.record("preprocessing.tools.checked", tools)
     plans = await admit_apk_batch(
         store, run_id, host, manifest, submission, source_file, worker_count
     )
@@ -192,7 +207,16 @@ async def preprocess(store, run_id, host, manifest, submission, source_file):
                     item, span_id = queue.get_nowait()
                 except asyncio.QueueEmpty:
                     return
-                if await prepare_apk(store, run_id, host, settings, source_file, item, span_id):
+                if await prepare_apk(
+                    store,
+                    run_id,
+                    host,
+                    settings,
+                    source_file,
+                    item,
+                    span_id,
+                    tools["aapt2_executable"],
+                ):
                     blocked = True
         except BaseException as exc:
             host.stop(exc)

@@ -17,9 +17,10 @@ safety_margin_percent = 10
 [preprocessing]
 download_workers = 5
 request_timeout_seconds = 30
-apk_timeout_seconds = 3600
-batch_timeout_seconds = 86400
-max_attempts = 3
+apk_timeout_seconds = 0
+batch_timeout_seconds = 0
+max_attempts = 0
+retry_max_seconds = 300
 max_apk_bytes = 8589934592
 
 [codex]

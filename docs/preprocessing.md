@@ -34,7 +34,12 @@ Changed URLs or list order require a new batch; `--input` may point to a moved f
 list. An optional `--key` deduplicates the submitted list; each preprocess command still creates a
 new execution run.
 
-## Disk admission
+## Prerequisites and disk admission
+
+Each execution or recovery starts with `apk.preflight`. It resolves AAPT2, runs its `version`
+command with a ten-second deadline, checks its identity, and records the result before any network
+probe or APK download. Missing, invalid, or unstartable tools block the batch. Workers use the
+resolved executable from that check; they do not independently choose another SDK version.
 
 Before starting any APK download, the kernel asks `apk.plan` for every item's storage budget. Header
 probes run with the configured worker limit. HEAD is preferred; if it cannot determine a size, a
@@ -63,9 +68,15 @@ bytes, a blocked run, and exit code 2. No APK download worker starts for a rejec
 space and use the existing `resume --input` command to estimate again.
 
 On recovery, an existing `application.apk` needs no download budget; the worker must still verify
-its saved hash before reuse. If that file disappears after admission, the zero budget prevents a
-replacement download. Partial files conservatively receive the full download budget, since a server
-may require a restart. APKs are inspected without extracting their contents, and promotion from
+its saved hash before reuse. A complete `download.part` also receives zero download budget when its
+checkpoint records completion or its saved count equals the known total. This only permits local
+verification: the worker checks the prefix hash and archive CRCs before promotion. Admission does
+not claim that these checks already passed. Neither path needs a remote size probe. If the file
+disappears or verification fails, no replacement download can spend that zero budget.
+
+An archive that fails validation is marked invalid so the next admission can budget a fresh
+download. Other partial files conservatively receive the full download budget, since a server may
+require a restart. APKs are inspected without extracting their contents, and promotion from
 `download.part` is a rename, so no second full APK copy is budgeted.
 
 The admitted budget is also enforced against response headers and streamed bytes. A larger or
@@ -88,17 +99,25 @@ Each active APK has its own plugin process and download worker thread. The threa
 client, files, checkpoint state, and metadata inspection. File hashing, ZIP inspection, and stdio
 may use auxiliary threads; the limit controls APK workers, not the total OS thread count.
 
-Downloads stream to `download.part`. Every 8 MiB and on transfer exit, data is flushed and synced
-before an atomic checkpoint records the byte count and prefix SHA-256. Recovery truncates bytes
-beyond the last checkpoint and verifies the saved prefix hash. Completed APKs are hash-checked
-before local reuse. A local hash mismatch blocks the item rather than silently trusting the file.
+Downloads stream to `download.part`. Data is flushed and synced at 8 MiB, after 30 seconds when
+another chunk arrives, and on transfer exit. An atomic checkpoint records the byte count and prefix
+SHA-256. Recovery truncates bytes beyond the last checkpoint and verifies the saved prefix hash.
+Completed APKs are hash-checked before local reuse. A local hash mismatch blocks the item rather
+than silently trusting the file. The verified prefix hash state is reused for append operations and
+retries instead of reading the whole prefix again. Before append, the worker checks file identity,
+size, and modification time under its workspace lock.
 
 Resumption uses Range and If-Range only with a strong ETag. Partial responses must agree on offset,
 total length, ETag, and the final resource URL digest. A full response replaces the partial file;
 changed resources or rejected ranges restart from zero. Servers without strong validators restart
 instead of appending uncertain bytes. Transient network failures, HTTP 408/429, and server errors
-use bounded retries. Other item failures block the item; remaining items continue unless the failure
-concerns storage, cancellation, or tracing.
+retry automatically. Invalid client/proxy configuration and certificate validation failures are not
+treated as transient network failures. Other item failures block the item; remaining items continue
+unless the failure concerns storage, cancellation, tracing, or a missing AAPT2 tool.
+
+Probes and downloads follow at most ten redirects explicitly. Intermediate responses are closed
+without reading their bodies, and each target must use HTTP(S) without URL userinfo. Redirect events
+contain hop counts and status codes, not raw URLs.
 
 Queued items appear as `queued`, then `running`, `ready`, `blocked`, or `incomplete`. The kernel
 reserves an individual span at enqueue time; interleaved progress and errors are matched by span
@@ -108,6 +127,39 @@ dispatch and cancels the other workers before the run is finalized.
 
 Ctrl+C leaves preprocessing blocked and resumable. The explicit `cancel` command is terminal.
 Completed transfers awaiting archive inspection can finish locally on resume without another GET.
+This also covers interruption after the final byte checkpoint but before the completion flag was
+saved: a matching known total triggers local verification rather than a range request past EOF.
+Unknown-length downloads without a saved completion flag are not assumed complete.
+
+## Long-running execution and retries
+
+By default, `apk_timeout_seconds`, `batch_timeout_seconds`, and `max_attempts` are zero. Zero
+disables the corresponding overall duration or automatic attempt limit. A healthy download is not
+stopped after one hour, and a batch is not stopped after one day. Positive values opt into hard
+duration limits or a per-invocation attempt limit.
+
+Individual network connect/read/write operations still use `request_timeout_seconds` (30 seconds by
+default). This measures I/O inactivity rather than the complete file transfer's duration. Plugin
+initialization and health checks retain their own 30-second deadlines, and AAPT2 commands have
+separate finite deadlines. Cancellation and trace-persistence failure remain effective while a
+download or retry wait is in progress.
+
+Transient failures use exponential backoff, initially one second and capped by `retry_max_seconds`
+(300 seconds by default). Successful byte progress resets this backoff. A valid server
+`Retry-After`, whether seconds or an HTTP date, can request a longer wait; the backoff cap never
+shortens that server wait. Failed attempts, scheduled waits, and active waits appear in the trace.
+`status` exposes the current item's retry information. A waiting item retains its APK worker slot.
+
+Checkpoints persist the next permitted attempt time and the backoff state, including failures before
+the first body byte. Recovery observes that time instead of retrying immediately. Size probes
+respect an existing cooldown without making another request. A probe that receives a retryable error
+with `Retry-After` saves the cooldown, stops further probes for that entry, and uses the
+conservative size limit for admission. After admission, the worker waits and proceeds automatically.
+Recovery after a stopped process still uses the explicit `resume` command.
+
+If a positive item deadline is configured and a wait will not fit, the item is blocked with
+`DOWNLOAD_RETRY_DEFERRED`; its saved retry time survives. An unsupported numeric wait larger than
+ten digits also blocks explicitly. The kernel's configured deadlines remain authoritative.
 
 ZIP structure, manifest presence, and entry CRCs are checked before atomic promotion to
 `application.apk`. The default size limit is 8 GiB; archive inspection also bounds entry count and
@@ -145,5 +197,6 @@ recorded progress. Calls, retry attempts, checkpoints, and AAPT2 output remain i
 the existing trace commands and offline HTML export. Failed trace persistence stops further work.
 
 References: [HTTP range semantics](https://www.rfc-editor.org/rfc/rfc9110.html#name-range),
+[Retry-After](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.3),
 [HTTPX streaming](https://www.python-httpx.org/async/#streaming-responses), and
 [AAPT2](https://developer.android.com/tools/aapt2).

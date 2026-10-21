@@ -65,7 +65,12 @@ class ErrorCode(StrEnum):
     DOWNLOAD_LENGTH_INVALID = ("DOWNLOAD_LENGTH_INVALID", "Invalid Content-Length")
     DOWNLOAD_NETWORK_ERROR = ("DOWNLOAD_NETWORK_ERROR", "Download network error")
     DOWNLOAD_RANGE_INVALID = ("DOWNLOAD_RANGE_INVALID", "Unexpected partial response")
+    DOWNLOAD_REDIRECT_LIMIT = ("DOWNLOAD_REDIRECT_LIMIT", "Download exceeded 10 redirects")
     DOWNLOAD_RESTART = ("DOWNLOAD_RESTART", "Range rejected; restarting download")
+    DOWNLOAD_RETRY_DEFERRED = (
+        "DOWNLOAD_RETRY_DEFERRED",
+        "Retry wait exceeds the remaining item deadline; resume later",
+    )
     DOWNLOAD_STATE_INVALID = ("DOWNLOAD_STATE_INVALID", "Download checkpoint is invalid")
     ENVIRONMENT_BLOCKED = ("ENVIRONMENT_BLOCKED", "Environment blocked")
     EVENT_ID_CONFLICT = ("EVENT_ID_CONFLICT", "Event ID was reused for different content")

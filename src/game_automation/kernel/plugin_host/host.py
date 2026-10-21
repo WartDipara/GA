@@ -55,11 +55,14 @@ class Host:
             if capability in plugin["retry_safe"]
             else 1
         )
-        timeout = timeout or (
-            self.manifest["application"]["codex"]["timeout_seconds"] + 45
-            if capability == "ai.decide"
-            else self.manifest["application"]["call_timeout_seconds"]
-        )
+        if timeout is None:
+            timeout = (
+                self.manifest["application"]["codex"]["timeout_seconds"] + 45
+                if capability == "ai.decide"
+                else self.manifest["application"]["call_timeout_seconds"]
+            )
+        elif timeout == 0:
+            timeout = None
         initial_span_id = span_id
         for attempt in range(1, retries + 1):
             self.check_cancel()
@@ -100,6 +103,12 @@ class Host:
                 elif capability == "apk.plan":
                     validate(
                         self.store.run_dir(self.run_id) / "contracts", "apk-download-plan", result
+                    )
+                elif capability == "apk.preflight":
+                    validate(
+                        self.store.run_dir(self.run_id) / "contracts",
+                        "apk-preflight-result",
+                        result,
                     )
                 output_ref = self.artifact(f"calls/{span_id}/output.json", result)
                 completed_payload = {
@@ -193,14 +202,17 @@ class Host:
                 )
 
         async def execute():
-            result = await peer.request("initialize", {"protocol_version": "1.0"}, timeout)
+            handshake_timeout = self.manifest["application"]["call_timeout_seconds"]
+            result = await peer.request(
+                "initialize", {"protocol_version": "1.0"}, handshake_timeout
+            )
             if (
                 result.get("protocol_version") != "1.0"
                 or result.get("capabilities") != plugin["capabilities"]
                 or result.get("version") != plugin["version"]
             ):
                 raise FrameworkError(ErrorCode.PLUGIN_INCOMPATIBLE)
-            health = await peer.request("health", {}, timeout)
+            health = await peer.request("health", {}, handshake_timeout)
             if health != {"ok": True}:
                 raise FrameworkError(ErrorCode.PLUGIN_UNHEALTHY)
             invocation_context = {
@@ -224,12 +236,12 @@ class Host:
         stderr_task = asyncio.create_task(stderr())
         cancellation_task = asyncio.create_task(cancelled())
         try:
-            deadline = time.monotonic() + timeout
+            deadline = time.monotonic() + timeout if timeout is not None else None
             watchers = {invocation_task, stderr_task, cancellation_task}
             while True:
                 done, _ = await asyncio.wait(
                     watchers,
-                    timeout=max(0, deadline - time.monotonic()),
+                    timeout=max(0, deadline - time.monotonic()) if deadline is not None else None,
                     return_when=asyncio.FIRST_COMPLETED,
                 )
                 if not done:

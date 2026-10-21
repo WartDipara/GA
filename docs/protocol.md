@@ -58,11 +58,19 @@ enforced during actual task execution; they are not replaced by compilation chec
 
 ## APK preprocessing
 
-The read-only `apk.plan` capability uses apk-plan-request and returns apk-download-plan. Requests
-reference one source entry and workspace. Results contain `budget_bytes`, `size_bytes` (null when
-unknown), and `basis`: local_apk, content_length, content_range, or size_limit. No APK body is saved
-by this capability. The kernel validates all plans, estimates the complete batch, and persists
-`preprocessing.storage.checked` before allowing download dispatch.
+The read-only `apk.preflight` capability uses apk-preflight-request and apk-preflight-result. It
+checks AAPT2 before source probes or download dispatch and returns its resolved executable. The
+kernel records `preprocessing.tools.checked` and supplies that executable to item workers.
+
+The `apk.plan` capability uses apk-plan-request and returns apk-download-plan. Requests reference
+one source entry and workspace. Results contain `budget_bytes`, `size_bytes` (null when unknown),
+and `basis`: local_apk, content_length, content_range, or size_limit. No APK body is saved by this
+capability. The kernel validates all plans, estimates the complete batch, and persists
+`preprocessing.storage.checked` before allowing download dispatch. `local_apk` covers a completed
+APK or a complete checkpoint awaiting local hash and ZIP validation; its zero budget permits
+verification only, never an automatic replacement download. Planning may persist a retry cooldown in
+the assigned workspace under its lock; it never saves an APK body. An active cooldown suppresses
+further source probes until it expires.
 
 The CLI accepts apk-batch JSON. The apk.prepare capability uses apk-prepare-request and returns
 apk-metadata. Requests reference a caller-owned list file, item index, source digest, assigned
@@ -70,7 +78,10 @@ workspace, and download settings. The input file is read only, and its selected 
 digest. Raw addresses are not included in RPC messages. The kernel validates requests and metadata;
 the plugin writes only its assigned APK files and download checkpoint, never SQLite.
 
-The kernel supplies the additive `download_budget_bytes` and `disk_reserve_bytes` request fields.
+The kernel supplies the additive `download_budget_bytes`, `disk_reserve_bytes`, `timeout_seconds`,
+and `retry_max_seconds` request fields. A zero `timeout_seconds` disables the overall item deadline;
+network I/O and plugin handshakes retain separate finite timeouts. A zero `max_attempts` allows
+automatic transient retries without an attempt cap. Positive values preserve explicit bounds.
 Workers enforce their own admitted limit without sharing mutable download state. Storage failures
 block the whole batch, stop new dispatch, and cancel active workers. Only a fresh admission on
 resume can replace a budget; no download retry raises it automatically.
@@ -82,6 +93,12 @@ interleave. plugin.preprocessing events expose HTTP attempts, progress, restarts
 validation, and metadata-tool output. The kernel writes metadata and batch-summary artifacts. Resume
 reuses verified local files or continues safe partial downloads, with distinct call spans. See
 [APK preprocessing](preprocessing.md).
+
+`plugin.preprocessing.http.redirect` records each explicit redirect without its body or URL.
+`plugin.preprocessing.download.retry_scheduled` records waits; `retry_deferred` records a wait that
+cannot fit an explicitly configured deadline. `retry_waiting` records an active wait restored from
+the checkpoint when necessary. Earlier attempts are retained. Kernel capability calls accept
+`timeout=0` for long-running invocations without disabling initialization or health deadlines.
 
 ## Task intake
 
