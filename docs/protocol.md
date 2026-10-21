@@ -58,11 +58,22 @@ enforced during actual task execution; they are not replaced by compilation chec
 
 ## APK preprocessing
 
+The read-only `apk.plan` capability uses apk-plan-request and returns apk-download-plan. Requests
+reference one source entry and workspace. Results contain `budget_bytes`, `size_bytes` (null when
+unknown), and `basis`: local_apk, content_length, content_range, or size_limit. No APK body is saved
+by this capability. The kernel validates all plans, estimates the complete batch, and persists
+`preprocessing.storage.checked` before allowing download dispatch.
+
 The CLI accepts apk-batch JSON. The apk.prepare capability uses apk-prepare-request and returns
 apk-metadata. Requests reference a caller-owned list file, item index, source digest, assigned
 workspace, and download settings. The input file is read only, and its selected URL must match the
 digest. Raw addresses are not included in RPC messages. The kernel validates requests and metadata;
 the plugin writes only its assigned APK files and download checkpoint, never SQLite.
+
+The kernel supplies the additive `download_budget_bytes` and `disk_reserve_bytes` request fields.
+Workers enforce their own admitted limit without sharing mutable download state. Storage failures
+block the whole batch, stop new dispatch, and cancel active workers. Only a fresh admission on
+resume can replace a budget; no download retry raises it automatically.
 
 preprocessing.apk.queued/started/ready/blocked events identify each item. The kernel reserves a
 distinct span when an item enters the FIFO queue, and the host uses that span for its capability

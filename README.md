@@ -57,6 +57,10 @@ receives its own locked workspace, resumable download checkpoints, and compact m
 `GAME_AUTO_AAPT2` locally. No model call is required. See [APK preprocessing](docs/preprocessing.md)
 for the input contract, recovery behavior, and isolation.
 
+Before downloads start, the kernel checks the entire batch's disk budget. Unknown sizes use the
+configured APK size limit. Insufficient space blocks execution with a warning; status and trace
+retain the estimate. Storage settings include a 2 GiB free-space reserve by default.
+
 ## Trace inspection
 
 ```powershell

@@ -1,6 +1,7 @@
 """Download and inspect one APK inside its assigned filesystem workspace."""
 
 import asyncio
+import errno
 import json
 import os
 import threading
@@ -10,8 +11,10 @@ from pathlib import Path
 import httpx
 from download import Downloader
 from metadata import inspect_apk
+from planning import plan_download
 
 from game_automation.common import FileLock, FrameworkError, digest, within
+from game_automation.disk import require_disk_space
 from game_automation.errors import ErrorCode
 from game_automation.plugin_sdk.rpc import serve
 
@@ -51,11 +54,13 @@ def create_handler(peer):
         if method == "health":
             response = {"ok": True}
             return response
-        if method != "invoke" or params["capability"] != "apk.prepare":
+        if method != "invoke" or params["capability"] not in ("apk.plan", "apk.prepare"):
             raise FrameworkError(ErrorCode.METHOD_NOT_FOUND, method)
         request = params["input"]
         url = read_source(request)
         workspace = Path(request["workspace"]).resolve()
+        if params["capability"] == "apk.plan":
+            return await plan_download(url, workspace, request, event)
         workspace.mkdir(parents=True, exist_ok=True)
         event_loop = asyncio.get_running_loop()
         stop_event = threading.Event()
@@ -77,13 +82,19 @@ def create_handler(peer):
                     os.environ[name] = str(temporary)
                 downloader = Downloader(workspace, request, worker_event, stop_event)
                 apk = await downloader.run(url)
+                require_disk_space(workspace, downloader.reserve_bytes)
                 metadata = await inspect_apk(apk, request["aapt2_executable"], worker_event)
                 metadata["sizeBytes"] = apk.stat().st_size
                 metadata["sha256"] = downloader.state["prefix_sha256"]
                 return metadata
 
         def run_worker():
-            return asyncio.run(prepare())
+            try:
+                return asyncio.run(prepare())
+            except OSError as exc:
+                if exc.errno == errno.ENOSPC:
+                    raise FrameworkError(ErrorCode.DISK_SPACE_INSUFFICIENT) from exc
+                raise
 
         try:
             return await asyncio.to_thread(run_worker)

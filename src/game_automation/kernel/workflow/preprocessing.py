@@ -7,6 +7,8 @@ from game_automation.common import FrameworkError, digest, uid, within
 from game_automation.contracts import validate
 from game_automation.errors import ErrorCode
 
+from .capacity import admit_apk_batch
+
 
 def read_batch(source_file, contracts):
     source_file = source_file.resolve()
@@ -106,6 +108,8 @@ async def prepare_apk(store, run_id, host, settings, source_file, item, span_id)
         "request_timeout_seconds": settings["request_timeout_seconds"],
         "max_attempts": settings["max_attempts"],
         "max_apk_bytes": settings["max_apk_bytes"],
+        "download_budget_bytes": item["download_budget_bytes"],
+        "disk_reserve_bytes": item["disk_reserve_bytes"],
     }
     validate(store.run_dir(run_id) / "contracts", "apk-prepare-request", request)
     item["status"] = "running"
@@ -115,7 +119,14 @@ async def prepare_apk(store, run_id, host, settings, source_file, item, span_id)
             "apk.prepare", request, timeout=settings["apk_timeout_seconds"], span_id=span_id
         )
     except FrameworkError as exc:
-        if exc.code in (ErrorCode.TRACE_UNAVAILABLE, ErrorCode.CANCELLED, ErrorCode.CLOSED):
+        if exc.code in (
+            ErrorCode.TRACE_UNAVAILABLE,
+            ErrorCode.CANCELLED,
+            ErrorCode.CLOSED,
+            ErrorCode.DISK_SPACE_INSUFFICIENT,
+            ErrorCode.DISK_SPACE_UNAVAILABLE,
+            ErrorCode.DISK_BUDGET_EXCEEDED,
+        ):
             raise
         item["status"] = "blocked"
         item["error"] = exc.as_dict()
@@ -148,6 +159,10 @@ async def preprocess(store, run_id, host, manifest, submission, source_file):
     worker_count = settings["download_workers"]
     if type(worker_count) is not int or not 1 <= worker_count <= 5:
         raise FrameworkError(ErrorCode.INVALID_DOWNLOAD_WORKERS)
+    plans = await admit_apk_batch(
+        store, run_id, host, manifest, submission, source_file, worker_count
+    )
+    reserve_bytes = manifest["application"]["storage"]["reserve_bytes"]
     queue = asyncio.Queue()
     for index, source_id in enumerate(submission["source_ids"]):
         host.check_cancel()
@@ -157,6 +172,8 @@ async def preprocess(store, run_id, host, manifest, submission, source_file):
             "source_id": source_id,
             "workspace_ref": f"apks/apk_{index + 1:04d}",
             "status": "queued",
+            "download_budget_bytes": plans[index]["budget_bytes"],
+            "disk_reserve_bytes": reserve_bytes,
         }
         store.event(run_id, "preprocessing.apk.queued", item, span_id=span_id)
         entry = (item, span_id)
