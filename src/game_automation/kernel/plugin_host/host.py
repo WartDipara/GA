@@ -66,6 +66,10 @@ class Host:
                 )
                 if capability == "task.intake":
                     validate(self.store.run_dir(self.run_id) / "contracts", "intake-result", result)
+                elif capability == "environment.check":
+                    validate(
+                        self.store.run_dir(self.run_id) / "contracts", "environment-result", result
+                    )
                 output_ref = self.store.artifact(
                     self.run_id, f"calls/{span_id}/output.json", result
                 )

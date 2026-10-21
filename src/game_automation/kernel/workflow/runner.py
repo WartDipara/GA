@@ -7,6 +7,7 @@ from game_automation.kernel.policy import ExecutionLock
 from game_automation.observability import export_trace
 from game_automation.prompting import freeze, load
 
+from .environment import check_environment
 from .intake import intake
 
 BLOCKED = {
@@ -27,6 +28,7 @@ BLOCKED = {
     "DEVICE_NOT_IMPLEMENTED",
     "INTAKE_NEEDS_INPUT",
     "INTAKE_NEW_RUN_REQUIRED",
+    "ENVIRONMENT_BLOCKED",
 }
 
 
@@ -93,10 +95,9 @@ async def execute(store, run_id):
                 task = await intake(store, run_id, host, manifest)
                 if run["mode"] == "game":
                     store.transition(run_id, "running", "environment")
-                    await host.call("environment.check", {"task": task})
-                    raise FrameworkError(
-                        "DEVICE_NOT_IMPLEMENTED", "Game execution is not available"
-                    )
+                    await check_environment(store, run_id, host, manifest, task)
+                    store.transition(run_id, "running", "launch")
+                    raise FrameworkError("DEVICE_NOT_IMPLEMENTED", "Game launch is not available")
             host.check_cancel()
             store.transition(run_id, "succeeded", "intake")
         except BaseException as exc:

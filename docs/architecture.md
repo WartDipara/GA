@@ -59,7 +59,10 @@ before business validation. Provider rules do not leak into other modules.
 ## Current scope
 
 The framework implements communication, persistence, Skills, tracing, context inspection, and task
-intake with source attribution and clarification recovery. See [task intake](task-intake.md).
+intake with source attribution and clarification recovery. The environment plugin queries ADB,
+selects a device, and checks boot completion and installed package paths. Environment results are
+diagnostics, not device-control acceptance. Every resume performs fresh checks; no previous result
+authorizes launch. See [task intake](task-intake.md) and [environment checks](environment.md).
 Android lifecycle/control, perception, exploration algorithms, and game coverage reports remain
 unregistered future capabilities. Development verification is compilation only and does not
 establish runtime or game acceptance.

@@ -3,9 +3,10 @@
 A modular game-testing framework for exploring reachable interactions and recording the paths,
 decisions, actions, and evidence behind them.
 
-Task intake, independent process plugins, frozen runtime Skills, Codex integration, and offline
-trace inspection are implemented. Android control, visual recognition, exploration, and game
-coverage reporting remain planned capabilities.
+Task intake, read-only Android environment checks, independent process plugins, frozen runtime
+Skills, Codex integration, and offline trace inspection are implemented. Device verification is
+pending. Android control, visual recognition, exploration, and game coverage reporting remain
+planned capabilities.
 
 ## Setup
 
@@ -31,9 +32,13 @@ uv run game-auto cancel <run_id>
 ```
 
 Missing information blocks intake and produces questions. Supplements are append-only. Accepted
-requirements are immutable; submit a new task to change them. `run <task_id>` starts the full
-workflow, which currently blocks at the unimplemented environment-check stage. Intake success does
-not establish game coverage.
+requirements are immutable; submit a new task to change them. `run <task_id>` starts intake and
+environment checks, then blocks at the unimplemented game-launch stage if prerequisites pass.
+Environment checks require Android Platform Tools on PATH and an installed target package. Set
+`GAME_AUTO_ADB` for a local executable override and `GAME_AUTO_DEVICE_SERIAL` to select a device.
+Without a serial, exactly one listed device is required. See
+[environment checks](docs/environment.md). Intake or environment readiness does not establish game
+coverage.
 
 ## Trace inspection
 
@@ -67,6 +72,10 @@ Follow [AGENTS.md](AGENTS.md): English maintained content, readable and minimal 
 BOM, and LF line endings. Keep private operational configuration out of tracked files. uv.lock pins
 dependencies. Process isolation is not a sandbox.
 
+For each increment, check out a `codex/<feature>` branch from `master`. Commit the completed work,
+merge it into `master`, delete the merged feature branch, and publish `master` to the configured
+push destinations.
+
 Verification is compilation only. Do not add or run mock or smoke tests.
 
 ```powershell
@@ -76,5 +85,6 @@ node --check src/game_automation/observability/dashboard.js
 ```
 
 Compilation does not verify runtime behavior. See [architecture](docs/architecture.md),
-[task intake](docs/task-intake.md), [protocol](docs/protocol.md), [debugging](docs/debugging.md),
-and [context insights](docs/context-insights.md).
+[task intake](docs/task-intake.md), [environment checks](docs/environment.md),
+[protocol](docs/protocol.md), [debugging](docs/debugging.md), and
+[context insights](docs/context-insights.md).

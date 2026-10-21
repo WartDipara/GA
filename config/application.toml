@@ -6,6 +6,9 @@ max_actions = 100
 [intake]
 timeout_seconds = 300
 
+[environment]
+command_timeout_seconds = 10
+
 [codex]
 executable = "codex"
 version = "0.162.1"

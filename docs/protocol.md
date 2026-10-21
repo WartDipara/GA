@@ -24,7 +24,7 @@ may register a capability.
 
 Reverse requests:
 
-- host.event({kind,payload,event_id?}): provider._, ai._, and plugin.\* namespaces; await
+- host.event({kind,payload,event*id?}): provider.*, ai.\_, and plugin.\* namespaces; await
   persisted:true before continuing.
 - host.call({capability,input}): declared dependencies only. The kernel creates a child span and
   rejects dependency cycles.
@@ -60,3 +60,21 @@ assembles explicit frozen intake skills and outputSchema before the plugin call.
 happen before call.completed; semantic source, status, and budget validation happens before
 intake.accepted. An accepted task is distinct from the original immutable submission. See
 [task intake](task-intake.md) for defaults, questions, revision IDs, and recovery semantics.
+
+## Environment checks
+
+The environment.check capability uses environment-request and environment-result schemas. The
+request supplies the platform, target package, executable, optional serial, and per-command timeout.
+The kernel validates the request before dispatch and the host validates the result before
+call.completed. A ready result requires an identified device, installed package paths, and passed
+checks. A blocked result includes at least one check with a diagnostic code and message.
+
+Each ADB query receives a command_id. The plugin awaits persistence of
+plugin.environment.command.started before starting its child process, then records command.completed
+or command.incomplete with the same identifier. Checks reference those command identifiers. The
+kernel records environment.checked under the capability's span. status includes the latest completed
+check result; trace retains all attempts, including incomplete calls.
+
+The capability is non-mutating and does not retry automatically. These checks do not prove launch,
+permission readiness, observation availability, or game coverage. See
+[environment checks](environment.md).

@@ -5,3 +5,7 @@ enabled = true
 [plugins.agent_codex]
 manifest = "plugins/agent_codex/plugin.toml"
 enabled = true
+
+[plugins.environment]
+manifest = "plugins/environment/plugin.toml"
+enabled = true
