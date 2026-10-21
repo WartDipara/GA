@@ -3,10 +3,10 @@
 A modular game-testing framework for exploring reachable interactions and recording the paths,
 decisions, actions, and evidence behind them.
 
-Task intake, read-only Android environment checks, independent process plugins, frozen runtime
-Skills, Codex integration, and offline trace inspection are implemented. Device verification is
-pending. Android control, visual recognition, exploration, and game coverage reporting remain
-planned capabilities.
+APK preprocessing, task intake, read-only Android environment checks, independent process plugins,
+frozen runtime Skills, Codex integration, and offline trace inspection are implemented. Runtime
+verification is pending. Android control, visual recognition, exploration, and game coverage
+reporting remain planned capabilities.
 
 ## Setup
 
@@ -39,6 +39,21 @@ Environment checks require Android Platform Tools on PATH and an installed targe
 Without a serial, exactly one listed device is required. See
 [environment checks](docs/environment.md). Intake or environment readiness does not establish game
 coverage.
+
+## APK preprocessing
+
+Submit a private JSON file containing `{"apkUrls": ["https://example.com/game.apk"]}`:
+
+```powershell
+uv run game-auto preprocess --input var/apks.json
+uv run game-auto status <run_id>
+uv run game-auto resume <run_id> --input var/apks.json
+```
+
+Each APK receives its own workspace, resumable download checkpoints, and compact metadata:
+`apkName`, `packageName`, version, size, and SHA-256. Install Android SDK Build Tools for AAPT2, or
+set `GAME_AUTO_AAPT2` locally. No model call is required. See
+[APK preprocessing](docs/preprocessing.md) for the input contract, recovery behavior, and isolation.
 
 ## Trace inspection
 

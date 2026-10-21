@@ -5,6 +5,7 @@ from pathlib import Path
 
 from game_automation.common import FrameworkError, digest, json_text, redact
 from game_automation.contracts import schema, validate
+from game_automation.errors import ErrorCode
 from game_automation.prompting import build_input
 
 MAX_DOCUMENT_BYTES = 200_000
@@ -12,18 +13,18 @@ MAX_DOCUMENT_BYTES = 200_000
 
 def read_document(path: Path):
     if path.suffix.lower() not in (".txt", ".md"):
-        raise FrameworkError("UNSUPPORTED_DOCUMENT", "Supported documents: UTF-8 .txt and .md")
+        raise FrameworkError(ErrorCode.UNSUPPORTED_DOCUMENT)
     with path.open("rb") as stream:
         raw = stream.read(MAX_DOCUMENT_BYTES + 1)
     if len(raw) > MAX_DOCUMENT_BYTES:
-        raise FrameworkError("DOCUMENT_TOO_LARGE", "Document exceeds the 200,000-byte limit")
+        raise FrameworkError(ErrorCode.DOCUMENT_TOO_LARGE)
     try:
         text = raw.decode("utf-8-sig")
     except UnicodeDecodeError as exc:
-        raise FrameworkError("INVALID_ENCODING", "Document must be UTF-8") from exc
+        raise FrameworkError(ErrorCode.INVALID_ENCODING) from exc
     text = redact(text.replace("\r\n", "\n").replace("\r", "\n"))
     if not text.strip() or "\x00" in text:
-        raise FrameworkError("INVALID_DOCUMENT", "Document is empty or contains null bytes")
+        raise FrameworkError(ErrorCode.INVALID_DOCUMENT)
     document_input = {"kind": "document", "filename": path.name, "text": text}
     return document_input
 
@@ -55,48 +56,58 @@ def check_result(contracts, result, sources, defaults, canonical):
     if result["status"] == "needs_input":
         if result["task"] is not None or not result["questions"] or result["provenance"]:
             raise FrameworkError(
-                "INTAKE_OUTPUT_INVALID", "Clarification needs questions and no task"
+                ErrorCode.INTAKE_OUTPUT_INVALID, "Clarification needs questions and no task"
             )
         return
     if result["task"] is None or result["questions"]:
-        raise FrameworkError(
-            "INTAKE_OUTPUT_INVALID", "A ready result needs a task and no questions"
-        )
+        raise FrameworkError(ErrorCode.INTAKE_OUTPUT_INVALID)
     task = result["task"]
     validate(contracts, "task", task)
     if canonical:
         if task != canonical:
-            raise FrameworkError("INTAKE_OUTPUT_INVALID", "Canonical input cannot be rewritten")
+            raise FrameworkError(
+                ErrorCode.INTAKE_OUTPUT_INVALID, "Canonical input cannot be rewritten"
+            )
     elif task["platform"] != "android":
-        raise FrameworkError("INTAKE_OUTPUT_INVALID", "Document intake currently supports Android")
+        raise FrameworkError(
+            ErrorCode.INTAKE_OUTPUT_INVALID, "Document intake currently supports Android"
+        )
     if any(not task[field].strip() for field in ("objective", "target")):
-        raise FrameworkError("INTAKE_OUTPUT_INVALID", "Objective and target must contain text")
+        raise FrameworkError(
+            ErrorCode.INTAKE_OUTPUT_INVALID, "Objective and target must contain text"
+        )
     source_map = {item["source_id"]: item["text"] for item in sources}
     supported = set()
     for evidence in result["provenance"]:
         field, source_id, quote = evidence["field"], evidence["source_id"], evidence["quote"]
         if source_id == "policy":
             if field not in defaults or task[field] != defaults[field]:
-                raise FrameworkError("INTAKE_OUTPUT_INVALID", "Invalid default attribution")
+                raise FrameworkError(ErrorCode.INTAKE_OUTPUT_INVALID, "Invalid default attribution")
             try:
                 matches = json.loads(quote) == defaults[field]
             except ValueError:
                 matches = False
             if not matches:
-                raise FrameworkError("INTAKE_OUTPUT_INVALID", "Default quote does not match policy")
+                raise FrameworkError(
+                    ErrorCode.INTAKE_OUTPUT_INVALID, "Default quote does not match policy"
+                )
         elif source_id not in source_map or not quote.strip() or quote not in source_map[source_id]:
-            raise FrameworkError("INTAKE_OUTPUT_INVALID", "Source quote cannot be verified")
+            raise FrameworkError(ErrorCode.INTAKE_OUTPUT_INVALID, "Source quote cannot be verified")
         # The device identifier must occur verbatim in a supplied source.
         if field == "target" and not canonical and quote != task["target"]:
-            raise FrameworkError("INTAKE_OUTPUT_INVALID", "Target must match its source quote")
+            raise FrameworkError(
+                ErrorCode.INTAKE_OUTPUT_INVALID, "Target must match its source quote"
+            )
         supported.add(field)
     if supported != set(task):
-        raise FrameworkError("INTAKE_OUTPUT_INVALID", "Every task field needs source attribution")
+        raise FrameworkError(
+            ErrorCode.INTAKE_OUTPUT_INVALID, "Every task field needs source attribution"
+        )
     if not canonical:
         for field, maximum in defaults["limits"].items():
             if task["limits"][field] > maximum:
                 raise FrameworkError(
-                    "INTAKE_OUTPUT_INVALID", "Requested limits exceed kernel policy"
+                    ErrorCode.INTAKE_OUTPUT_INVALID, "Requested limits exceed kernel policy"
                 )
 
 
@@ -110,15 +121,11 @@ async def intake(store, run_id, host, manifest):
     accepted = [event for event in events if event["kind"] == "intake.accepted"]
     if accepted:
         if accepted[-1]["payload"]["revision"] != current:
-            raise FrameworkError(
-                "INTAKE_NEW_RUN_REQUIRED", "Accepted input changed; create a new run"
-            )
+            raise FrameworkError(ErrorCode.INTAKE_NEW_RUN_REQUIRED)
         return accepted[-1]["payload"]["task"]
     previous = [event for event in events if event["kind"] == "intake.needs_input"]
     if previous and previous[-1]["payload"]["revision"] == current:
-        raise FrameworkError(
-            "INTAKE_NEEDS_INPUT", "Provide the requested information before resume"
-        )
+        raise FrameworkError(ErrorCode.INTAKE_NEEDS_INPUT)
 
     policy = manifest["application"].get("intake", {})
     defaults = {
@@ -180,7 +187,7 @@ async def intake(store, run_id, host, manifest):
     if result["status"] == "needs_input":
         store.event(run_id, "intake.needs_input", payload, **ids)
         raise FrameworkError(
-            "INTAKE_NEEDS_INPUT", "Task needs clarification; inspect questions in status"
+            ErrorCode.INTAKE_NEEDS_INPUT, "Task needs clarification; inspect questions in status"
         )
     # The accepted task and its evidence commit in one append-only authoritative event.
     store.event(run_id, "intake.accepted", payload, **ids)

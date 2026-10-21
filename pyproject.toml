@@ -3,7 +3,7 @@ name = "game-automation"
 version = "0.1.0"
 description = "Evidence-first game test workflow, skills and process plugins"
 requires-python = ">=3.12,<3.13"
-dependencies = ["jsonschema>=4.23,<5"]
+dependencies = ["httpx>=0.28,<1", "jsonschema>=4.23,<5"]
 
 [project.scripts]
 game-auto = "game_automation.cli:main"

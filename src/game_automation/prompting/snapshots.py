@@ -7,6 +7,7 @@ from pathlib import Path
 
 from game_automation import __version__
 from game_automation.common import FrameworkError, atomic_json, digest, now, redact, skill_prefix
+from game_automation.errors import ErrorCode
 from game_automation.kernel.capability_router import load_plugins
 
 
@@ -31,24 +32,24 @@ def freeze(store, run_id):
     for names in skills_config["stages"].values():
         selected.update(names)
     if skills_config["base"] != "project-base":
-        raise FrameworkError("SKILL_MISSING", "project-base must be the base skill")
+        raise FrameworkError(ErrorCode.SKILL_MISSING)
     for name in selected:
         if not re.fullmatch(r"[a-z0-9-]+", name):
-            raise FrameworkError("INVALID_SKILL", "Invalid skill name")
+            raise FrameworkError(ErrorCode.INVALID_SKILL)
         source = root / "skills" / name
         skill = source / "SKILL.md"
         if not skill.is_file():
-            raise FrameworkError("SKILL_MISSING", f"Missing {name}/SKILL.md")
+            raise FrameworkError(ErrorCode.SKILL_MISSING, f"Missing {name}/SKILL.md")
         text = skill.read_text(encoding="utf-8")
         if not text.startswith("---\n") or not re.search(rf"^name: {re.escape(name)}$", text, re.M):
-            raise FrameworkError("INVALID_SKILL", f"Invalid frontmatter: {name}")
+            raise FrameworkError(ErrorCode.INVALID_SKILL, f"Invalid frontmatter: {name}")
         description_field = re.search(r"^description:(?:[ \t]+\S|[ \t]*\n[ \t]+\S)", text, re.M)
         if not description_field:
-            raise FrameworkError("INVALID_SKILL", f"Missing description: {name}")
+            raise FrameworkError(ErrorCode.INVALID_SKILL, f"Missing description: {name}")
         for file_path in source.rglob("*"):
             if file_path.is_symlink() or not file_path.resolve().is_relative_to(source.resolve()):
                 raise FrameworkError(
-                    "INVALID_SKILL", "Skill resources must stay inside skill directory"
+                    ErrorCode.INVALID_SKILL, "Skill resources must stay inside skill directory"
                 )
         shutil.copytree(source, target / "skills" / name, dirs_exist_ok=True)
     shutil.copytree(root / "contracts/v1", target / "contracts", dirs_exist_ok=True)
@@ -88,15 +89,15 @@ def load(store, run_id):
     target = store.run_dir(run_id)
     path = target / "manifest.json"
     if not path.exists():
-        raise FrameworkError("SNAPSHOT_MISSING", "Run has no completed snapshot; create a new run")
+        raise FrameworkError(ErrorCode.SNAPSHOT_MISSING)
     manifest = json.loads(path.read_text(encoding="utf-8"))
     snapshots = [event for event in store.events(run_id) if event["kind"] == "run.snapshot"]
     if not snapshots or snapshots[-1]["payload"]["manifest_sha256"] != digest(path.read_bytes()):
-        raise FrameworkError("SNAPSHOT_CHANGED", "Manifest does not match its persisted digest")
+        raise FrameworkError(ErrorCode.SNAPSHOT_CHANGED)
     for relative, expected in manifest["files"].items():
         file = target / relative
         if not file.is_file() or digest(file.read_bytes()) != expected:
-            raise FrameworkError("SNAPSHOT_CHANGED", f"Frozen resource changed: {relative}")
+            raise FrameworkError(ErrorCode.SNAPSHOT_CHANGED, f"Frozen resource changed: {relative}")
     actual = {
         file_path.relative_to(target).as_posix()
         for folder in (target / "skills", target / "contracts")
@@ -104,19 +105,17 @@ def load(store, run_id):
         if file_path.is_file()
     }
     if actual != set(manifest["files"]):
-        raise FrameworkError("SNAPSHOT_CHANGED", "Frozen resource set changed")
+        raise FrameworkError(ErrorCode.SNAPSHOT_CHANGED, "Frozen resource set changed")
     for file, expected in manifest["source_hashes"].items():
         if not Path(file).is_file() or digest(Path(file).read_bytes()) != expected:
             raise FrameworkError(
-                "RUNTIME_CHANGED", "Implementation changed; use a new execution batch"
+                ErrorCode.RUNTIME_CHANGED, "Implementation changed; use a new execution batch"
             )
     current_sources = code_hashes(store.root / "src/game_automation")
     for plugin in manifest["plugins"].values():
         current_sources.update(code_hashes(Path(plugin["cwd"])))
     if current_sources != manifest["source_hashes"] or manifest["python_version"] != sys.version:
-        raise FrameworkError(
-            "RUNTIME_CHANGED", "Runtime files or interpreter changed; use a new batch"
-        )
+        raise FrameworkError(ErrorCode.RUNTIME_CHANGED)
     return manifest
 
 
@@ -124,7 +123,7 @@ def build_input(store, run_id, stage, context, output_schema):
     manifest = load(store, run_id)
     config = manifest["skills_config"]
     if stage not in config["stages"]:
-        raise FrameworkError("INVALID_STAGE", f"No AI skill mapping for {stage}")
+        raise FrameworkError(ErrorCode.INVALID_STAGE, f"No AI skill mapping for {stage}")
     names = list(dict.fromkeys([config["base"], *config["stages"][stage]]))
     inputs = []
     skill_contents = []

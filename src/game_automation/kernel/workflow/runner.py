@@ -1,6 +1,7 @@
 import asyncio
 
 from game_automation.common import FrameworkError
+from game_automation.errors import ErrorCode
 from game_automation.kernel.capability_router import Router
 from game_automation.kernel.plugin_host import Host
 from game_automation.kernel.policy import ExecutionLock
@@ -9,26 +10,31 @@ from game_automation.prompting import freeze, load
 
 from .environment import check_environment
 from .intake import intake
+from .preprocessing import preprocess
 
 BLOCKED = {
-    "MISSING_CAPABILITY",
-    "SKILL_MISSING",
-    "INVALID_SKILL",
-    "AI_UNAVAILABLE",
-    "AI_REQUIRES_INPUT",
-    "CODEX_UNAVAILABLE",
-    "CODEX_VERSION_MISMATCH",
-    "TIMEOUT",
-    "PROCESS_EXITED",
-    "SNAPSHOT_MISSING",
-    "SNAPSHOT_CHANGED",
-    "RUNTIME_CHANGED",
-    "ACTION_ALREADY_DISPATCHED",
-    "BUDGET_EXHAUSTED",
-    "DEVICE_NOT_IMPLEMENTED",
-    "INTAKE_NEEDS_INPUT",
-    "INTAKE_NEW_RUN_REQUIRED",
-    "ENVIRONMENT_BLOCKED",
+    ErrorCode.MISSING_CAPABILITY,
+    ErrorCode.SKILL_MISSING,
+    ErrorCode.INVALID_SKILL,
+    ErrorCode.AI_UNAVAILABLE,
+    ErrorCode.AI_REQUIRES_INPUT,
+    ErrorCode.CODEX_UNAVAILABLE,
+    ErrorCode.CODEX_VERSION_MISMATCH,
+    ErrorCode.TIMEOUT,
+    ErrorCode.PROCESS_EXITED,
+    ErrorCode.SNAPSHOT_MISSING,
+    ErrorCode.SNAPSHOT_CHANGED,
+    ErrorCode.RUNTIME_CHANGED,
+    ErrorCode.ACTION_ALREADY_DISPATCHED,
+    ErrorCode.BUDGET_EXHAUSTED,
+    ErrorCode.DEVICE_NOT_IMPLEMENTED,
+    ErrorCode.INTAKE_NEEDS_INPUT,
+    ErrorCode.INTAKE_NEW_RUN_REQUIRED,
+    ErrorCode.ENVIRONMENT_BLOCKED,
+    ErrorCode.APK_INPUT_REQUIRED,
+    ErrorCode.APK_SOURCE_CHANGED,
+    ErrorCode.PREPROCESSING_BLOCKED,
+    ErrorCode.PREPROCESSING_INTERRUPTED,
 }
 
 
@@ -41,13 +47,13 @@ def new_run(store, task_id, mode="game"):
     return run_id
 
 
-async def execute(store, run_id):
+async def execute(store, run_id, source_file=None):
     with ExecutionLock(store.var / "execution.lock"):
         run = store.run(run_id)
         if run["status"] in ("succeeded", "failed", "cancelled"):
-            raise FrameworkError("RUN_TERMINAL", "Use a new execution batch for a terminal run")
-        if run["mode"] not in ("game", "intake"):
-            raise FrameworkError("RUN_MODE_REMOVED", "This run mode is no longer supported")
+            raise FrameworkError(ErrorCode.RUN_TERMINAL)
+        if run["mode"] not in ("game", "intake", "preprocessing"):
+            raise FrameworkError(ErrorCode.RUN_MODE_REMOVED)
         try:
             if run["status"] == "running":
                 events = store.events(run_id)
@@ -59,7 +65,7 @@ async def execute(store, run_id):
                 for event in events:
                     if event["kind"] == "call.started" and event["span_id"] not in closed:
                         incomplete_payload = {
-                            "error": {"code": "PREVIOUS_PROCESS_EXITED"},
+                            "error": {"code": ErrorCode.PREVIOUS_PROCESS_EXITED},
                             "result": "unknown",
                             "attempt": event["payload"]["attempt"],
                         }
@@ -71,47 +77,57 @@ async def execute(store, run_id):
                             parent_span_id=event["parent_span_id"],
                             request_id=event["request_id"],
                         )
-                store.transition(run_id, "blocked", reason={"code": "PREVIOUS_PROCESS_EXITED"})
+                store.transition(
+                    run_id, "blocked", reason={"code": ErrorCode.PREVIOUS_PROCESS_EXITED}
+                )
             if store.run(run_id)["cancel_requested"]:
                 store.transition(run_id, "cancelled")
                 export_trace(store, run_id)
                 return store.run(run_id)
             manifest = load(store, run_id)
             if store.unknown_actions(run_id):
-                raise FrameworkError(
-                    "ACTION_ALREADY_DISPATCHED",
-                    "Uncertain actions need reconciliation; resume cannot replay them",
-                )
+                raise FrameworkError(ErrorCode.ACTION_ALREADY_DISPATCHED)
             store.transition(run_id, "running")
             host = Host(store, run_id, Router(manifest["plugins"]), manifest)
             task = store.task(run["task_id"])
-            timeout = (
-                manifest["application"].get("intake", {}).get("timeout_seconds", 300)
-                if task.get("kind") == "document" or run["mode"] == "intake"
-                else task["limits"]["timeout_seconds"]
-            )
+            if run["mode"] == "preprocessing":
+                timeout = manifest["application"]["preprocessing"]["batch_timeout_seconds"]
+            elif task.get("kind") == "document" or run["mode"] == "intake":
+                timeout = manifest["application"].get("intake", {}).get("timeout_seconds", 300)
+            else:
+                timeout = task["limits"]["timeout_seconds"]
             async with asyncio.timeout(timeout):
-                store.transition(run_id, "running", "intake")
-                task = await intake(store, run_id, host, manifest)
+                if run["mode"] == "preprocessing":
+                    store.transition(run_id, "running", "preprocessing")
+                    await preprocess(store, run_id, host, manifest, task, source_file)
+                else:
+                    store.transition(run_id, "running", "intake")
+                    task = await intake(store, run_id, host, manifest)
                 if run["mode"] == "game":
                     store.transition(run_id, "running", "environment")
                     await check_environment(store, run_id, host, manifest, task)
                     store.transition(run_id, "running", "launch")
-                    raise FrameworkError("DEVICE_NOT_IMPLEMENTED", "Game launch is not available")
+                    raise FrameworkError(
+                        ErrorCode.DEVICE_NOT_IMPLEMENTED, "Game launch is not available"
+                    )
             host.check_cancel()
-            store.transition(run_id, "succeeded", "intake")
+            stage = "preprocessing" if run["mode"] == "preprocessing" else "intake"
+            store.transition(run_id, "succeeded", stage)
         except BaseException as exc:
             if isinstance(exc, (KeyboardInterrupt, asyncio.CancelledError)):
-                error = FrameworkError("CANCELLED", "Execution interrupted")
+                if run["mode"] == "preprocessing" and not store.run(run_id)["cancel_requested"]:
+                    error = FrameworkError(ErrorCode.PREPROCESSING_INTERRUPTED)
+                else:
+                    error = FrameworkError(ErrorCode.CANCELLED, "Execution interrupted")
             elif isinstance(exc, TimeoutError):
-                error = FrameworkError("BUDGET_EXHAUSTED", "Run time limit exceeded")
+                error = FrameworkError(ErrorCode.BUDGET_EXHAUSTED)
             else:
                 error = (
                     exc
                     if isinstance(exc, FrameworkError)
-                    else FrameworkError("INTERNAL_ERROR", type(exc).__name__)
+                    else FrameworkError(ErrorCode.INTERNAL_ERROR, type(exc).__name__)
                 )
-            if error.code == "CANCELLED":
+            if error.code == ErrorCode.CANCELLED:
                 status = "cancelled"
             elif error.code in BLOCKED:
                 status = "blocked"

@@ -9,6 +9,13 @@ timeout_seconds = 300
 [environment]
 command_timeout_seconds = 10
 
+[preprocessing]
+request_timeout_seconds = 30
+apk_timeout_seconds = 3600
+batch_timeout_seconds = 86400
+max_attempts = 3
+max_apk_bytes = 8589934592
+
 [codex]
 executable = "codex"
 version = "0.162.1"
