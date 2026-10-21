@@ -98,24 +98,31 @@ class Store:
             raise FrameworkError(ErrorCode.NOT_FOUND, "Task not found")
         return json.loads(row[0])
 
-    def create_run(self, task_id, mode, name=None):
+    def create_run(self, task_id, mode):
         task = self.task(task_id)
-        if name is not None and not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,39}", name):
-            raise FrameworkError(ErrorCode.INVALID_RUN_NAME)
-        subject = name if name is not None else run_subject(task)
+        subject = run_subject(task)
         label = re.sub(r"[^a-z0-9._-]+", "-", subject.lower())[:40].strip("._-") or "task"
         timestamp = now()
+        (self.var / "runs").mkdir(parents=True, exist_ok=True)
         with self.db:
             self.db.execute("BEGIN IMMEDIATE")
-            sequence = self.db.execute("SELECT COALESCE(MAX(rowid),0)+1 FROM runs").fetchone()[0]
-            run_id = f"run_{mode}_{label}_{sequence:06d}"
+            for _ in range(10):
+                run_id = uid(f"run_{label}")
+                existing = self.db.execute("SELECT 1 FROM runs WHERE id=?", (run_id,)).fetchone()
+                if existing:
+                    continue
+                try:
+                    self.run_dir(run_id).mkdir(exist_ok=False)
+                except FileExistsError:
+                    continue
+                break
+            else:
+                raise FrameworkError(ErrorCode.RUN_ID_COLLISION)
             self.db.execute(
-                "INSERT INTO runs(rowid,id,task_id,mode,status,stage,cancel_requested,"
-                "created_at,updated_at) VALUES(?,?,?,?,?,?,0,?,?)",
-                (sequence, run_id, task_id, mode, "queued", "intake", timestamp, timestamp),
+                "INSERT INTO runs VALUES(?,?,?,?,?,0,?,?)",
+                (run_id, task_id, mode, "queued", "intake", timestamp, timestamp),
             )
             self._event(run_id, "run.created", {"mode": mode, "name": label})
-        self.run_dir(run_id).mkdir(parents=True)
         return run_id
 
     def list_runs(self, limit=20):

@@ -45,7 +45,7 @@ coverage.
 Submit a private JSON file containing `{"apkUrls": ["https://example.com/game.apk"]}`:
 
 ```powershell
-uv run game-auto preprocess --input var/apks.json --name daily-build
+uv run game-auto preprocess --input var/apks.json
 uv run game-auto runs --limit 20
 uv run game-auto status <run_id>
 uv run game-auto resume <run_id> --input var/apks.json
