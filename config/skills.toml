@@ -1,0 +1,5 @@
+base = "project-base"
+[stages]
+intake = ["task-intake"]
+exploration = ["game-exploration"]
+reporting = ["report-analysis"]

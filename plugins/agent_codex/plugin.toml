@@ -1,0 +1,9 @@
+name = "agent_codex"
+version = "0.1.0"
+protocol_version = "1.0"
+command = ["{python}", "{plugin}/main.py"]
+capabilities = ["ai.decide", "ai.probe"]
+required_capabilities = []
+optional_capabilities = []
+retry_safe = ["ai.probe"]
+mutating = []

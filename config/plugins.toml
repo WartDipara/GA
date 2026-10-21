@@ -1,0 +1,8 @@
+[plugins.agent_codex]
+manifest = "plugins/agent_codex/plugin.toml"
+enabled = true
+
+# Fixture is only selected by demo, never by a real game run.
+[plugins.fixture]
+manifest = "tests/fixtures/plugin/plugin.toml"
+enabled = true

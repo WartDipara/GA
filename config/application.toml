@@ -1,0 +1,10 @@
+protocol_version = "1.0"
+call_timeout_seconds = 30
+max_attempts = 2
+max_actions = 100
+
+[codex]
+executable = "codex"
+version = "0.162.1"
+timeout_seconds = 180
+# Omit model to use the signed-in account's configured default.

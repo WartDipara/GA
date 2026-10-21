@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://game-automation.local/contracts/v1/decision",
+  "type": "object",
+  "properties": {
+    "observation_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "evidence_refs": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "objective": {
+      "type": "string",
+      "minLength": 1
+    },
+    "reason_summary": {
+      "type": "string",
+      "minLength": 1
+    },
+    "proposed_action": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "type": {
+          "enum": [
+            "tap",
+            "swipe",
+            "back",
+            "wait",
+            "stop"
+          ]
+        },
+        "observation_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "session_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "target_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "x": {
+          "type": "number",
+          "minimum": 0
+        },
+        "y": {
+          "type": "number",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "id",
+        "type",
+        "observation_id",
+        "session_id"
+      ],
+      "additionalProperties": false
+    },
+    "expected_outcome": {
+      "type": "string",
+      "minLength": 1
+    },
+    "uncertainties": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  },
+  "required": [
+    "observation_id",
+    "evidence_refs",
+    "objective",
+    "reason_summary",
+    "proposed_action",
+    "expected_outcome",
+    "uncertainties"
+  ],
+  "additionalProperties": false
+}

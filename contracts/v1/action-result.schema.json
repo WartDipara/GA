@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://game-automation.local/contracts/v1/action-result",
+  "type": "object",
+  "properties": {
+    "action_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "status": {
+      "enum": [
+        "executed",
+        "failed",
+        "unknown"
+      ]
+    },
+    "verified": {
+      "type": "boolean"
+    },
+    "evidence_refs": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "fixture": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "action_id",
+    "status",
+    "verified",
+    "evidence_refs",
+    "fixture"
+  ],
+  "additionalProperties": false
+}

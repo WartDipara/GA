@@ -1,0 +1,15 @@
+{
+  "objective": "Inspect interaction targets reachable by the current account",
+  "platform": "android",
+  "target": "com.example.game",
+  "scope": [
+    "Visible targets for the current account"
+  ],
+  "limits": {
+    "max_actions": 100,
+    "timeout_seconds": 600
+  },
+  "constraints": [
+    "Do not make real payments"
+  ]
+}
