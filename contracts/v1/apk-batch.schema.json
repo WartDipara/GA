@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://game-automation.local/contracts/v1/apk-batch",
+  "type": "object",
+  "properties": {
+    "apkUrls": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1000,
+      "items": { "type": "string", "pattern": "^https?://", "maxLength": 16384 }
+    }
+  },
+  "required": ["apkUrls"],
+  "additionalProperties": false
+}

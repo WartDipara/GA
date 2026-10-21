@@ -7,9 +7,15 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
+from game_automation.errors import ErrorCode
+
 
 class FrameworkError(Exception):
-    def __init__(self, code: str, message: str, *, retryable: bool = False):
+    def __init__(
+        self, code: ErrorCode | str, message: str | None = None, *, retryable: bool = False
+    ):
+        if message is None:
+            message = code.message if isinstance(code, ErrorCode) else "Remote operation failed"
         super().__init__(message)
         self.code = code
         self.retryable = retryable
@@ -95,7 +101,7 @@ def redact(value):
 def within(root: Path, relative: str) -> Path:
     candidate = (root / relative).resolve()
     if not candidate.is_relative_to(root.resolve()):
-        raise FrameworkError("INVALID_PATH", "Path escapes its assigned root")
+        raise FrameworkError(ErrorCode.INVALID_PATH)
     return candidate
 
 

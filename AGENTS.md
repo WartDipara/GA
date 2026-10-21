@@ -11,6 +11,8 @@
 - Use clear domain names and focused functions. Put one statement on each line, separate logical
   steps with blank lines, and use a maximum Python line length of 100 characters. Split long
   expressions and strings for readability.
+- Define framework error codes and their default messages in ErrorCode. Use enum members at call
+  sites; pass a custom message only when it adds context. Do not scatter literal error codes.
 - Assemble dictionaries and other collection results in clearly named variables before returning
   them. Do not construct or merge collections directly in a return expression. Avoid large inline
   payloads inside calls; prepare named payloads first.

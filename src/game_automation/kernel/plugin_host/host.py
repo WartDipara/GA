@@ -5,6 +5,7 @@ import time
 
 from game_automation.common import FrameworkError, redact, uid
 from game_automation.contracts import validate
+from game_automation.errors import ErrorCode
 from game_automation.plugin_sdk.rpc import Peer, spawn, terminate
 
 
@@ -17,15 +18,15 @@ class Host:
 
     def check_cancel(self):
         if self.store.run(self.run_id)["cancel_requested"]:
-            raise FrameworkError("CANCELLED", "Cancellation requested")
+            raise FrameworkError(ErrorCode.CANCELLED)
 
     async def call(self, capability, params, *, parent_span_id=None, timeout=None, ancestry=()):
         self.check_cancel()
         if capability in ancestry or len(ancestry) >= 8:
-            raise FrameworkError("DEPENDENCY_CYCLE", "Capability call cycle or depth limit")
+            raise FrameworkError(ErrorCode.DEPENDENCY_CYCLE)
         plugin = self.router.resolve(capability)
         if capability in plugin["mutating"]:
-            raise FrameworkError("DEVICE_NOT_IMPLEMENTED", "Device execution is not available")
+            raise FrameworkError(ErrorCode.DEVICE_NOT_IMPLEMENTED)
         retries = (
             self.manifest["application"]["max_attempts"]
             if capability in plugin["retry_safe"]
@@ -70,6 +71,8 @@ class Host:
                     validate(
                         self.store.run_dir(self.run_id) / "contracts", "environment-result", result
                     )
+                elif capability == "apk.prepare":
+                    validate(self.store.run_dir(self.run_id) / "contracts", "apk-metadata", result)
                 output_ref = self.store.artifact(
                     self.run_id, f"calls/{span_id}/output.json", result
                 )
@@ -81,19 +84,21 @@ class Host:
                 self.store.event(self.run_id, "call.completed", completed_payload, **trace_ids)
                 return result
             except BaseException as exc:
-                error = (
-                    exc
-                    if isinstance(exc, FrameworkError)
-                    else FrameworkError(
-                        "CANCELLED" if isinstance(exc, asyncio.CancelledError) else "CALL_FAILED",
-                        type(exc).__name__,
+                if isinstance(exc, FrameworkError):
+                    error = exc
+                else:
+                    code = (
+                        ErrorCode.CANCELLED
+                        if isinstance(exc, asyncio.CancelledError)
+                        else ErrorCode.CALL_FAILED
                     )
+                    error = FrameworkError(code, type(exc).__name__)
+                incomplete = error.code in (
+                    ErrorCode.TIMEOUT,
+                    ErrorCode.PROCESS_EXITED,
+                    ErrorCode.CANCELLED,
                 )
-                failure_kind = (
-                    "call.incomplete"
-                    if error.code in ("TIMEOUT", "PROCESS_EXITED", "CANCELLED")
-                    else "call.failed"
-                )
+                failure_kind = "call.incomplete" if incomplete else "call.failed"
                 failure_payload = {
                     "error": error.as_dict(),
                     "attempt": attempt,
@@ -118,7 +123,7 @@ class Host:
             if method == "host.event":
                 kind = payload.get("kind", "")
                 if not kind.startswith(("provider.", "ai.", "plugin.")):
-                    raise FrameworkError("INVALID_EVENT", "Unsupported plugin event kind")
+                    raise FrameworkError(ErrorCode.INVALID_EVENT)
                 if kind == "ai.session":
                     self.store.save_session(
                         self.run_id, payload["payload"]["role"], payload["payload"]["thread_id"]
@@ -135,14 +140,16 @@ class Host:
             if method == "host.call":
                 needed = payload["capability"]
                 if needed not in plugin["required_capabilities"] + plugin["optional_capabilities"]:
-                    raise FrameworkError("CAPABILITY_DENIED", "Undeclared plugin dependency")
+                    raise FrameworkError(
+                        ErrorCode.CAPABILITY_DENIED, "Undeclared plugin dependency"
+                    )
                 return await self.call(
                     needed,
                     payload["input"],
                     parent_span_id=trace_ids["span_id"],
                     ancestry=(*ancestry, capability),
                 )
-            raise FrameworkError("METHOD_NOT_FOUND", method)
+            raise FrameworkError(ErrorCode.METHOD_NOT_FOUND, method)
 
         async def observe(direction, message):
             # Nested provider event is persisted by inbound before its acknowledgement.
@@ -168,12 +175,10 @@ class Host:
                 or result.get("capabilities") != plugin["capabilities"]
                 or result.get("version") != plugin["version"]
             ):
-                raise FrameworkError(
-                    "PLUGIN_INCOMPATIBLE", "Handshake differs from registered manifest"
-                )
+                raise FrameworkError(ErrorCode.PLUGIN_INCOMPATIBLE)
             health = await peer.request("health", {}, timeout)
             if health != {"ok": True}:
-                raise FrameworkError("PLUGIN_UNHEALTHY", "Plugin health check failed")
+                raise FrameworkError(ErrorCode.PLUGIN_UNHEALTHY)
             invocation_context = {
                 "task_id": self.store.run(self.run_id)["task_id"],
                 "run_id": self.run_id,
@@ -204,7 +209,9 @@ class Host:
                     return_when=asyncio.FIRST_COMPLETED,
                 )
                 if not done:
-                    raise FrameworkError("TIMEOUT", "Plugin call deadline exceeded", retryable=True)
+                    raise FrameworkError(
+                        ErrorCode.TIMEOUT, "Plugin call deadline exceeded", retryable=True
+                    )
                 for task in done:
                     if task.exception():
                         raise task.exception()

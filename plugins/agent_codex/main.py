@@ -11,9 +11,11 @@ from pathlib import Path
 
 from game_automation import __version__
 from game_automation.common import FrameworkError, uid
+from game_automation.errors import ErrorCode
 from game_automation.plugin_sdk.rpc import Peer, serve, spawn, terminate
 
 MANIFEST = tomllib.loads(Path(__file__).with_name("plugin.toml").read_text(encoding="utf-8"))
+AUTH_OR_QUOTA_PATTERN = re.compile(r"auth|login|quota|usage.limit|rate.limit", re.I)
 
 
 def strict_schema(schema):
@@ -61,7 +63,7 @@ class CodexAdapter:
     async def decide(self, params):
         executable = shutil.which(params["codex"]["executable"])
         if not executable:
-            raise FrameworkError("CODEX_UNAVAILABLE", "Codex executable was not found")
+            raise FrameworkError(ErrorCode.CODEX_UNAVAILABLE)
         version_process = await spawn([executable, "--version"])
         try:
             stdout, _ = await asyncio.wait_for(version_process.communicate(), 10)
@@ -70,7 +72,8 @@ class CodexAdapter:
         actual_version = stdout.decode().strip()
         if actual_version != f"codex-cli {params['codex']['version']}":
             raise FrameworkError(
-                "CODEX_VERSION_MISMATCH", f"Runtime must match pinned {params['codex']['version']}"
+                ErrorCode.CODEX_VERSION_MISMATCH,
+                f"Runtime must match pinned {params['codex']['version']}",
             )
         overrides = {
             "features.shell_tool": False,
@@ -167,12 +170,8 @@ class CodexAdapter:
                     },
                 )
                 if not completed.done():
-                    completed.set_exception(
-                        FrameworkError(
-                            "AI_REQUIRES_INPUT", "Codex requested external action or approval"
-                        )
-                    )
-                raise FrameworkError("CAPABILITY_DENIED", "This adapter only produces decisions")
+                    completed.set_exception(FrameworkError(ErrorCode.AI_REQUIRES_INPUT))
+                raise FrameworkError(ErrorCode.CAPABILITY_DENIED)
             acknowledgement = {}
             return acknowledgement
 
@@ -233,27 +232,27 @@ class CodexAdapter:
                 if stderr_task.done() and stderr_task.exception():
                     raise stderr_task.exception()
                 if asyncio.get_running_loop().time() >= deadline:
-                    raise FrameworkError("TIMEOUT", "Codex turn timed out")
+                    raise FrameworkError(ErrorCode.TIMEOUT)
                 await asyncio.sleep(0.02)
             turn = completed.result()
             if turn["status"] != "completed":
                 error_text = json.dumps(turn.get("error", {}))
-                if re.search(r"auth|login|quota|usage.limit|rate.limit", error_text, re.I):
-                    raise FrameworkError(
-                        "AI_UNAVAILABLE", "Codex authentication or quota requires attention"
-                    )
-                raise FrameworkError("AI_TURN_FAILED", f"Codex turn ended with {turn['status']}")
+                if AUTH_OR_QUOTA_PATTERN.search(error_text):
+                    raise FrameworkError(ErrorCode.AI_UNAVAILABLE)
+                raise FrameworkError(
+                    ErrorCode.AI_TURN_FAILED, f"Codex turn ended with {turn['status']}"
+                )
             for item in turn.get("items", []):
                 if item.get("type") == "agentMessage" and item.get("phase") != "commentary":
                     messages[item["id"]] = item.get("text", "")
             if not messages:
-                raise FrameworkError("AI_OUTPUT_MISSING", "Completed turn has no final message")
+                raise FrameworkError(ErrorCode.AI_OUTPUT_MISSING)
             try:
                 decision = restore_optional(
                     json.loads(list(messages.values())[-1]), params["turn"]["outputSchema"]
                 )
             except ValueError as exc:
-                raise FrameworkError("AI_OUTPUT_INVALID", "Final message is not JSON") from exc
+                raise FrameworkError(ErrorCode.AI_OUTPUT_INVALID) from exc
             await self.emit("ai.summary_availability", {"available": bool(summaries)})
             decision_result = {
                 "decision": decision,
@@ -291,7 +290,7 @@ def handler_factory(peer):
             return response
         if method == "invoke" and params["capability"] in MANIFEST["capabilities"]:
             return await adapter.decide(params["input"])
-        raise FrameworkError("METHOD_NOT_FOUND", method)
+        raise FrameworkError(ErrorCode.METHOD_NOT_FOUND, method)
 
     return handler
 

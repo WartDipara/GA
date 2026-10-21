@@ -5,6 +5,7 @@ import sqlite3
 from pathlib import Path
 
 from game_automation.common import FrameworkError, atomic_json, now, redact, uid, within
+from game_automation.errors import ErrorCode
 
 
 class Store:
@@ -21,7 +22,7 @@ class Store:
         self.db.execute("PRAGMA foreign_keys=ON")
         version = self.db.execute("PRAGMA user_version").fetchone()[0]
         if version not in (0, 1):
-            raise FrameworkError("SCHEMA_VERSION", "Unsupported database version")
+            raise FrameworkError(ErrorCode.SCHEMA_VERSION)
         schema_sql = """
             CREATE TABLE IF NOT EXISTS tasks (
                 id TEXT PRIMARY KEY,
@@ -75,9 +76,7 @@ class Store:
             row = self.db.execute("SELECT * FROM tasks WHERE submission_key=?", (key,)).fetchone()
             if row:
                 if row["spec"] != encoded:
-                    raise FrameworkError(
-                        "IDEMPOTENCY_CONFLICT", "Submission key belongs to another task"
-                    )
+                    raise FrameworkError(ErrorCode.IDEMPOTENCY_CONFLICT)
                 return row["id"]
         task_id = uid("task")
         with self.db:
@@ -87,7 +86,7 @@ class Store:
     def task(self, task_id):
         row = self.db.execute("SELECT spec FROM tasks WHERE id=?", (task_id,)).fetchone()
         if not row:
-            raise FrameworkError("NOT_FOUND", "Task not found")
+            raise FrameworkError(ErrorCode.NOT_FOUND, "Task not found")
         return json.loads(row[0])
 
     def create_run(self, task_id, mode):
@@ -105,7 +104,7 @@ class Store:
     def run(self, run_id):
         row = self.db.execute("SELECT * FROM runs WHERE id=?", (run_id,)).fetchone()
         if not row:
-            raise FrameworkError("NOT_FOUND", "Run not found")
+            raise FrameworkError(ErrorCode.NOT_FOUND, "Run not found")
         run = dict(row)
         return run
 
@@ -123,7 +122,7 @@ class Store:
         event_id=None,
     ):
         if not isinstance(payload, dict):
-            raise FrameworkError("INVALID_EVENT", "Event payload must be an object")
+            raise FrameworkError(ErrorCode.INVALID_EVENT, "Event payload must be an object")
         run = self.run(run_id)
         event = {
             "event_id": event_id or uid("evt"),
@@ -142,9 +141,7 @@ class Store:
         if previous:
             old = json.loads(previous[0])
             if any(old.get(key) != value for key, value in event.items() if key != "timestamp"):
-                raise FrameworkError(
-                    "EVENT_ID_CONFLICT", "Event ID was reused for different content"
-                )
+                raise FrameworkError(ErrorCode.EVENT_ID_CONFLICT)
             return old
         self.db.execute(
             "INSERT OR IGNORE INTO events(event_id,run_id,span_id,kind,data) VALUES(?,?,?,?,?)",
@@ -158,7 +155,7 @@ class Store:
                 return self._event(run_id, kind, payload, **ids)
         except sqlite3.Error as exc:
             raise FrameworkError(
-                "TRACE_UNAVAILABLE", "Cannot persist trace; execution halted"
+                ErrorCode.TRACE_UNAVAILABLE, "Cannot persist trace; execution halted"
             ) from exc
 
     def transition(self, run_id, status, stage=None, reason=None):
@@ -174,7 +171,9 @@ class Store:
         if status not in allowed[run["status"]]:
             if status == run["status"]:
                 return
-            raise FrameworkError("INVALID_STATE", f"Cannot change {run['status']} to {status}")
+            raise FrameworkError(
+                ErrorCode.INVALID_STATE, f"Cannot change {run['status']} to {status}"
+            )
         with self.db:
             state_payload = {
                 "from": run["status"],
@@ -227,7 +226,7 @@ class Store:
     def supplement(self, run_id, text):
         if not text.strip() or "\x00" in text or len(text.encode("utf-8")) > 200_000:
             raise FrameworkError(
-                "INVALID_DOCUMENT",
+                ErrorCode.INVALID_DOCUMENT,
                 "Supplement must contain 1 to 200,000 UTF-8 bytes and no null bytes",
             )
         try:
@@ -235,8 +234,10 @@ class Store:
                 # Serialize the state check and append against a concurrent resume.
                 self.db.execute("BEGIN IMMEDIATE")
                 run = self.run(run_id)
+                if run["mode"] == "preprocessing":
+                    raise FrameworkError(ErrorCode.APK_INPUT_REQUIRED)
                 if run["status"] != "blocked":
-                    raise FrameworkError("INVALID_STATE", "Supplement input only on blocked runs")
+                    raise FrameworkError(ErrorCode.INVALID_STATE)
                 if (
                     run["mode"] in ("intake", "game")
                     and self.db.execute(
@@ -244,13 +245,13 @@ class Store:
                     ).fetchone()
                 ):
                     raise FrameworkError(
-                        "INTAKE_NEW_RUN_REQUIRED",
+                        ErrorCode.INTAKE_NEW_RUN_REQUIRED,
                         "Intake is accepted; submit a new task to change requirements",
                     )
                 return self._event(run_id, "task.supplement", {"text": text})
         except sqlite3.Error as exc:
             raise FrameworkError(
-                "TRACE_UNAVAILABLE", "Cannot persist supplement; execution halted"
+                ErrorCode.TRACE_UNAVAILABLE, "Cannot persist supplement; execution halted"
             ) from exc
 
     def unknown_actions(self, run_id):

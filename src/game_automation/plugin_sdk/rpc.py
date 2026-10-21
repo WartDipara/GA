@@ -8,6 +8,7 @@ import signal
 import sys
 
 from game_automation.common import FrameworkError
+from game_automation.errors import ErrorCode
 
 MAX_MESSAGE = 8 * 1024 * 1024
 
@@ -40,7 +41,7 @@ class Peer:
             await self.observer("out", message)
         encoded = (json.dumps(message, ensure_ascii=False, allow_nan=False) + "\n").encode()
         if len(encoded) > MAX_MESSAGE:
-            raise FrameworkError("MESSAGE_TOO_LARGE", "Use artifact references for large payloads")
+            raise FrameworkError(ErrorCode.MESSAGE_TOO_LARGE)
         self.writer.write(encoded)
         await self.writer.drain()
 
@@ -55,7 +56,7 @@ class Peer:
             return await asyncio.wait_for(future, timeout)
         except TimeoutError as exc:
             raise FrameworkError(
-                "TIMEOUT", f"Timed out waiting for {method}", retryable=True
+                ErrorCode.TIMEOUT, f"Timed out waiting for {method}", retryable=True
             ) from exc
         finally:
             self.pending.pop(request_id, None)
@@ -66,7 +67,7 @@ class Peer:
     async def _dispatch(self, message):
         try:
             if not self.handler:
-                raise FrameworkError("METHOD_NOT_FOUND", "Inbound method is not supported")
+                raise FrameworkError(ErrorCode.METHOD_NOT_FOUND)
             result = await self.handler(message["method"], message.get("params", {}))
             if "id" in message:
                 await self.send({"id": message["id"], "result": result})
@@ -75,7 +76,7 @@ class Peer:
                 error = (
                     exc
                     if isinstance(exc, FrameworkError)
-                    else FrameworkError("HANDLER_FAILED", type(exc).__name__)
+                    else FrameworkError(ErrorCode.HANDLER_FAILED, type(exc).__name__)
                 )
                 error_details = {
                     "code": -32000,
@@ -101,14 +102,12 @@ class Peer:
             while True:
                 line = await self.reader.readline()
                 if not line:
-                    raise FrameworkError(
-                        "PROCESS_EXITED", "Protocol stream ended before completion", retryable=True
-                    )
+                    raise FrameworkError(ErrorCode.PROCESS_EXITED, retryable=True)
                 message = json.loads(line)
                 if not isinstance(message, dict) or (
                     not self.codex and message.get("jsonrpc") != "2.0"
                 ):
-                    raise FrameworkError("INVALID_PROTOCOL", "Expected JSON-RPC 2.0 object")
+                    raise FrameworkError(ErrorCode.INVALID_PROTOCOL)
                 if self.observer:
                     await self.observer("in", message)
                 if "method" in message:
@@ -125,7 +124,7 @@ class Peer:
                                 data = {}
                             future.set_exception(
                                 FrameworkError(
-                                    data.get("code", "RPC_ERROR"),
+                                    data.get("code", ErrorCode.RPC_ERROR),
                                     error.get("message", "Remote call failed"),
                                     retryable=data.get("retryable", False),
                                 )
@@ -134,17 +133,19 @@ class Peer:
                             future.set_result(message["result"])
                         else:
                             raise FrameworkError(
-                                "INVALID_PROTOCOL", "Response has no result or error"
+                                ErrorCode.INVALID_PROTOCOL, "Response has no result or error"
                             )
         except asyncio.CancelledError:
             raise
         except Exception as exc:
             if not isinstance(exc, FrameworkError):
-                exc = FrameworkError("INVALID_PROTOCOL", "Invalid or oversized protocol stream")
+                exc = FrameworkError(
+                    ErrorCode.INVALID_PROTOCOL, "Invalid or oversized protocol stream"
+                )
             self._fail(exc)
 
     async def close(self):
-        self._fail(FrameworkError("CLOSED", "Connection closed"))
+        self._fail(FrameworkError(ErrorCode.CLOSED))
         self.read_task.cancel()
         for task in list(self.handlers):
             task.cancel()
@@ -193,7 +194,7 @@ class StdioReader:
     async def readline(self):
         line = await asyncio.to_thread(sys.stdin.buffer.readline, MAX_MESSAGE + 1)
         if len(line) > MAX_MESSAGE:
-            raise FrameworkError("MESSAGE_TOO_LARGE", "Protocol line too large")
+            raise FrameworkError(ErrorCode.MESSAGE_TOO_LARGE, "Protocol line too large")
         return line
 
 

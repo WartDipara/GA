@@ -6,6 +6,7 @@ import tomllib
 from pathlib import Path
 
 from game_automation.common import FrameworkError
+from game_automation.errors import ErrorCode
 from game_automation.plugin_sdk.rpc import serve
 
 MANIFEST = tomllib.loads(Path(__file__).with_name("plugin.toml").read_text(encoding="utf-8"))
@@ -22,7 +23,7 @@ def create_handler(peer):
             intake_response = {"ok": True}
             return intake_response
         if method != "invoke" or params["capability"] != "task.intake":
-            raise FrameworkError("METHOD_NOT_FOUND", method)
+            raise FrameworkError(ErrorCode.METHOD_NOT_FOUND, method)
         intake_request = params["input"]
         if intake_request["task"] is not None:
             task = intake_request["task"]
@@ -42,7 +43,7 @@ def create_handler(peer):
             }
             return intake_response
         if intake_request["ai"] is None:
-            raise FrameworkError("INVALID_CONTRACT", "Document intake requires an AI request")
+            raise FrameworkError(ErrorCode.INVALID_CONTRACT)
         dependency_request = {"capability": "ai.decide", "input": intake_request["ai"]}
         result = await peer.request(
             "host.call",

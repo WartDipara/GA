@@ -4,6 +4,7 @@ from pathlib import Path
 
 from game_automation.common import FrameworkError
 from game_automation.contracts import validate
+from game_automation.errors import ErrorCode
 
 
 def load_plugins(root: Path):
@@ -14,11 +15,11 @@ def load_plugins(root: Path):
             continue
         manifest_path = (root / entry["manifest"]).resolve()
         if not manifest_path.is_relative_to(root):
-            raise FrameworkError("INVALID_PATH", "Manifest outside project")
+            raise FrameworkError(ErrorCode.INVALID_PATH, "Manifest outside project")
         manifest = tomllib.loads(manifest_path.read_text(encoding="utf-8"))
         validate(root / "contracts/v1", "plugin", manifest)
         if manifest["name"] != name:
-            raise FrameworkError("INVALID_PLUGIN", "Plugin name mismatch")
+            raise FrameworkError(ErrorCode.INVALID_PLUGIN)
         manifest["command"] = [
             argument.replace("{python}", sys.executable).replace(
                 "{plugin}", str(manifest_path.parent)
@@ -36,18 +37,18 @@ class Router:
         for plugin in plugins.values():
             for capability in plugin["capabilities"]:
                 if capability in self.providers:
-                    raise FrameworkError("AMBIGUOUS_CAPABILITY", capability)
+                    raise FrameworkError(ErrorCode.AMBIGUOUS_CAPABILITY, capability)
                 self.providers[capability] = plugin
 
     def resolve(self, capability):
         if capability not in self.providers:
             raise FrameworkError(
-                "MISSING_CAPABILITY", f"Required capability unavailable: {capability}"
+                ErrorCode.MISSING_CAPABILITY, f"Required capability unavailable: {capability}"
             )
         plugin = self.providers[capability]
         for dependency in plugin["required_capabilities"]:
             if dependency not in self.providers:
                 raise FrameworkError(
-                    "MISSING_CAPABILITY", f"{plugin['name']} requires {dependency}"
+                    ErrorCode.MISSING_CAPABILITY, f"{plugin['name']} requires {dependency}"
                 )
         return plugin

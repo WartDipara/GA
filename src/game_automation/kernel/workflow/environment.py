@@ -2,6 +2,7 @@ import os
 
 from game_automation.common import FrameworkError
 from game_automation.contracts import validate
+from game_automation.errors import ErrorCode
 
 
 async def check_environment(store, run_id, host, manifest, task):
@@ -25,5 +26,5 @@ async def check_environment(store, run_id, host, manifest, task):
     store.event(run_id, "environment.checked", result, **trace_ids)
     if result["status"] == "blocked":
         blocker = next(check for check in result["checks"] if check["status"] == "blocked")
-        raise FrameworkError("ENVIRONMENT_BLOCKED", blocker["message"])
+        raise FrameworkError(ErrorCode.ENVIRONMENT_BLOCKED, blocker["message"])
     return result

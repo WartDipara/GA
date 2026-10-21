@@ -1,5 +1,9 @@
 # Plugin status
 
+Implemented: apk_preprocessing provides streaming downloads, durable resume checkpoints, archive
+integrity checks, and compact AAPT2 metadata in a separate workspace per APK. It does not change
+packages or operate devices. See [APK preprocessing](../docs/preprocessing.md).
+
 Implemented: agent_codex provides the pinned App Server handshake, explicit skill inputs, public
 event collection, and structured results.
 

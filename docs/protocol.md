@@ -24,8 +24,8 @@ may register a capability.
 
 Reverse requests:
 
-- host.event({kind,payload,event*id?}): provider.*, ai.\_, and plugin.\* namespaces; await
-  persisted:true before continuing.
+- `host.event({kind,payload,event_id?})`: `provider.*`, `ai.*`, and `plugin.*` namespaces; await
+  `persisted:true` before continuing.
 - host.call({capability,input}): declared dependencies only. The kernel creates a child span and
   rejects dependency cycles.
 
@@ -33,6 +33,10 @@ Notifications do not prove business success. Results and post-action observation
 outcomes.
 
 ## Errors and events
+
+ErrorCode centralizes framework wire codes and default messages. FrameworkError accepts an enum
+member and an optional contextual message. The wire values remain strings; unknown remote codes are
+preserved. Provider error classification stays in its adapter.
 
 error.data contains code/message/retryable. The host enforces deadlines and records abnormal exits,
 invalid stdout, timeouts, and cancellations. Errors do not echo invalid field values. Only
@@ -51,6 +55,20 @@ Codex omits jsonrpc on its wire; only the adapter knows that difference.
 Compile maintained Python sources and syntax-check maintained JavaScript. Do not add or run mock or
 smoke tests. Business schemas, permission checks, trace persistence, and recovery rules remain
 enforced during actual task execution; they are not replaced by compilation checks.
+
+## APK preprocessing
+
+The CLI accepts apk-batch JSON. The apk.prepare capability uses apk-prepare-request and returns
+apk-metadata. Requests reference a caller-owned list file, item index, source digest, assigned
+workspace, and download settings. The input file is read only, and its selected URL must match the
+digest. Raw addresses are not included in RPC messages. The kernel validates requests and metadata;
+the plugin writes only its assigned APK files and download checkpoint, never SQLite.
+
+preprocessing.apk.started/ready/blocked events identify each item. The host associates capability
+calls with their spans; plugin.preprocessing events expose HTTP attempts, progress, restarts,
+archive validation, and metadata-tool output. The kernel writes metadata and batch-summary
+artifacts. Resume reuses verified local files or continues safe partial downloads, with distinct
+call spans. See [APK preprocessing](preprocessing.md).
 
 ## Task intake
 

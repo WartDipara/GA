@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 
 from game_automation.common import FrameworkError
+from game_automation.errors import ErrorCode
 
 
 class ExecutionLock:
@@ -29,9 +30,7 @@ class ExecutionLock:
                 fcntl.flock(self.file, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except OSError as exc:
             self.file.close()
-            raise FrameworkError(
-                "RUN_BUSY", "Another local execution owns the device/workflow lock"
-            ) from exc
+            raise FrameworkError(ErrorCode.RUN_BUSY) from exc
         return self
 
     def __exit__(self, *_):
