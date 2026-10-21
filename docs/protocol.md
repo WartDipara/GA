@@ -29,9 +29,9 @@ Raw protocol messages and normalized events are retained. Stable event_id values
 
 trace.schema defines the public envelope. Payloads depend on event kind. Provider-specific payloads remain diagnostic records. Observations, decisions, actions, and results use their own schemas. Codex omits jsonrpc on its wire; only the adapter knows that difference.
 
-## Validation
+## Development verification
 
-Test handshake, success, invalid inputs, timeout/crash, stderr, and malformed output. Device-changing capabilities additionally need disconnection/unknown handling, before/after evidence, budgets, and no automatic replay. Integration tests use real child processes with synthetic providers.
+Compile maintained Python sources and syntax-check maintained JavaScript. Do not add or run mock or smoke tests. Business schemas, permission checks, trace persistence, and recovery rules remain enforced during actual task execution; they are not replaced by compilation checks.
 
 ## Task intake
 

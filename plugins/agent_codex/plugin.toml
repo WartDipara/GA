@@ -1,9 +1,9 @@
 name = "agent_codex"
-version = "0.1.0"
+version = "0.2.0"
 protocol_version = "1.0"
 command = ["{python}", "{plugin}/main.py"]
-capabilities = ["ai.decide", "ai.probe"]
+capabilities = ["ai.decide"]
 required_capabilities = []
 optional_capabilities = []
-retry_safe = ["ai.probe"]
+retry_safe = []
 mutating = []

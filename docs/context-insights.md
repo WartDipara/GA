@@ -42,4 +42,4 @@ Composition includes visible request content and public response content. Trend 
 
 Select a turn to update composition, usage, and the browser. Filter by category or search content. Expand an item to inspect its recorded text, source sequence, digest, and frozen skill path. Execution events remain separate from AI content. The raw call tree and event evidence remain available below.
 
-The report includes a CSP-hashed local script and no external assets. JSON embedded in HTML escapes markup delimiters; the browser renders record contents with textContent. context.json provides the same read model without UI. No price feed, analytics, or external requests are made.
+The report uses trace.html as its template, with a CSP-hashed local script and no external assets. JSON embedded in HTML escapes markup delimiters; the browser renders record contents with textContent. context.json provides the same read model without UI. No price feed, analytics, or external requests are made.

@@ -58,19 +58,19 @@ def parser():
     export = commands.add_parser("export-trace")
     export.add_argument("run_id")
     export.add_argument("--format", choices=["html"], default="html")
-    commands.add_parser("demo", help="Run fixture plugins only; no device or model calls")
-    commands.add_parser(
-        "codex-probe", help="Verify the local Codex version and handshake without inference"
-    )
-    commands.add_parser(
-        "codex-smoke",
-        help="Verify skills and structured output with real inference; uses account quota",
-    )
     return cli
 
 
 def print_json(value):
     print(json_text(redact(value)))
+
+
+def run_details(store, run_id):
+    details = store.run(run_id)
+    details["intake"] = intake_status(store, run_id)
+    details["unknown_actions"] = store.unknown_actions(run_id)
+    details["trace"] = str(store.run_dir(run_id) / "reports/trace.html")
+    return details
 
 
 def main(argv=None):
@@ -92,44 +92,20 @@ def main(argv=None):
             )
             validate(root / "contracts/v1", "document" if args.document else "task", task)
             print_json({"task_id": store.submit(task, args.key)})
-        elif args.command in ("run", "intake", "demo", "codex-probe", "codex-smoke"):
-            if args.command in ("run", "intake"):
-                task_id, mode = args.task_id, "game" if args.command == "run" else "intake"
-            else:
-                mode = args.command
-                task_id = store.submit(
-                    {
-                        "objective": "Framework validation only; no real game coverage",
-                        "platform": "fixture",
-                        "target": "synthetic",
-                        "scope": ["framework"],
-                        "limits": {"max_actions": 1, "timeout_seconds": 300},
-                        "constraints": ["No real device actions"],
-                    }
-                )
+        elif args.command in ("run", "intake"):
+            task_id = args.task_id
+            mode = "game" if args.command == "run" else "intake"
             run_id = new_run(store, task_id, mode)
             print_json({"task_id": task_id, "run_id": run_id})
             result = asyncio.run(execute(store, run_id))
-            print_json(
-                {
-                    **result,
-                    "intake": intake_status(store, run_id),
-                    "trace": str(store.run_dir(run_id) / "reports/trace.html"),
-                }
-            )
+            print_json(run_details(store, run_id))
             return 0 if result["status"] == "succeeded" else 2
         elif args.command == "resume":
             result = asyncio.run(execute(store, args.run_id))
-            print_json({**result, "intake": intake_status(store, args.run_id)})
+            print_json(run_details(store, args.run_id))
             return 0 if result["status"] == "succeeded" else 2
         elif args.command == "status":
-            print_json(
-                {
-                    **store.run(args.run_id),
-                    "unknown_actions": store.unknown_actions(args.run_id),
-                    "intake": intake_status(store, args.run_id),
-                }
-            )
+            print_json(run_details(store, args.run_id))
         elif args.command == "provide":
             store.supplement(args.run_id, args.text)
             print_json({"saved": True, "run_id": args.run_id})
@@ -145,24 +121,25 @@ def main(argv=None):
             print(export_trace(store, args.run_id))
         elif args.command == "context":
             view = build_insights(store, args.run_id)
-            print_json(
-                view
-                if args.json
-                else {
+            if args.json:
+                print_json(view)
+            else:
+                request_summaries = [
+                    {
+                        "id": request["id"],
+                        "source": request["source"],
+                        "status": request["status"],
+                        "summary_available": request["summary_available"],
+                    }
+                    for request in view["requests"]
+                ]
+                context_details = {
                     "run": view["run"],
                     "summary": view["summary"],
                     "visibility": view["visibility"],
-                    "requests": [
-                        {
-                            "id": r["id"],
-                            "source": r["source"],
-                            "status": r["status"],
-                            "summary_available": r["summary_available"],
-                        }
-                        for r in view["requests"]
-                    ],
+                    "requests": request_summaries,
                 }
-            )
+                print_json(context_details)
         elif args.command == "trace":
             after = 0
             while True:

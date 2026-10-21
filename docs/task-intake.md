@@ -8,7 +8,7 @@ The first document adapter reads UTF-8 TXT and Markdown locally, with optional B
 
 ## Submission and acceptance
 
-The existing tasks.spec column holds either the unchanged canonical task schema or the additive document envelope schema. No existing schema or database table changes. The submission remains the user's original redacted input; it is never overwritten by AI output. A successful intake records the separately validated canonical task in intake.accepted. Downstream phases receive this accepted value. Original M0 submissions and offline reports remain readable; code-pinned old runs need a new execution batch after this upgrade.
+The tasks.spec column holds either a canonical task or a document envelope. The submission remains the user's original redacted input; it is never overwritten by AI output. A successful intake records the separately validated canonical task in intake.accepted. Downstream phases receive this accepted value. Existing offline reports remain readable; code changes require a new execution batch.
 
 Sources have stable IDs: submission and the event_id of each task.supplement. A SHA-256 digest of their ordered content identifies the input revision. Each request snapshots sources/defaults into artifacts/intake/<revision>/sources.json and each result into result.json. intake.input, intake.needs_input, intake.rejected, and intake.accepted retain the revision. Result events share the task.intake span, whose ai.decide child records actual prompt inputs, frozen skills, public provider events, and structured output.
 
@@ -26,10 +26,10 @@ An intake-only run succeeds at stage intake. A game run proceeds to environment 
 
 ## Protocol
 
-intake-request.schema.json describes the plugin request: nullable canonical task, source list, policy defaults, and nullable AI request assembled by the kernel. intake-result.schema.json describes status, nullable canonical task, questions, reason_summary, and provenance. The inline canonical shape is checked against task.schema.json in tests. Cross-field rules and quote/budget checks are enforced after the schema at the kernel boundary.
+intake-request.schema.json describes the plugin request: nullable canonical task, source list, policy defaults, and nullable AI request assembled by the kernel. intake-result.schema.json describes status, nullable canonical task, questions, reason_summary, and provenance. The inline canonical shape follows task.schema.json. Cross-field rules and quote/budget checks are enforced after the schema at the kernel boundary.
 
 No UI or hidden chain-of-thought access is required. The existing offline timeline shows the source snapshots, module call tree, clarification, acceptance or rejection, and actual public AI events. Inspect with status, trace, inspect, context, or export-trace. Offline browsing does not parse a document again or call a model/device.
 
 ## Skill delivery compatibility
 
-The [official App Server documentation](https://learn.chatgpt.com/docs/app-server#skills) recommends explicit skill input items to inject instructions. M1 real-call validation found that path-only items did not inject the full body with this client's disabled automatic skill instructions. The missing-target result was rejected rather than accepted. Prompt assembly now includes both explicit items and the full frozen instructions in the actual submitted text. This remains deterministic even when provider discovery is disabled and makes instruction delivery directly inspectable. It does not expose the provider's hidden system prompt. Protocol fixtures assert the body is present, and real clarification/resume validation checks the resulting behavior.
+Prompt assembly includes explicit Skill items and the full frozen instructions in submitted text. Instruction delivery remains deterministic when automatic provider discovery is disabled, and the recorded request shows exactly what the caller supplied. The provider's hidden system prompt is not exposed. See the [App Server Skill protocol](https://learn.chatgpt.com/docs/app-server#skills).

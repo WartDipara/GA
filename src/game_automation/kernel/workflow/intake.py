@@ -24,7 +24,8 @@ def read_document(path: Path):
     text = redact(text.replace("\r\n", "\n").replace("\r", "\n"))
     if not text.strip() or "\x00" in text:
         raise FrameworkError("INVALID_DOCUMENT", "Document is empty or contains null bytes")
-    return {"kind": "document", "filename": path.name, "text": text}
+    document_input = {"kind": "document", "filename": path.name, "text": text}
+    return document_input
 
 
 def revision(sources):

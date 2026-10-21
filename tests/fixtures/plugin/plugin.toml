@@ -1,9 +1,0 @@
-name = "fixture"
-version = "0.1.0"
-protocol_version = "1.0"
-command = ["{python}", "{plugin}/main.py"]
-capabilities = ["fixture.echo", "fixture.decide", "fixture.act", "fixture.fail", "fixture.slow", "fixture.crash", "fixture.corrupt", "fixture.nested"]
-required_capabilities = []
-optional_capabilities = ["fixture.echo"]
-retry_safe = ["fixture.echo", "fixture.fail"]
-mutating = ["fixture.act"]

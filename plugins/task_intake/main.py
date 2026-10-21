@@ -14,15 +14,19 @@ MANIFEST = tomllib.loads(Path(__file__).with_name("plugin.toml").read_text(encod
 def factory(peer):
     async def handler(method, params):
         if method == "initialize":
-            return {key: MANIFEST[key] for key in ("protocol_version", "version", "capabilities")}
+            intake_response = {
+                key: MANIFEST[key] for key in ("protocol_version", "version", "capabilities")
+            }
+            return intake_response
         if method == "health":
-            return {"ok": True}
+            intake_response = {"ok": True}
+            return intake_response
         if method != "invoke" or params["capability"] != "task.intake":
             raise FrameworkError("METHOD_NOT_FOUND", method)
         value = params["input"]
         if value["task"] is not None:
             task = value["task"]
-            return {
+            intake_response = {
                 "status": "ready",
                 "task": task,
                 "questions": [],
@@ -36,6 +40,7 @@ def factory(peer):
                     for field, content in task.items()
                 ],
             }
+            return intake_response
         if value["ai"] is None:
             raise FrameworkError("INVALID_CONTRACT", "Document intake requires an AI request")
         result = await peer.request(

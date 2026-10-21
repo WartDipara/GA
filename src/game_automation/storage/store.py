@@ -82,7 +82,8 @@ class Store:
         row = self.db.execute("SELECT * FROM runs WHERE id=?", (run_id,)).fetchone()
         if not row:
             raise FrameworkError("NOT_FOUND", "Run not found")
-        return dict(row)
+        run = dict(row)
+        return run
 
     def run_dir(self, run_id):
         return within(self.var / "runs", run_id)
@@ -174,7 +175,8 @@ class Store:
             sql += " AND span_id=?"
             args.append(span)
         rows = self.db.execute(sql + " ORDER BY seq", args).fetchall()
-        return [{"seq": row[0], **json.loads(row[1])} for row in rows]
+        events = [{"seq": row[0], **json.loads(row[1])} for row in rows]
+        return events
 
     def artifact(self, run_id, relative, value):
         path = within(self.run_dir(run_id), relative)
@@ -230,32 +232,11 @@ class Store:
                 "TRACE_UNAVAILABLE", "Cannot persist supplement; execution halted"
             ) from exc
 
-    def reserve_action(self, run_id, action_id):
-        # Never replay an already-dispatched action, including an unknown result.
-        with self.db:
-            if self.db.execute(
-                "SELECT 1 FROM actions WHERE run_id=? AND action_id=?", (run_id, action_id)
-            ).fetchone():
-                raise FrameworkError(
-                    "ACTION_ALREADY_DISPATCHED", "Action requires reconciliation; not replayed"
-                )
-            self._event(run_id, "action.intent", {"action_id": action_id})
-            self.db.execute(
-                "INSERT INTO actions VALUES(?,?,?,NULL)", (run_id, action_id, "unknown")
-            )
-
-    def finish_action(self, run_id, action_id, result):
-        with self.db:
-            self._event(run_id, "action.result", result)
-            self.db.execute(
-                "UPDATE actions SET status=?,result=? WHERE run_id=? AND action_id=?",
-                (result["status"], json.dumps(redact(result)), run_id, action_id),
-            )
-
     def unknown_actions(self, run_id):
-        return [
-            r[0]
-            for r in self.db.execute(
+        action_ids = [
+            row[0]
+            for row in self.db.execute(
                 "SELECT action_id FROM actions WHERE run_id=? AND status='unknown'", (run_id,)
             )
         ]
+        return action_ids

@@ -8,6 +8,6 @@ Choose Codex App Server stdio for explicit skill inputs, continuous events, and 
 
 Tracing is an execution prerequisite: event persistence must be acknowledged, and action intents precede dispatch. Unknown device outcomes must not be replayed. SQLite is the authoritative event/state source; browser/JSON reports are rebuildable projections.
 
-Future modules are document intake, Android control, perception, exploration, and game coverage reporting. They must not be registered as working placeholders.
+Task intake is implemented. Future modules are Android control, perception, exploration, and game coverage reporting. They must not be registered as working placeholders.
 
 References: [App Server](https://learn.chatgpt.com/docs/app-server), [configuration](https://learn.chatgpt.com/docs/config-file/config-reference).

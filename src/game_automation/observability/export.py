@@ -1,7 +1,9 @@
 import base64
+import hashlib
 import html
 import json
 from pathlib import Path
+from string import Template
 
 from game_automation.common import FrameworkError, atomic_json, within
 from game_automation.observability.insights import build_insights
@@ -10,7 +12,7 @@ from game_automation.observability.insights import build_insights
 def export_trace(store, run_id):
     """Offline context dashboard and raw evidence viewer; no network or device calls."""
     events = store.events(run_id)
-    spans = {e["span_id"]: e for e in events if e["kind"] == "call.started"}
+    spans = {event["span_id"]: event for event in events if event["kind"] == "call.started"}
     children = {}
     for span, event in spans.items():
         parent = event["parent_span_id"]
@@ -49,11 +51,15 @@ def export_trace(store, run_id):
                         }[path.suffix.lower()]
                         encoded = base64.b64encode(path.read_bytes()).decode("ascii")
                         artifacts.append(
-                            f'<figure><img style="max-width:480px;width:100%" src="data:{mime};base64,{encoded}" alt="{html.escape(relative, quote=True)}"><figcaption>{html.escape(relative)}</figcaption></figure>'
+                            '<figure><img style="max-width:480px;width:100%" '
+                            f'src="data:{mime};base64,{encoded}" '
+                            f'alt="{html.escape(relative, quote=True)}">'
+                            f"<figcaption>{html.escape(relative)}</figcaption></figure>"
                         )
                     else:
                         artifacts.append(
-                            f'<a href="{html.escape(path.as_uri(), quote=True)}">{html.escape(relative)}</a>'
+                            f'<a href="{html.escape(path.as_uri(), quote=True)}">'
+                            f"{html.escape(relative)}</a>"
                         )
         return (
             f"<details><summary>#{event['seq']} {html.escape(event['kind'])} "
@@ -64,15 +70,19 @@ def export_trace(store, run_id):
         if span in visited:
             return "<p>Cycle in recorded trace</p>"
         event = spans[span]
-        own = "".join(render_event(e) for e in events if e["span_id"] == span)
+        own = "".join(render_event(event) for event in events if event["span_id"] == span)
         nested = "".join(render_span(child, visited | {span}) for child in children.get(span, []))
-        return f"<details open><summary>{html.escape(event['payload']['capability'])}  -  {html.escape(span)}</summary>{own}{nested}</details>"
+        rendered_span = (
+            f"<details open><summary>{html.escape(event['payload']['capability'])}  -  "
+            f"{html.escape(span)}</summary>{own}{nested}</details>"
+        )
+        return rendered_span
 
-    body = "".join(render_span(s) for s in children.get(None, []))
+    body = "".join(render_span(span_id) for span_id in children.get(None, []))
     body += "<h2>Workflow events</h2>" + "".join(
-        render_event(e) for e in events if e["span_id"] not in spans
+        render_event(event) for event in events if event["span_id"] not in spans
     )
-    body += "<h2>Chronological index</h2>" + "".join(render_event(e) for e in events)
+    body += "<h2>Chronological index</h2>" + "".join(render_event(event) for event in events)
     insights = build_insights(store, run_id)
     # JSON embedded in HTML must not terminate its non-executable script element.
     embedded = (
@@ -84,26 +94,16 @@ def export_trace(store, run_id):
     assets = Path(__file__).parent
     script = (assets / "dashboard.js").read_text(encoding="utf-8")
     css = (assets / "dashboard.css").read_text(encoding="utf-8")
-    import hashlib
-
     script_hash = base64.b64encode(hashlib.sha256(script.encode()).digest()).decode("ascii")
-    document = f"""<!doctype html><html lang="en-US"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src 'self' data:; script-src 'sha256-{script_hash}'; base-uri 'none'; form-action 'none'">
-<title>Context insights  |  {html.escape(run_id)}</title><style>{css}</style></head><body><main>
-<header><div class="eyebrow">GAME AUTOMATION  |  CONTEXT INSIGHTS</div><h1 id="run-title">Context insights</h1><p id="run-meta"></p></header>
-<p class="notice" id="visibility"></p><section class="metrics" id="metrics" aria-label="Run overview"></section>
-<div class="grid"><div>
-<section class="panel"><h2>Turn trend</h2><small>Each bar is an observed application turn. Height estimates visible input text, not internal model requests or context occupancy.</small><div id="trend" class="trend"></div></section>
-<section class="panel"><h2>Provider-reported usage</h2><div id="actuals" class="actuals"></div></section>
-<section class="panel"><h2>Content composition</h2><small>Visible inputs and public responses for the selected turn. Skills are separate; hidden content is excluded.</small><div class="composition" id="composition"></div><div id="legend" class="legend"></div><p id="diff" class="muted"></p><p id="summary-state" class="muted"></p></section>
-</div><div><section class="panel"><h2>Context browser</h2><select id="request-select" aria-label="Select turn"></select><p id="request-info" class="muted"></p><div id="categories" class="categories"></div><input id="content-search" class="search" placeholder="Search skills, instructions, inputs, or outputs" aria-label="Search context"><div id="browser" class="browser"></div><div id="notes"></div></section></div></div>
-<section class="panel"><h2>Context and execution events</h2><div class="toolbar"><select id="event-filter" aria-label="Event scope"><option value="all">All turns and execution events</option><option value="request">Selected turn events</option></select><input id="event-search" placeholder="Search events" aria-label="Search events"></div><div id="context-events"></div></section>
-<section class="panel raw"><details><summary>Expand raw call tree and event evidence</summary>{body}</details></section>
-<noscript><p class="notice">JavaScript is disabled. Raw records remain available below; the complete read model is in context.json.</p></noscript>
-<footer>This view filters saved records locally without network or device calls. Fixtures verify framework behavior only.
-Design reference: <a href="https://github.com/bowenliang123/dsh-context">dsh-context</a> event projections and context browsing. This dashboard is an independent implementation.</footer>
-</main><script type="application/json" id="insight-data">{embedded}</script><script data-local="dashboard">{script}</script></body></html>"""
+    template = Template((assets / "trace.html").read_text(encoding="utf-8"))
+    document = template.substitute(
+        script_hash=script_hash,
+        run_title=html.escape(run_id),
+        style=css,
+        raw_evidence=body,
+        dashboard_data=embedded,
+        dashboard_script=script,
+    )
     path = store.run_dir(run_id) / "reports/trace.html"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(document, encoding="utf-8")

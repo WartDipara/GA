@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en-US">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; style-src 'unsafe-inline'; img-src 'self' data:; script-src 'sha256-${script_hash}'; base-uri 'none'; form-action 'none'"
+    >
+    <title>Context insights | ${run_title}</title>
+    <style>${style}</style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <div class="eyebrow">GAME AUTOMATION | CONTEXT INSIGHTS</div>
+        <h1 id="run-title">Context insights</h1>
+        <p id="run-meta"></p>
+      </header>
+      <p class="notice" id="visibility"></p>
+      <section class="metrics" id="metrics" aria-label="Run overview"></section>
+      <div class="grid">
+        <div>
+          <section class="panel">
+            <h2>Turn trend</h2>
+            <small>
+              Each bar is an observed application turn. Height estimates visible input
+              text, not internal model requests or context occupancy.
+            </small>
+            <div id="trend" class="trend"></div>
+          </section>
+          <section class="panel">
+            <h2>Provider-reported usage</h2>
+            <div id="actuals" class="actuals"></div>
+          </section>
+          <section class="panel">
+            <h2>Content composition</h2>
+            <small>
+              Visible inputs and public responses for the selected turn.
+              Skills are separate; hidden content is excluded.
+            </small>
+            <div class="composition" id="composition"></div>
+            <div id="legend" class="legend"></div>
+            <p id="diff" class="muted"></p>
+            <p id="summary-state" class="muted"></p>
+          </section>
+        </div>
+        <div>
+          <section class="panel">
+            <h2>Context browser</h2>
+            <select id="request-select" aria-label="Select turn"></select>
+            <p id="request-info" class="muted"></p>
+            <div id="categories" class="categories"></div>
+            <input
+              id="content-search"
+              class="search"
+              placeholder="Search skills, instructions, inputs, or outputs"
+              aria-label="Search context"
+            >
+            <div id="browser" class="browser"></div>
+            <div id="notes"></div>
+          </section>
+        </div>
+      </div>
+      <section class="panel">
+        <h2>Context and execution events</h2>
+        <div class="toolbar">
+          <select id="event-filter" aria-label="Event scope">
+            <option value="all">All turns and execution events</option>
+            <option value="request">Selected turn events</option>
+          </select>
+          <input id="event-search" placeholder="Search events" aria-label="Search events">
+        </div>
+        <div id="context-events"></div>
+      </section>
+      <section class="panel raw">
+        <details>
+          <summary>Expand raw call tree and event evidence</summary>
+          ${raw_evidence}
+        </details>
+      </section>
+      <noscript>
+        <p class="notice">
+          JavaScript is disabled. Raw records remain available;
+          the complete read model is in context.json.
+        </p>
+      </noscript>
+      <footer>Offline execution record.</footer>
+    </main>
+    <script type="application/json" id="insight-data">${dashboard_data}</script>
+    <script data-local="dashboard">${dashboard_script}</script>
+  </body>
+</html>

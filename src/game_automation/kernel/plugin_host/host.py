@@ -3,7 +3,7 @@ import contextlib
 import os
 import time
 
-from game_automation.common import FrameworkError, redact, uid, within
+from game_automation.common import FrameworkError, redact, uid
 from game_automation.contracts import validate
 from game_automation.plugin_sdk.rpc import Peer, spawn, terminate
 
@@ -21,17 +21,11 @@ class Host:
         if capability in ancestry or len(ancestry) >= 8:
             raise FrameworkError("DEPENDENCY_CYCLE", "Capability call cycle or depth limit")
         plugin = self.router.resolve(capability)
-        mutating = capability in plugin["mutating"]
-        if mutating:
-            # The current release has no real device executor. Fixture path is explicit.
-            if capability != "fixture.act" or self.store.run(self.run_id)["mode"] != "demo":
-                raise FrameworkError(
-                    "DEVICE_NOT_IMPLEMENTED", "Real-device action execution is not available"
-                )
-            self._validate_action(params)
+        if capability in plugin["mutating"]:
+            raise FrameworkError("DEVICE_NOT_IMPLEMENTED", "Device execution is not available")
         retries = (
             self.manifest["application"]["max_attempts"]
-            if capability in plugin["retry_safe"] and not mutating
+            if capability in plugin["retry_safe"]
             else 1
         )
         timeout = timeout or (
@@ -60,16 +54,9 @@ class Host:
                 **ids,
             )
             try:
-                if mutating:
-                    self.store.reserve_action(self.run_id, params["action"]["id"])
                 result = await self._attempt(plugin, capability, params, timeout, ids, ancestry)
                 if capability == "task.intake":
                     validate(self.store.run_dir(self.run_id) / "contracts", "intake-result", result)
-                if mutating:
-                    validate(self.store.run_dir(self.run_id) / "contracts", "action-result", result)
-                    if result["action_id"] != params["action"]["id"]:
-                        raise FrameworkError("INVALID_CONTRACT", "Action result ID mismatch")
-                    self.store.finish_action(self.run_id, params["action"]["id"], result)
                 output_ref = self.store.artifact(self.run_id, f"calls/{span}/output.json", result)
                 self.store.event(
                     self.run_id,
@@ -116,41 +103,6 @@ class Host:
                     continue
                 raise error from exc
 
-    def _validate_action(self, params):
-        contracts = self.store.run_dir(self.run_id) / "contracts"
-        validate(contracts, "action", params["action"])
-        validate(contracts, "observation", params["observation"])
-        action, observation = params["action"], params["observation"]
-        recorded = [
-            e for e in self.store.events(self.run_id) if e["kind"] == "observation.captured"
-        ]
-        if not recorded or recorded[-1]["payload"].get("observation") != observation:
-            raise FrameworkError(
-                "STALE_OBSERVATION", "Observation is not the latest persisted frame"
-            )
-        for ref in observation["evidence_refs"]:
-            if not within(self.store.run_dir(self.run_id), ref).is_file():
-                raise FrameworkError("EVIDENCE_MISSING", "Observation evidence is unavailable")
-        if (
-            action["observation_id"] != observation["id"]
-            or action["session_id"] != observation["session_id"]
-        ):
-            raise FrameworkError(
-                "STALE_OBSERVATION", "Action does not refer to current observation/session"
-            )
-        if action["type"] == "tap":
-            if not (
-                0 <= action.get("x", -1) < observation["width"]
-                and 0 <= action.get("y", -1) < observation["height"]
-            ):
-                raise FrameworkError("INVALID_COORDINATES", "Tap is outside screenshot")
-        count = self.store.db.execute(
-            "SELECT COUNT(*) FROM actions WHERE run_id=?", (self.run_id,)
-        ).fetchone()[0]
-        task = self.store.task(self.store.run(self.run_id)["task_id"])
-        if count >= min(task["limits"]["max_actions"], self.manifest["application"]["max_actions"]):
-            raise FrameworkError("BUDGET_EXHAUSTED", "Action limit reached")
-
     async def _attempt(self, plugin, capability, params, timeout, ids, ancestry):
         async def inbound(method, payload):
             if method == "host.event":
@@ -168,7 +120,8 @@ class Host:
                     event_id=payload.get("event_id"),
                     **ids,
                 )
-                return {"persisted": True}
+                acknowledgement = {"persisted": True}
+                return acknowledgement
             if method == "host.call":
                 needed = payload["capability"]
                 if needed not in plugin["required_capabilities"] + plugin["optional_capabilities"]:

@@ -1,9 +1,0 @@
-name = "intake_ai_fixture"
-version = "0.1.0"
-protocol_version = "1.0"
-command = ["{python}", "{plugin}/main.py"]
-capabilities = ["ai.decide"]
-required_capabilities = []
-optional_capabilities = []
-retry_safe = []
-mutating = []

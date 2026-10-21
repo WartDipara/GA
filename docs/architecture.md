@@ -18,10 +18,9 @@ SQLite WAL with synchronous=FULL stores state and events. Each state transition 
 
 ## Action uncertainty
 
-Actions refer to the latest persisted observation and session. Taps must remain within screenshot bounds. This release only enables fixture.act in explicit demo mode.
-An action intent is persisted before dispatch and initially has an unknown outcome. Returned results settle it. Unknown actions cannot be replayed; completed fixture actions are reused from records on recovery. Verification requires post-action evidence.
+Device-changing capabilities are currently unavailable and are rejected before dispatch. When a device executor is implemented, actions must refer to the latest persisted observation and session, stay within coordinate bounds and budgets, and persist an intent before dispatch. Verification requires post-action evidence.
 
-This is conservative duplicate prevention, not an exactly-once guarantee across a database and device. Only declared retry-safe, non-mutating capabilities retry; attempts have separate spans. The action budget is cumulative per run. The timeout limits each execution/resume invocation, excluding paused time.
+Existing action records remain readable. An unknown outcome blocks resumption until reconciled. Only declared retry-safe, non-mutating capabilities retry; attempts have separate spans. The timeout limits each execution/resume invocation, excluding paused time.
 
 ## Skills and provider
 
@@ -35,4 +34,4 @@ Optional business fields become required nullable fields for provider strict out
 
 ## Current scope
 
-M0 implements communication, persistence, skills, tracing, and context inspection. M1 adds canonical and UTF-8 text/Markdown intake, source/default attribution, append-only clarification, and accepted-task recovery. See [task intake](task-intake.md). Android lifecycle/control, perception, exploration algorithms, and game coverage reports remain unregistered future capabilities. Fixture and inference checks are not real-game acceptance.
+The framework implements communication, persistence, Skills, tracing, context inspection, and task intake with source attribution and clarification recovery. See [task intake](task-intake.md). Android lifecycle/control, perception, exploration algorithms, and game coverage reports remain unregistered future capabilities. Development verification is compilation only and does not establish runtime or game acceptance.

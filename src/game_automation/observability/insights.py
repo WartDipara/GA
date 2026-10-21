@@ -57,7 +57,7 @@ def project(events, run, read_text):
     calls, terminal, context_events = {}, {}, []
     instructions, fresh_threads, totals = {}, set(), {}
     category_names = dict(CATEGORIES)
-    raw_spans = {e.get("span_id") for e in events if e["kind"] == "provider.wire"}
+    raw_spans = {event.get("span_id") for event in events if event["kind"] == "provider.wire"}
 
     def make_request(event, params, source):
         span = event.get("span_id")
@@ -85,7 +85,7 @@ def project(events, run, read_text):
         if source == "provider.wire":
             thread = request["thread_id"]
             request["_baseline"] = totals.get(
-                thread, {k: 0 for k in USAGE_KEYS} if thread in fresh_threads else None
+                thread, {key: 0 for key in USAGE_KEYS} if thread in fresh_threads else None
             )
         for name in ("baseInstructions", "developerInstructions"):
             if instructions.get(span, {}).get(name):
@@ -196,7 +196,10 @@ def project(events, run, read_text):
                     "seq": event["seq"],
                     "kind": "compaction",
                     "request_id": request["id"],
-                    "detail": "Public compaction event; removed content is not exposed and full context is not reconstructed",
+                    "detail": (
+                        "Public compaction event; removed content is not exposed "
+                        "and full context is not reconstructed"
+                    ),
                 }
             )
 
@@ -208,10 +211,10 @@ def project(events, run, read_text):
         delta = None
         if total is not None and baseline is not None:
             candidate = {
-                k: total[k] - baseline[k]
-                if total[k] is not None and baseline.get(k) is not None
+                key: total[key] - baseline[key]
+                if total[key] is not None and baseline.get(key) is not None
                 else None
-                for k in USAGE_KEYS
+                for key in USAGE_KEYS
             }
             if all(v is None or v >= 0 for v in candidate.values()):
                 delta = candidate
@@ -226,7 +229,7 @@ def project(events, run, read_text):
         if total is not None and request.get("thread_id"):
             totals[request["thread_id"]] = total
 
-    for event in sorted(events, key=lambda e: e["seq"]):
+    for event in sorted(events, key=lambda e: event["seq"]):
         kind, payload, span = event["kind"], event.get("payload", {}), event.get("span_id")
         if kind == "call.started":
             calls[span] = event
@@ -393,40 +396,44 @@ def project(events, run, read_text):
         before = previous.get(session)
         request["diff"] = {
             "comparable": before is not None,
-            "added": [v["id"] for k, v in inputs.items() if before is not None and k not in before],
+            "added": [
+                v["id"] for key, v in inputs.items() if before is not None and key not in before
+            ],
             "removed": [
                 {"category": v["category"], "title": v["title"], "sha256": v["sha256"]}
-                for k, v in (before or {}).items()
-                if k not in inputs
+                for key, v in (before or {}).items()
+                if key not in inputs
             ],
         }
         previous[session] = inputs
         request["composition"] = composition
         request["estimated_input_tokens"] = sum(
-            composition[k]["estimated_tokens"]
-            for k in ("instructions", "skills", "inputs", "schema", "attachments")
+            composition[key]["estimated_tokens"]
+            for key in ("instructions", "skills", "inputs", "schema", "attachments")
         )
         request["summary_available"] = any(
             i["category"] == "reasoning" and i["content"] for i in request["items"]
         )
         request["notes"].append(
-            "Only application-visible content is shown. A skill reference path does not prove it was read. Internal history and the complete compacted model context are not observable."
+            "Only application-visible content is shown. A skill reference path does not prove "
+            "it was read. Internal history and the complete compacted model context "
+            "are not observable."
         )
         for key in list(request):
             if key.startswith("_"):
                 del request[key]
-    aggregate = {k: None for k in USAGE_KEYS}
+    aggregate = {key: None for key in USAGE_KEYS}
     known = [
-        r["usage"]["observed_turn_delta"]
-        for r in requests
-        if r["usage"] and r["usage"]["observed_turn_delta"] is not None
+        request["usage"]["observed_turn_delta"]
+        for request in requests
+        if request["usage"] and request["usage"]["observed_turn_delta"] is not None
     ]
     for key in USAGE_KEYS:
         values = [value[key] for value in known if value[key] is not None]
         if values:
             aggregate[key] = sum(values)
-    counts = Counter(e["kind"] for e in events)
-    return {
+    counts = Counter(event["kind"] for event in events)
+    insights = {
         "version": 1,
         "run": dict(run),
         "categories": category_names,
@@ -449,6 +456,7 @@ def project(events, run, read_text):
             "cost": None,
         },
     }
+    return insights
 
 
 def build_insights(store, run_id):

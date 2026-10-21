@@ -14,7 +14,8 @@ class FrameworkError(Exception):
         self.code, self.retryable = code, retryable
 
     def as_dict(self):
-        return {"code": self.code, "message": str(self), "retryable": self.retryable}
+        error_details = {"code": self.code, "message": str(self), "retryable": self.retryable}
+        return error_details
 
 
 def uid(prefix: str) -> str:
@@ -49,16 +50,18 @@ SENSITIVE = re.compile(
     re.I,
 )
 INLINE = re.compile(
-    r"""(?i)((?:password|passwd|api[_-]?key|access_token|refresh_token|token|secret|authorization|cookie)\s*[=:]\s*)(?:"[^"\n]*"|'[^'\n]*'|[^\s,;&]+)"""
+    r"(?i)((?:password|passwd|api[_-]?key|access_token|refresh_token|token|secret|"
+    r"authorization|cookie)\s*[=:]\s*)"
+    r"""(?:"[^"\n]*"|'[^'\n]*'|[^\s,;&]+)"""
 )
 
 
 def redact(value):
     if isinstance(value, dict):
-        return {
-            k: "[REDACTED]"
-            if SENSITIVE.match(str(k))
-            or re.sub(r"[^a-z]", "", str(k).lower()).endswith(
+        redacted_value = {
+            field_name: "[REDACTED]"
+            if SENSITIVE.match(str(field_name))
+            or re.sub(r"[^a-z]", "", str(field_name).lower()).endswith(
                 (
                     "password",
                     "passwd",
@@ -70,11 +73,13 @@ def redact(value):
                     "cookie",
                 )
             )
-            else redact(v)
-            for k, v in value.items()
+            else redact(field_value)
+            for field_name, field_value in value.items()
         }
+        return redacted_value
     if isinstance(value, list):
-        return [redact(v) for v in value]
+        redacted_value = [redact(item) for item in value]
+        return redacted_value
     if isinstance(value, str):
         try:
             decoded = json.loads(value)
