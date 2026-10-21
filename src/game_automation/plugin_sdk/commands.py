@@ -17,17 +17,18 @@ async def read_limited(stream, limit):
 
 
 class Commands:
-    def __init__(self, peer, timeout):
+    def __init__(self, peer, timeout, *, namespace):
         self.peer = peer
         self.timeout = timeout
+        self.namespace = namespace
 
     async def event(self, kind, payload):
-        request = {"kind": "plugin.mumu." + kind, "payload": payload}
+        request = {"kind": f"plugin.{self.namespace}.{kind}", "payload": payload}
         result = await self.peer.request("host.event", request)
         if result != {"persisted": True}:
             raise FrameworkError(ErrorCode.TRACE_UNAVAILABLE)
 
-    async def run(self, command, *, screenshot=None):
+    async def run(self, command, *, screenshot=None, allow_failure=False):
         command_id = uid("cmd")
         details = {"command_id": command_id, "arguments": command}
         await self.event("command.started", details)
@@ -61,13 +62,13 @@ class Commands:
             else:
                 result["stdout"] = stdout.decode("utf-8", errors="replace")
             result["duration_ms"] = round((time.monotonic() - started) * 1000)
-            if process.returncode != 0:
+            if process.returncode != 0 and not allow_failure:
                 raise FrameworkError(ErrorCode.LOCAL_COMMAND_FAILED)
             await self.event("command.completed", result)
             return result
         except BaseException as exc:
             if isinstance(exc, TimeoutError):
-                error = FrameworkError(ErrorCode.TIMEOUT, "MuMu command timed out")
+                error = FrameworkError(ErrorCode.TIMEOUT, "Local command timed out")
             elif isinstance(exc, asyncio.CancelledError):
                 raise
             elif isinstance(exc, FrameworkError):

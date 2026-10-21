@@ -3,10 +3,11 @@
 A modular game-testing framework for exploring reachable interactions and recording the paths,
 decisions, actions, and evidence behind them.
 
-APK preprocessing, task intake, Android environment checks, MuMu discovery and screenshots,
-independent process plugins, frozen runtime Skills, Codex integration, and offline trace inspection
-are implemented. General game runtime acceptance remains pending. Automated Android control, visual
-recognition, exploration, and game coverage reporting remain planned capabilities.
+APK preprocessing, task intake, Android environment checks, MuMu discovery and screenshots, bound
+APK preparation, focused-display observations, independent process plugins, frozen runtime Skills,
+Codex integration, and offline trace inspection are implemented. Installation and observation
+workflow acceptance remains pending. General input control, game launch, visual recognition,
+exploration, and game coverage reporting remain planned capabilities.
 
 ## Setup
 
@@ -80,6 +81,20 @@ Running instances and their ADB endpoints are discovered automatically from MuMu
 adapter queries readiness and optional screenshots without changing applications or emulator
 settings. Root is not required. See [MuMu discovery](docs/emulators.md) for selection and local
 overrides.
+
+## Device preparation and observations
+
+```powershell
+uv run game-auto observe --instance <index>
+uv run game-auto prepare-device --from-run <preprocessing_run_id> --apk-index 0 --instance <index>
+```
+
+Select a dedicated, already-running instance for each ready APK workspace. The kernel persists a
+unique reservation, checks Android disk capacity, and verifies installation against the source
+SHA-256. Uncertain installations are inspected before recovery and never replayed blindly. The
+observer follows the focused Android display and checks rotation and screenshot dimensions. Instance
+creation, cleanup, input control, and application launch are not part of these commands. See
+[device preparation](docs/device-preparation.md) for ownership, recovery, and acceptance limits.
 
 ## Trace inspection
 

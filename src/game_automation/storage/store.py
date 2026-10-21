@@ -30,7 +30,7 @@ class Store:
         self.db.execute("PRAGMA synchronous=FULL")
         self.db.execute("PRAGMA foreign_keys=ON")
         version = self.db.execute("PRAGMA user_version").fetchone()[0]
-        if version not in (0, 1):
+        if version not in (0, 1, 2):
             raise FrameworkError(ErrorCode.SCHEMA_VERSION)
         schema_sql = """
             CREATE TABLE IF NOT EXISTS tasks (
@@ -71,7 +71,13 @@ class Store:
                 result TEXT,
                 PRIMARY KEY(run_id, action_id)
             );
-            PRAGMA user_version=1;
+            CREATE TABLE IF NOT EXISTS device_bindings (
+                instance_id TEXT PRIMARY KEY,
+                apk_key TEXT UNIQUE NOT NULL,
+                instance_index INTEGER NOT NULL,
+                run_id TEXT UNIQUE NOT NULL REFERENCES runs(id)
+            );
+            PRAGMA user_version=2;
         """
         self.db.executescript(schema_sql)
 
@@ -306,3 +312,130 @@ class Store:
             )
         ]
         return action_ids
+
+    def reserve_device(self, run_id, instance_id, instance_index, apk_key):
+        with self.db:
+            self.db.execute("BEGIN IMMEDIATE")
+            rows = self.db.execute(
+                "SELECT * FROM device_bindings WHERE instance_id=? OR apk_key=?",
+                (instance_id, apk_key),
+            ).fetchall()
+            if rows:
+                expected = {
+                    "instance_id": instance_id,
+                    "apk_key": apk_key,
+                    "instance_index": instance_index,
+                }
+                if len(rows) != 1 or any(rows[0][key] != value for key, value in expected.items()):
+                    raise FrameworkError(ErrorCode.DEVICE_BINDING_CONFLICT)
+                if rows[0]["run_id"] != run_id:
+                    payload = {"instance_id": instance_id, "reservation_run": rows[0]["run_id"]}
+                    self._event(run_id, "device.reservation.reused", payload)
+                return
+            self.db.execute(
+                "INSERT INTO device_bindings VALUES(?,?,?,?)",
+                (instance_id, apk_key, instance_index, run_id),
+            )
+            binding = {
+                "instance_id": instance_id,
+                "instance_index": instance_index,
+                "apk_key": apk_key,
+            }
+            self._event(run_id, "device.reserved", binding)
+
+    def begin_device_action(self, run_id, instance_id, input_ref, max_actions, span_id):
+        with self.db:
+            self.db.execute("BEGIN IMMEDIATE")
+            binding = self.db.execute(
+                "SELECT apk_key FROM device_bindings WHERE instance_id=?", (instance_id,)
+            ).fetchone()
+            task = self.task(self.run(run_id)["task_id"])
+            apk_key = f"{task.get('source_run')}:{task.get('apk_index')}"
+            if binding is None or binding[0] != apk_key or task.get("kind") != "device_preparation":
+                raise FrameworkError(ErrorCode.DEVICE_BINDING_CONFLICT)
+            count = self.db.execute(
+                "SELECT COUNT(*) FROM actions WHERE run_id=?", (run_id,)
+            ).fetchone()[0]
+            if count >= max_actions:
+                raise FrameworkError(ErrorCode.BUDGET_EXHAUSTED)
+            pending = self.db.execute(
+                "SELECT 1 FROM actions WHERE json_extract(result,'$.instance_id')=? "
+                "AND status IN ('prepared','unknown','executed')",
+                (instance_id,),
+            ).fetchone()
+            if pending:
+                raise FrameworkError(ErrorCode.DEVICE_INSTALL_UNKNOWN)
+            action_id = uid("action")
+            details = {
+                "capability": "device.install",
+                "input_ref": input_ref,
+                "instance_id": instance_id,
+                "span_id": span_id,
+            }
+            self.db.execute(
+                "INSERT INTO actions VALUES(?,?,?,?)",
+                (run_id, action_id, "prepared", json.dumps(details)),
+            )
+            self._event(
+                run_id, "action.intent", {"action_id": action_id, **details}, span_id=span_id
+            )
+        return action_id
+
+    def dispatch_device_action(self, run_id, action_id):
+        with self.db:
+            row = self.db.execute(
+                "SELECT status,result FROM actions WHERE run_id=? AND action_id=?",
+                (run_id, action_id),
+            ).fetchone()
+            if row is None or row[0] != "prepared":
+                raise FrameworkError(ErrorCode.INVALID_STATE)
+            details = json.loads(row[1])
+            self.db.execute(
+                "UPDATE actions SET status='unknown' WHERE run_id=? AND action_id=?",
+                (run_id, action_id),
+            )
+            self._event(
+                run_id,
+                "action.dispatched",
+                {"action_id": action_id, **details},
+                span_id=details["span_id"],
+            )
+
+    def latest_device_action(self, run_id):
+        task = self.task(self.run(run_id)["task_id"])
+        apk_key = f"{task.get('source_run')}:{task.get('apk_index')}"
+        row = self.db.execute(
+            "SELECT a.run_id,a.action_id,a.status,a.result FROM actions a "
+            "JOIN device_bindings b ON json_extract(a.result,'$.instance_id')=b.instance_id "
+            "WHERE b.apk_key=? ORDER BY a.rowid DESC LIMIT 1",
+            (apk_key,),
+        ).fetchone()
+        if row is None:
+            return None
+        action = {
+            "run_id": row["run_id"],
+            "action_id": row["action_id"],
+            "status": row["status"],
+            **json.loads(row["result"]),
+        }
+        return action
+
+    def finish_device_action(self, run_id, action_id, status, result):
+        if status not in ("executed", "rejected", "verified"):
+            raise FrameworkError(ErrorCode.INVALID_STATE)
+        with self.db:
+            row = self.db.execute(
+                "SELECT status,result FROM actions WHERE run_id=? AND action_id=?",
+                (run_id, action_id),
+            ).fetchone()
+            if row is None or row[0] not in ("prepared", "unknown", "executed"):
+                raise FrameworkError(ErrorCode.INVALID_STATE)
+            if row[0] == "prepared" and status != "rejected":
+                raise FrameworkError(ErrorCode.INVALID_STATE)
+            details = {**json.loads(row[1]), "result": redact(result)}
+            self.db.execute(
+                "UPDATE actions SET status=?,result=? WHERE run_id=? AND action_id=?",
+                (status, json.dumps(details), run_id, action_id),
+            )
+            payload = {"action_id": action_id, "from": row[0], "status": status, **details}
+            self._event(run_id, "action.result", payload, span_id=details["span_id"])

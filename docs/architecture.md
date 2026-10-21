@@ -28,14 +28,19 @@ cancellation commands may run concurrently. Plugins never receive database conne
 
 ## Action uncertainty
 
-Device-changing capabilities are currently unavailable and are rejected before dispatch. When a
-device executor is implemented, actions must refer to the latest persisted observation and session,
-stay within coordinate bounds and budgets, and persist an intent before dispatch. Verification
-requires post-action evidence.
+The kernel currently authorizes only `device.install` through its installation dispatcher. It
+requires an APK-to-instance reservation, persists intent, and commits uncertain status before
+acknowledging the plugin's dispatch request. Direct or nested installation calls lack that grant and
+are denied. Other mutating capabilities remain unavailable. Future coordinate actions must reference
+a fresh observation and session and stay within bounds. Post-action evidence verifies outcomes; an
+ADB success response alone does not.
 
-Existing action records remain readable. An unknown outcome blocks resumption until reconciled. Only
-declared retry-safe, non-mutating capabilities retry; attempts have separate spans. The timeout
-limits each execution/resume invocation, excluding paused time.
+Existing action records remain readable. Device preparation may resume read-only inspection of an
+uncertain install; a new mutation remains blocked until reconciled. Reservations span execution
+batches so a runtime upgrade cannot bypass an earlier unknown outcome. Only declared retry-safe,
+non-mutating capabilities retry; attempts have separate spans. Overall deadlines depend on the run
+mode. Long-running preparation has no aggregate deadline; individual commands retain their own
+limits.
 
 ## Skills and provider
 
@@ -64,6 +69,13 @@ validates evidence and records discovery in the `emulators` run mode. Provider-s
 management commands stay inside the adapter. Lifecycle management and automated input remain
 separate, unavailable capabilities. See [MuMu discovery](emulators.md).
 
+The independent `android_device` plugin requests `emulator.session` through the host, without
+importing adapter code. It inspects packages and Android capacity, installs a bound APK, and reads
+the focused logical display with capture-time consistency checks. Shared bounded command transport
+and PNG parsing live in the SDK. The kernel alone owns reservations, action states, and evidence
+validation. SQLite schema version 2 adds the reservation table without discarding earlier state. See
+[device preparation](device-preparation.md). Installation workflow acceptance is pending.
+
 APK preprocessing is a separate run mode that accepts URL-list digests and uses apk.plan to estimate
 the whole batch's disk budget before starting downloads. The kernel adds work-file overhead, a
 margin, and a free-space reserve. Insufficient capacity blocks execution; recovery estimates again.
@@ -78,6 +90,6 @@ intake with source attribution and clarification recovery. The environment plugi
 selects a device, and checks boot completion and installed package paths. Environment results are
 diagnostics, not device-control acceptance. Every resume performs fresh checks; no previous result
 authorizes launch. See [task intake](task-intake.md) and [environment checks](environment.md).
-Android lifecycle/control, perception, exploration algorithms, and game coverage reports remain
-unregistered future capabilities. Development verification is compilation only and does not
-establish runtime or game acceptance.
+General Android lifecycle/input control, perception, exploration algorithms, and game coverage
+reports remain unregistered future capabilities. Development verification is compilation only and
+does not establish runtime or game acceptance.

@@ -2,7 +2,8 @@
 
 MuMu is the initial emulator provider. This increment discovers existing instances, connects ADB,
 checks Android readiness, and optionally captures screenshots. Instance creation, cloning, reboot,
-APK installation, general input control, and game exploration remain separate capabilities.
+general input control, and game exploration remain separate capabilities. Bound installation and
+focused-display capture are described in [device preparation](device-preparation.md).
 
 ```powershell
 uv run game-auto emulators
@@ -55,3 +56,8 @@ lock prevents discovery from overlapping another local workflow executor.
 This provides device discovery and observation, not application lifecycle or gameplay acceptance.
 Any explicitly requested operator input observations remain local evidence, separate from the
 framework's still-unavailable automated game-control capabilities.
+
+`emulator.session` additionally resolves an explicit instance's identity, serial, and local ADB
+executable for the independent Android plugin. It verifies creation identity, endpoint, connection,
+and completed boot. Device requests pin the returned identity and endpoint; the adapter rechecks
+them before each capability call. It does not reserve the instance or authorize mutations.

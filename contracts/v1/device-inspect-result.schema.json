@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://game-automation.local/contracts/v1/device-inspect-result",
+  "type": "object",
+  "properties": {
+    "session": {
+      "type": "object",
+      "properties": {
+        "instance_index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "instance_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "serial": {
+          "type": "string",
+          "minLength": 1
+        },
+        "adb_executable": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": ["instance_index", "instance_id", "serial", "adb_executable"],
+      "additionalProperties": false
+    },
+    "package_name": {
+      "type": "string",
+      "pattern": "^[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z][A-Za-z0-9_]*)+$"
+    },
+    "installed": {
+      "type": "boolean"
+    },
+    "sha256": {
+      "type": ["string", "null"],
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "available_bytes": {
+      "type": "integer",
+      "minimum": 0
+    }
+  },
+  "required": ["session", "package_name", "installed", "sha256", "available_bytes"],
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "installed": {
+            "const": true
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "sha256": {
+            "type": "null"
+          }
+        }
+      }
+    }
+  ]
+}

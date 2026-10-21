@@ -1,0 +1,9 @@
+name = "android_device"
+version = "0.1.0"
+protocol_version = "1.0"
+command = ["{python}", "{plugin}/main.py"]
+capabilities = ["device.inspect", "device.install", "device.observe"]
+required_capabilities = ["emulator.session"]
+optional_capabilities = []
+retry_safe = []
+mutating = ["device.install"]

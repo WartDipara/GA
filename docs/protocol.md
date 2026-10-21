@@ -28,6 +28,10 @@ Reverse requests:
   `persisted:true` before continuing.
 - host.call({capability,input}): declared dependencies only. The kernel creates a child span and
   rejects dependency cycles.
+- `host.action({instance_id,serial})`: only the current kernel-dispatched `device.install` call may
+  request this grant. The kernel commits the action as unknown before returning `persisted:true`.
+  Acknowledgement is required immediately before the installation command; it does not verify an
+  outcome or grant any other device capability.
 
 Notifications do not prove business success. Results and post-action observations establish
 outcomes.
@@ -117,6 +121,34 @@ remain attached to their own instances. No APK or emulator lifecycle changes are
 `plugin.mumu.command.started/completed/incomplete` records bounded command evidence. Screenshot
 commands record image metadata without embedding PNG bytes into the RPC stream. The plugin never
 accesses SQLite. See [MuMu discovery](emulators.md).
+
+## Bound Android preparation
+
+`emulator.session` uses emulator-session-request and emulator-session-result. An explicit instance
+index is required; nullable identity and serial allow initial read-only resolution. Non-null values
+must match the current manager record. The response identifies the instance and resolved local ADB
+executable. Session resolution has no aggregate deadline; each child command remains bounded.
+
+`device.inspect`, `device.install`, and `device.observe` use their corresponding request/result
+schemas. Each request includes a pinned session request, resolved again through the declared
+emulator.session dependency. Android operations bind an explicit serial. Inspection returns package
+presence, installed base APK fingerprint, and available Android data bytes. Installation
+additionally requires source path, size, fingerprint, admitted space, and a finite installation
+deadline. An install response distinguishes installed from explicitly rejected; transport
+uncertainty raises an error rather than returning a synthetic failure result. The host never retries
+mutations.
+
+The kernel records action.intent, action.dispatched, and action.result under the installation span.
+Only fresh package evidence can move an executed or unknown action to verified. A new batch for the
+same APK workspace consults the reservation's earlier action history; reconciliation references its
+original run. Device preparation emits device.storage.checked, device.package.observed,
+device.installation.reconciled when applicable, and device.prepared. Raw failed attempts remain.
+
+Observations identify the focused logical display, foreground component, rotation, dimensions, and
+bounded PNG metadata. The kernel checks the actual file and adds a local evidence reference and
+observation ID to device.observed. `plugin.android.command.*` captures adapter command evidence;
+`plugin.mumu.command.*` retains provider-specific discovery and session records. No plugin writes
+business tables. See [device preparation](device-preparation.md) for recovery and capture limits.
 
 ## Task intake
 

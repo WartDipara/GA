@@ -6,11 +6,11 @@ import re
 import tomllib
 from pathlib import Path
 
-from commands import Commands
 from discovery import adb_endpoint, resolve_tools
 
-from game_automation.common import FrameworkError, within
+from game_automation.common import FrameworkError, digest, within
 from game_automation.errors import ErrorCode
+from game_automation.plugin_sdk.commands import Commands
 from game_automation.plugin_sdk.rpc import serve
 
 MANIFEST = tomllib.loads(Path(__file__).with_name("plugin.toml").read_text(encoding="utf-8"))
@@ -75,7 +75,7 @@ async def inspect_instance(commands, tools, raw, capture, workspace):
 
 
 async def discover(peer, request):
-    commands = Commands(peer, request["command_timeout_seconds"])
+    commands = Commands(peer, request["command_timeout_seconds"], namespace="mumu")
     tools = await resolve_tools(commands, request)
     listing = await commands.run([tools["manager"], "info", "-v", "all"])
     try:
@@ -108,6 +108,49 @@ async def discover(peer, request):
     return result
 
 
+async def session(peer, request):
+    commands = Commands(peer, request["command_timeout_seconds"], namespace="mumu")
+    tools = await resolve_tools(commands, request)
+    listing = await commands.run([tools["manager"], "info", "-v", "all"])
+    try:
+        entries = json.loads(listing["stdout"])
+        candidates = [
+            raw for raw in entries.values() if str(raw["index"]) == str(request["instance_index"])
+        ]
+        if len(candidates) != 1:
+            raise ValueError
+        raw = candidates[0]
+        created = raw["created_timestamp"]
+        if type(created) is not int or created <= 0:
+            raise ValueError
+        identity = f"{str(tools['manager']).casefold()}:{raw['index']}:{created}"
+        instance_id = digest(identity.encode("utf-8"))
+    except (ValueError, KeyError, TypeError, AttributeError) as exc:
+        raise FrameworkError(ErrorCode.INVALID_MUMU_OUTPUT) from exc
+    if request["instance_id"] is not None and request["instance_id"] != instance_id:
+        raise FrameworkError(ErrorCode.DEVICE_IDENTITY_CHANGED)
+    if not raw.get("is_process_started") or not raw.get("is_android_started"):
+        raise FrameworkError(ErrorCode.DEVICE_NOT_BOOTED)
+    serial = adb_endpoint(raw)
+    if request["serial"] is not None and request["serial"] != serial:
+        raise FrameworkError(ErrorCode.DEVICE_IDENTITY_CHANGED)
+    await commands.run([tools["adb"], "connect", serial])
+    for arguments, expected in (
+        (["get-state"], "device"),
+        (["shell", "getprop", "sys.boot_completed"], "1"),
+    ):
+        result = await commands.run([tools["adb"], "-s", serial, *arguments])
+        if result["stdout"].strip() != expected:
+            raise FrameworkError(ErrorCode.DEVICE_NOT_BOOTED)
+    result = {
+        "instance_index": request["instance_index"],
+        "instance_id": instance_id,
+        "serial": serial,
+        "adb_executable": tools["adb"],
+    }
+    return result
+
+
 def create_handler(peer):
     async def handler(method, params):
         if method == "initialize":
@@ -116,9 +159,10 @@ def create_handler(peer):
         if method == "health":
             result = {"ok": True}
             return result
-        if method != "invoke" or params["capability"] != "emulator.discover":
+        handlers = {"emulator.discover": discover, "emulator.session": session}
+        if method != "invoke" or params["capability"] not in handlers:
             raise FrameworkError(ErrorCode.METHOD_NOT_FOUND, method)
-        return await discover(peer, params["input"])
+        return await handlers[params["capability"]](peer, params["input"])
 
     return handler
 

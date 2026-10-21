@@ -1,0 +1,53 @@
+"""Bound Android package preparation and focused-display observations over ADB."""
+
+import asyncio
+import tomllib
+from pathlib import Path
+
+from display import observe
+from packages import inspect, install
+
+from game_automation.common import FrameworkError
+from game_automation.errors import ErrorCode
+from game_automation.plugin_sdk.commands import Commands
+from game_automation.plugin_sdk.rpc import serve
+
+MANIFEST = tomllib.loads(Path(__file__).with_name("plugin.toml").read_text(encoding="utf-8"))
+
+
+class Device:
+    def __init__(self, peer, commands, session):
+        self.peer = peer
+        self.commands = commands
+        self.session = session
+
+    async def run(self, *arguments, **options):
+        command = [self.session["adb_executable"], "-s", self.session["serial"], *arguments]
+        return await self.commands.run(command, **options)
+
+
+def create_handler(peer):
+    async def handler(method, params):
+        if method == "initialize":
+            result = {key: MANIFEST[key] for key in ("protocol_version", "version", "capabilities")}
+            return result
+        if method == "health":
+            result = {"ok": True}
+            return result
+        handlers = {"device.inspect": inspect, "device.install": install, "device.observe": observe}
+        if method != "invoke" or params["capability"] not in handlers:
+            raise FrameworkError(ErrorCode.METHOD_NOT_FOUND, method)
+        request = params["input"]
+        session_request = {"capability": "emulator.session", "input": request["session"]}
+        session = await peer.request("host.call", session_request, timeout=None)
+        commands = Commands(
+            peer, request["session"]["command_timeout_seconds"], namespace="android"
+        )
+        device = Device(peer, commands, session)
+        return await handlers[params["capability"]](device, request)
+
+    return handler
+
+
+if __name__ == "__main__":
+    asyncio.run(serve(create_handler))

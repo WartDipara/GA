@@ -17,7 +17,6 @@ verification remains pending. See [environment checks](../docs/environment.md).
 
 | Planned module | Boundary                                                                   |
 | -------------- | -------------------------------------------------------------------------- |
-| android_device | Application lifecycle, observations, actions, post-action evidence         |
 | perception     | Candidate elements and recognition evidence                                |
 | exploration    | Path management, exploration policy, outcome verification                  |
 | reporting      | Game coverage reports; the current exporter is an execution/context viewer |
@@ -26,3 +25,12 @@ Planned capabilities are intentionally not registered. Each implemented plugin h
 dependency declaration, and source. Plugins request declared dependencies through host.call and wait
 for host.event persistence acknowledgements. No plugin writes SQLite. A separate process is not a
 security sandbox.
+
+Implemented: emulator_mumu provides automatic discovery and pinned instance sessions. Vendor tool
+locations, instance creation identity, and advertised endpoints remain inside this adapter.
+
+Implemented: android_device provides package inspection, bound single-APK installation, and focused
+display observations through the declared emulator.session dependency. The kernel owns reservations
+and installation dispatch grants. Runtime acceptance of this workflow is pending; application
+launch, general input control, and emulator lifecycle management remain unavailable. See
+[device preparation](../docs/device-preparation.md).
