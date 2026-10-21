@@ -20,7 +20,8 @@ whitespace are rejected. The input file is limited to 4 MiB. No HTTP server or m
 involved.
 
 ```powershell
-uv run game-auto preprocess --input var/apks.json
+uv run game-auto preprocess --input var/apks.json --name daily-build
+uv run game-auto runs --limit 20
 uv run game-auto status <run_id>
 uv run game-auto trace <run_id> --follow
 uv run game-auto resume <run_id> --input var/apks.json

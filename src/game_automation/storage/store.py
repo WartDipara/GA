@@ -1,11 +1,21 @@
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
+from datetime import datetime
 from pathlib import Path
 
 from game_automation.common import FrameworkError, atomic_json, now, redact, uid, within
 from game_automation.errors import ErrorCode
+
+
+def run_subject(task):
+    if task.get("kind") == "apk_batch":
+        return f"{len(task['source_ids'])}-apks"
+    if task.get("kind") == "document":
+        return Path(task["filename"]).stem
+    return task.get("target") or "task"
 
 
 class Store:
@@ -89,17 +99,43 @@ class Store:
             raise FrameworkError(ErrorCode.NOT_FOUND, "Task not found")
         return json.loads(row[0])
 
-    def create_run(self, task_id, mode):
-        self.task(task_id)
-        run_id, timestamp = uid("run"), now()
+    def create_run(self, task_id, mode, name=None):
+        task = self.task(task_id)
+        if name is not None and not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,39}", name):
+            raise FrameworkError(ErrorCode.INVALID_RUN_NAME)
+        subject = name if name is not None else run_subject(task)
+        label = re.sub(r"[^a-z0-9._-]+", "-", subject.lower())[:40].strip("._-") or "task"
+        timestamp = now()
+        date = datetime.fromisoformat(timestamp).strftime("%Y%m%dT%H%M%SZ")
         with self.db:
+            self.db.execute("BEGIN IMMEDIATE")
+            sequence = self.db.execute("SELECT COALESCE(MAX(rowid),0)+1 FROM runs").fetchone()[0]
+            run_id = f"run_{date}_{mode}_{label}_{sequence:06d}"
             self.db.execute(
-                "INSERT INTO runs VALUES(?,?,?,?,?,0,?,?)",
-                (run_id, task_id, mode, "queued", "intake", timestamp, timestamp),
+                "INSERT INTO runs(rowid,id,task_id,mode,status,stage,cancel_requested,"
+                "created_at,updated_at) VALUES(?,?,?,?,?,?,0,?,?)",
+                (sequence, run_id, task_id, mode, "queued", "intake", timestamp, timestamp),
             )
-            self._event(run_id, "run.created", {"mode": mode})
+            self._event(run_id, "run.created", {"mode": mode, "name": label})
         self.run_dir(run_id).mkdir(parents=True)
         return run_id
+
+    def list_runs(self, limit=20):
+        if not 1 <= limit <= 200:
+            raise FrameworkError(ErrorCode.INVALID_RUN_LIMIT)
+        query = """
+            SELECT r.id AS run_id,r.task_id,r.mode,r.status,r.stage,r.created_at,t.spec
+            FROM runs r JOIN tasks t ON t.id=r.task_id
+            ORDER BY r.rowid DESC LIMIT ?
+        """
+        rows = self.db.execute(query, (limit,)).fetchall()
+        runs = []
+        for row in rows:
+            entry = dict(row)
+            task = json.loads(entry.pop("spec"))
+            entry["subject"] = run_subject(task)
+            runs.append(entry)
+        return runs
 
     def run(self, run_id):
         row = self.db.execute("SELECT * FROM runs WHERE id=?", (run_id,)).fetchone()

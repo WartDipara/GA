@@ -79,6 +79,12 @@ class ErrorCode(StrEnum):
     INVALID_PATH = ("INVALID_PATH", "Path escapes its assigned root")
     INVALID_PLUGIN = ("INVALID_PLUGIN", "Plugin name mismatch")
     INVALID_PROTOCOL = ("INVALID_PROTOCOL", "Expected JSON-RPC 2.0 object")
+    INVALID_RUN_LIMIT = ("INVALID_RUN_LIMIT", "Run list limit must be between 1 and 200")
+    INVALID_RUN_NAME = (
+        "INVALID_RUN_NAME",
+        "Run name must start with a letter or digit and use 1 to 40 ASCII letters, "
+        "digits, dots, underscores, or hyphens",
+    )
     INVALID_SKILL = ("INVALID_SKILL", "Invalid skill name")
     INVALID_STAGE = ("INVALID_STAGE", "Invalid stage")
     INVALID_STATE = ("INVALID_STATE", "Operation is not allowed in the current state")

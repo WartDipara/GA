@@ -1,5 +1,21 @@
 # Debugging a run
 
+List recent runs before opening a specific trace:
+
+```powershell
+uv run game-auto runs --limit 20
+```
+
+Each entry includes its ID, task subject, mode, status, stage, and creation time. Both historical
+UUID IDs and new readable IDs appear in the list.
+
+New directories use `run_<UTC timestamp>_<mode>_<name>_<sequence>`. The timestamp ends in `Z` to
+mark UTC; the sequence is allocated transactionally within the local database. Names default to the
+target package, document filename stem, or APK count. Unsupported filename characters are normalized
+and names are limited to 40 characters. Set `--name` on `run`, `intake`, or `preprocess` to choose
+an ASCII name. Run IDs and directories remain fixed after creation, including after APK inspection
+or resume. Existing directories are not renamed, and snapshot compatibility checks still apply.
+
 ```powershell
 uv run game-auto status <run_id>
 uv run game-auto context <run_id>
