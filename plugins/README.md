@@ -7,9 +7,12 @@ Implemented: task_intake provides canonical pass-through and text/Markdown extra
 optional ai.decide dependency, with kernel validation and clarification recovery. See
 [task intake](../docs/task-intake.md).
 
+Implemented: environment provides read-only ADB availability, deterministic device selection, boot
+completion, and installed package checks. Commands and results are traced through the host. Device
+verification remains pending. See [environment checks](../docs/environment.md).
+
 | Planned module | Boundary                                                                   |
 | -------------- | -------------------------------------------------------------------------- |
-| environment    | Device, package, permission, and required-environment checks               |
 | android_device | Application lifecycle, observations, actions, post-action evidence         |
 | perception     | Candidate elements and recognition evidence                                |
 | exploration    | Path management, exploration policy, outcome verification                  |

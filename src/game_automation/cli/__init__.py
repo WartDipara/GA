@@ -68,6 +68,10 @@ def print_json(value):
 def run_details(store, run_id):
     details = store.run(run_id)
     details["intake"] = intake_status(store, run_id)
+    environment_events = [
+        event for event in store.events(run_id) if event["kind"] == "environment.checked"
+    ]
+    details["environment"] = environment_events[-1]["payload"] if environment_events else None
     details["unknown_actions"] = store.unknown_actions(run_id)
     details["trace"] = str(store.run_dir(run_id) / "reports/trace.html")
     return details

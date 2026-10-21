@@ -5,6 +5,9 @@
   without BOM and LF line endings.
 - Keep code minimal and cohesive. Implement current requirements; avoid speculative abstractions,
   duplicate logic, unused helpers, demonstration branches, and unnecessary dependencies.
+- Start each development increment by checking out a feature branch named codex/<feature> from
+  master. Commit the completed increment, merge it into master, and delete the feature branch after
+  the merge succeeds. Publish master to the configured push destinations.
 - Use clear domain names and focused functions. Put one statement on each line, separate logical
   steps with blank lines, and use a maximum Python line length of 100 characters. Split long
   expressions and strings for readability.
