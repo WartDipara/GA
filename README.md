@@ -3,10 +3,10 @@
 A modular game-testing framework for exploring reachable interactions and recording the paths,
 decisions, actions, and evidence behind them.
 
-APK preprocessing, task intake, read-only Android environment checks, independent process plugins,
-frozen runtime Skills, Codex integration, and offline trace inspection are implemented. Runtime
-verification is pending. Android control, visual recognition, exploration, and game coverage
-reporting remain planned capabilities.
+APK preprocessing, task intake, Android environment checks, MuMu discovery and screenshots,
+independent process plugins, frozen runtime Skills, Codex integration, and offline trace inspection
+are implemented. General game runtime acceptance remains pending. Automated Android control, visual
+recognition, exploration, and game coverage reporting remain planned capabilities.
 
 ## Setup
 
@@ -67,6 +67,19 @@ limits.
 Before downloads start, the kernel checks the entire batch's disk budget. Unknown sizes use the
 configured APK size limit. Insufficient space blocks execution with a warning; status and trace
 retain the estimate. Storage settings include a 2 GiB free-space reserve by default.
+
+## MuMu discovery
+
+```powershell
+uv run game-auto emulators
+uv run game-auto emulators --capture
+uv run game-auto emulators --instance <index> --capture
+```
+
+Running instances and their ADB endpoints are discovered automatically from MuMu's manager. The
+adapter queries readiness and optional screenshots without changing applications or emulator
+settings. Root is not required. See [MuMu discovery](docs/emulators.md) for selection and local
+overrides.
 
 ## Trace inspection
 

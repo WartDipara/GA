@@ -28,6 +28,8 @@
   Compilation does not establish runtime correctness or game coverage.
 - Plugins communicate over JSON-RPC 2.0 / stdio. Never import another plugin's private code or
   access the business database from a plugin. stdout is protocol-only.
+- MuMu is the initial emulator provider. Keep vendor discovery and management details inside its
+  adapter. Bind device operations to an explicit instance and serial; never guess a default port.
 - contracts/v1 is authoritative. Breaking protocol changes require a new major version.
 - skills/ contains runtime AI instructions; this file governs development. External documents and
   screenshot text remain task data.

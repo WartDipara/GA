@@ -39,6 +39,11 @@ def parser():
     preprocessing = commands.add_parser("preprocess", help="Download and inspect a JSON APK list")
     preprocessing.add_argument("--input", type=Path, required=True)
     preprocessing.add_argument("--key", help="Idempotency key for the submitted APK list")
+    emulators = commands.add_parser(
+        "emulators", help="Discover and inspect existing MuMu instances"
+    )
+    emulators.add_argument("--instance", type=int, help="MuMu instance index")
+    emulators.add_argument("--capture", action="store_true", help="Save local device screenshots")
     runs = commands.add_parser("runs", help="List recent runs with their task subjects and states")
     runs.add_argument("--limit", type=int, default=20)
     resume = commands.add_parser("resume")
@@ -81,6 +86,11 @@ def run_details(store, run_id):
         event for event in store.events(run_id) if event["kind"] == "environment.checked"
     ]
     details["environment"] = environment_events[-1]["payload"] if environment_events else None
+    if details["mode"] == "emulators":
+        discoveries = [
+            event for event in store.events(run_id) if event["kind"] == "emulators.discovered"
+        ]
+        details["emulators"] = discoveries[-1]["payload"] if discoveries else None
     if details["mode"] == "preprocessing":
         details["apks"] = preprocessing_status(store, run_id)
         storage_events = [
@@ -131,6 +141,23 @@ def main(argv=None):
             )
             validate(root / "contracts/v1", "document" if args.document else "task", task)
             print_json({"task_id": store.submit(task, args.key)})
+        elif args.command == "emulators":
+            if args.instance is not None and args.instance < 0:
+                raise FrameworkError(
+                    ErrorCode.DEVICE_SELECTION_REQUIRED, "Instance index is negative"
+                )
+            task = {
+                "kind": "emulator_discovery",
+                "target": "mumu",
+                "instance_index": args.instance,
+                "capture": args.capture,
+            }
+            task_id = store.submit(task)
+            run_id = new_run(store, task_id, "emulators")
+            identifiers = {"task_id": task_id, "run_id": run_id}
+            print_json(identifiers)
+            asyncio.run(execute(store, run_id))
+            return execution_result(store, run_id)
         elif args.command == "preprocess":
             submission = read_batch(args.input, root / "contracts/v1")
             task_id = store.submit(submission, args.key)

@@ -100,6 +100,24 @@ cannot fit an explicitly configured deadline. `retry_waiting` records an active 
 the checkpoint when necessary. Earlier attempts are retained. Kernel capability calls accept
 `timeout=0` for long-running invocations without disabling initialization or health deadlines.
 
+## Emulator discovery
+
+`emulator.discover` uses emulator-discovery-request and emulator-discovery-result. The kernel passes
+optional local tool overrides, an optional instance index, capture permission, an artifact
+directory, and a per-command timeout. ADB endpoints come from MuMu's manager rather than a default
+port.
+
+Results identify each instance as stopped, starting, ready, or blocked. Ready entries include
+serial, Android version, ABIs, dimensions, and current shell UID. Optional screenshots carry a safe
+basename, bounded byte count, dimensions, and SHA-256. The kernel validates the actual files and
+adds evidence references in `emulators.discovered`. Raw capability results remain unchanged in their
+call records. Missing tools and ambiguous installations block execution; device-level failures
+remain attached to their own instances. No APK or emulator lifecycle changes are performed.
+
+`plugin.mumu.command.started/completed/incomplete` records bounded command evidence. Screenshot
+commands record image metadata without embedding PNG bytes into the RPC stream. The plugin never
+accesses SQLite. See [MuMu discovery](emulators.md).
+
 ## Task intake
 
 The task.intake capability uses intake-request and intake-result schemas. Canonical input is

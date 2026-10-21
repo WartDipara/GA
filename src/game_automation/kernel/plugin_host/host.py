@@ -110,6 +110,12 @@ class Host:
                         "apk-preflight-result",
                         result,
                     )
+                elif capability == "emulator.discover":
+                    validate(
+                        self.store.run_dir(self.run_id) / "contracts",
+                        "emulator-discovery-result",
+                        result,
+                    )
                 output_ref = self.artifact(f"calls/{span_id}/output.json", result)
                 completed_payload = {
                     "output_ref": output_ref,

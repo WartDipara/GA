@@ -13,3 +13,7 @@ enabled = true
 [plugins.apk_preprocessing]
 manifest = "plugins/apk_preprocessing/plugin.toml"
 enabled = true
+
+[plugins.emulator_mumu]
+manifest = "plugins/emulator_mumu/plugin.toml"
+enabled = true
