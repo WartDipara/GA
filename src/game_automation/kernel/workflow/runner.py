@@ -38,8 +38,8 @@ BLOCKED = {
 }
 
 
-def new_run(store, task_id, mode="game", name=None):
-    run_id = store.create_run(task_id, mode, name)
+def new_run(store, task_id, mode="game"):
+    run_id = store.create_run(task_id, mode)
     try:
         freeze(store, run_id)
     except FrameworkError as exc:

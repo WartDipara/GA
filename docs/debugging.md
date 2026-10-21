@@ -9,10 +9,16 @@ uv run game-auto runs --limit 20
 Each entry includes its ID, task subject, mode, status, stage, and creation time. Both historical
 UUID IDs and new readable IDs appear in the list.
 
-New directories use `run_<mode>_<name>_<sequence>`. The sequence is allocated transactionally within
-the local database. Names default to the target package, document filename stem, or APK count.
-Unsupported filename characters are normalized and names are limited to 40 characters. Set `--name`
-on `run`, `intake`, or `preprocess` to choose an ASCII name. Run IDs and directories remain fixed
+APK batches use `run_<count>-apks_<execution_id>`, such as
+`run_3-apks_6e57a22c87834f148609dc70dc91ab26`. The suffix is a fresh full UUID4 in 32-character
+hexadecimal form for each execution. It is independent of the submission task_id, so repeated runs
+of one task receive different directories. Other run types use their target package or document
+filename stem as the subject. There is no timestamp, mode prefix, custom name, or sequence suffix.
+
+Allocation checks existing database IDs under an immediate write transaction and creates the
+directory exclusively before recording the run. A collision with a database entry or existing
+directory generates another UUID, up to 10 attempts; exhaustion fails without reusing an existing
+directory. The database primary key also enforces uniqueness. Run IDs and directories remain fixed
 after creation, including after APK inspection or resume. Existing directories are not renamed, and
 snapshot compatibility checks still apply.
 

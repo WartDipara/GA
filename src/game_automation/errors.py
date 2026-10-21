@@ -80,11 +80,6 @@ class ErrorCode(StrEnum):
     INVALID_PLUGIN = ("INVALID_PLUGIN", "Plugin name mismatch")
     INVALID_PROTOCOL = ("INVALID_PROTOCOL", "Expected JSON-RPC 2.0 object")
     INVALID_RUN_LIMIT = ("INVALID_RUN_LIMIT", "Run list limit must be between 1 and 200")
-    INVALID_RUN_NAME = (
-        "INVALID_RUN_NAME",
-        "Run name must start with a letter or digit and use 1 to 40 ASCII letters, "
-        "digits, dots, underscores, or hyphens",
-    )
     INVALID_SKILL = ("INVALID_SKILL", "Invalid skill name")
     INVALID_STAGE = ("INVALID_STAGE", "Invalid stage")
     INVALID_STATE = ("INVALID_STATE", "Operation is not allowed in the current state")
@@ -112,6 +107,10 @@ class ErrorCode(StrEnum):
     RPC_ERROR = ("RPC_ERROR", "Remote procedure call failed")
     RUNTIME_CHANGED = ("RUNTIME_CHANGED", "Runtime files or interpreter changed; use a new batch")
     RUN_BUSY = ("RUN_BUSY", "Another local execution owns the device/workflow lock")
+    RUN_ID_COLLISION = (
+        "RUN_ID_COLLISION",
+        "Cannot allocate a unique run directory after 10 attempts",
+    )
     RUN_MODE_REMOVED = ("RUN_MODE_REMOVED", "This run mode is no longer supported")
     RUN_TERMINAL = ("RUN_TERMINAL", "Use a new execution batch for a terminal run")
     SCHEMA_VERSION = ("SCHEMA_VERSION", "Unsupported database version")
