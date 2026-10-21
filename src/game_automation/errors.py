@@ -33,6 +33,7 @@ class ErrorCode(StrEnum):
         "Provide the original APK list file to resume this batch",
     )
     APK_TOO_LARGE = ("APK_TOO_LARGE", "APK exceeds the configured size limit")
+    APK_WORKSPACE_BUSY = ("APK_WORKSPACE_BUSY", "Another worker owns this APK workspace")
     BUDGET_EXHAUSTED = ("BUDGET_EXHAUSTED", "Run time limit exceeded")
     CALL_FAILED = ("CALL_FAILED", "Call failed")
     CANCELLED = ("CANCELLED", "Cancellation requested")
@@ -73,6 +74,10 @@ class ErrorCode(StrEnum):
     INVALID_APK = ("INVALID_APK", "APK archive or entry checksums are invalid")
     INVALID_APK_URL = ("INVALID_APK_URL", "APK URLs must be HTTP(S) without userinfo or fragments")
     INVALID_CONTRACT = ("INVALID_CONTRACT", "Payload does not match its contract")
+    INVALID_DOWNLOAD_WORKERS = (
+        "INVALID_DOWNLOAD_WORKERS",
+        "Download worker count must be an integer between 1 and 5",
+    )
     INVALID_DOCUMENT = ("INVALID_DOCUMENT", "Document is empty or contains null bytes")
     INVALID_ENCODING = ("INVALID_ENCODING", "Document must be UTF-8")
     INVALID_EVENT = ("INVALID_EVENT", "Unsupported plugin event kind")

@@ -3,6 +3,7 @@
 import asyncio
 import json
 import os
+import threading
 import tomllib
 from pathlib import Path
 
@@ -10,7 +11,7 @@ import httpx
 from download import Downloader
 from metadata import inspect_apk
 
-from game_automation.common import FrameworkError, digest, within
+from game_automation.common import FileLock, FrameworkError, digest, within
 from game_automation.errors import ErrorCode
 from game_automation.plugin_sdk.rpc import serve
 
@@ -56,18 +57,38 @@ def create_handler(peer):
         url = read_source(request)
         workspace = Path(request["workspace"]).resolve()
         workspace.mkdir(parents=True, exist_ok=True)
-        work = within(workspace, "work")
-        work.mkdir(exist_ok=True)
-        temporary = within(work, "tmp")
-        temporary.mkdir(exist_ok=True)
-        for name in ("TEMP", "TMP", "TMPDIR"):
-            os.environ[name] = str(temporary)
-        downloader = Downloader(workspace, request, event)
-        apk = await downloader.run(url)
-        metadata = await inspect_apk(apk, request["aapt2_executable"], event)
-        metadata["sizeBytes"] = apk.stat().st_size
-        metadata["sha256"] = downloader.state["prefix_sha256"]
-        return metadata
+        event_loop = asyncio.get_running_loop()
+        stop_event = threading.Event()
+
+        async def worker_event(kind, payload):
+            if stop_event.is_set():
+                raise FrameworkError(ErrorCode.CANCELLED)
+            future = asyncio.run_coroutine_threadsafe(event(kind, payload), event_loop)
+            await asyncio.wrap_future(future)
+
+        async def prepare():
+            lock_path = within(workspace, "workspace.lock")
+            with FileLock(lock_path, ErrorCode.APK_WORKSPACE_BUSY):
+                work = within(workspace, "work")
+                work.mkdir(exist_ok=True)
+                temporary = within(work, "tmp")
+                temporary.mkdir(exist_ok=True)
+                for name in ("TEMP", "TMP", "TMPDIR"):
+                    os.environ[name] = str(temporary)
+                downloader = Downloader(workspace, request, worker_event, stop_event)
+                apk = await downloader.run(url)
+                metadata = await inspect_apk(apk, request["aapt2_executable"], worker_event)
+                metadata["sizeBytes"] = apk.stat().st_size
+                metadata["sha256"] = downloader.state["prefix_sha256"]
+                return metadata
+
+        def run_worker():
+            return asyncio.run(prepare())
+
+        try:
+            return await asyncio.to_thread(run_worker)
+        finally:
+            stop_event.set()
 
     return handler
 

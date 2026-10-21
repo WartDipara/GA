@@ -58,10 +58,12 @@ before business validation. Provider rules do not leak into other modules.
 
 ## Current scope
 
-APK preprocessing is a separate run mode that accepts URL-list digests, calls apk.prepare once per
-item, and stores compact metadata and a batch summary. The caller-owned URL list is read at runtime
-without copying addresses into traces. Each item owns its directory and temporary files. See
-[APK preprocessing](preprocessing.md).
+APK preprocessing is a separate run mode that accepts URL-list digests, queues items for up to five
+workers, calls apk.prepare once per item, and stores compact metadata and a batch summary. Each
+active plugin owns a download thread and an OS-locked workspace. Thread events are marshalled to the
+plugin RPC loop; database writes remain on the kernel event loop. The caller-owned URL list is read
+at runtime without copying addresses into traces. Each item owns its directory and temporary files.
+See [APK preprocessing](preprocessing.md).
 
 The framework implements communication, persistence, Skills, tracing, context inspection, and task
 intake with source attribution and clarification recovery. The environment plugin queries ADB,

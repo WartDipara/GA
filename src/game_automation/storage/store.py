@@ -241,7 +241,10 @@ class Store:
 
     def artifact(self, run_id, relative, value):
         path = within(self.run_dir(run_id), relative)
-        atomic_json(path, redact(value))
+        try:
+            atomic_json(path, redact(value))
+        except OSError as exc:
+            raise FrameworkError(ErrorCode.TRACE_UNAVAILABLE) from exc
         return path.relative_to(self.run_dir(run_id)).as_posix()
 
     def session(self, run_id, role):
