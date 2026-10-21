@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 import re
 import sqlite3
-from datetime import datetime
 from pathlib import Path
 
 from game_automation.common import FrameworkError, atomic_json, now, redact, uid, within
@@ -106,11 +105,10 @@ class Store:
         subject = name if name is not None else run_subject(task)
         label = re.sub(r"[^a-z0-9._-]+", "-", subject.lower())[:40].strip("._-") or "task"
         timestamp = now()
-        date = datetime.fromisoformat(timestamp).strftime("%Y%m%dT%H%M%SZ")
         with self.db:
             self.db.execute("BEGIN IMMEDIATE")
             sequence = self.db.execute("SELECT COALESCE(MAX(rowid),0)+1 FROM runs").fetchone()[0]
-            run_id = f"run_{date}_{mode}_{label}_{sequence:06d}"
+            run_id = f"run_{mode}_{label}_{sequence:06d}"
             self.db.execute(
                 "INSERT INTO runs(rowid,id,task_id,mode,status,stage,cancel_requested,"
                 "created_at,updated_at) VALUES(?,?,?,?,?,?,0,?,?)",
