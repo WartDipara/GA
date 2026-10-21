@@ -1,10 +1,12 @@
 import asyncio
 
 from game_automation.common import FrameworkError
+from game_automation.disk import require_disk_space
 from game_automation.errors import ErrorCode
 from game_automation.kernel.capability_router import Router
 from game_automation.kernel.plugin_host import Host
 from game_automation.kernel.policy import ExecutionLock
+from game_automation.kernel.policy.storage import storage_settings
 from game_automation.observability import export_trace
 from game_automation.prompting import freeze, load
 
@@ -36,6 +38,9 @@ BLOCKED = {
     ErrorCode.PREPROCESSING_BLOCKED,
     ErrorCode.PREPROCESSING_INTERRUPTED,
     ErrorCode.TRACE_UNAVAILABLE,
+    ErrorCode.DISK_SPACE_INSUFFICIENT,
+    ErrorCode.DISK_SPACE_UNAVAILABLE,
+    ErrorCode.DISK_BUDGET_EXCEEDED,
 }
 
 
@@ -89,6 +94,8 @@ async def execute(store, run_id, source_file=None):
             if store.unknown_actions(run_id):
                 raise FrameworkError(ErrorCode.ACTION_ALREADY_DISPATCHED)
             store.transition(run_id, "running")
+            storage = storage_settings(manifest)
+            require_disk_space(store.run_dir(run_id), storage["reserve_bytes"])
             host = Host(store, run_id, Router(manifest["plugins"]), manifest)
             task = store.task(run["task_id"])
             if run["mode"] == "preprocessing":

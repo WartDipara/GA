@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://game-automation.local/contracts/v1/apk-plan-request",
+  "type": "object",
+  "properties": {
+    "source_file": { "type": "string", "minLength": 1 },
+    "source_index": { "type": "integer", "minimum": 0 },
+    "source_id": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "workspace": { "type": "string", "minLength": 1 },
+    "request_timeout_seconds": { "type": "integer", "minimum": 1, "maximum": 300 },
+    "max_apk_bytes": { "type": "integer", "minimum": 1 }
+  },
+  "required": [
+    "source_file",
+    "source_index",
+    "source_id",
+    "workspace",
+    "request_timeout_seconds",
+    "max_apk_bytes"
+  ],
+  "additionalProperties": false
+}

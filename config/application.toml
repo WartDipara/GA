@@ -9,6 +9,11 @@ timeout_seconds = 300
 [environment]
 command_timeout_seconds = 10
 
+[storage]
+reserve_bytes = 2147483648
+overhead_bytes_per_apk = 16777216
+safety_margin_percent = 10
+
 [preprocessing]
 download_workers = 5
 request_timeout_seconds = 30

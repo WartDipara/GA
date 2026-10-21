@@ -97,6 +97,10 @@ class Host:
                     )
                 elif capability == "apk.prepare":
                     validate(self.store.run_dir(self.run_id) / "contracts", "apk-metadata", result)
+                elif capability == "apk.plan":
+                    validate(
+                        self.store.run_dir(self.run_id) / "contracts", "apk-download-plan", result
+                    )
                 output_ref = self.artifact(f"calls/{span_id}/output.json", result)
                 completed_payload = {
                     "output_ref": output_ref,

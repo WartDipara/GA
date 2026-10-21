@@ -83,9 +83,33 @@ def run_details(store, run_id):
     details["environment"] = environment_events[-1]["payload"] if environment_events else None
     if details["mode"] == "preprocessing":
         details["apks"] = preprocessing_status(store, run_id)
+        storage_events = [
+            event
+            for event in store.events(run_id)
+            if event["kind"] == "preprocessing.storage.checked"
+        ]
+        details["storage"] = storage_events[-1]["payload"] if storage_events else None
     details["unknown_actions"] = store.unknown_actions(run_id)
     details["trace"] = str(store.run_dir(run_id) / "reports/trace.html")
     return details
+
+
+def execution_result(store, run_id):
+    details = run_details(store, run_id)
+    print_json(details)
+    reasons = [
+        event["payload"].get("reason")
+        for event in store.events(run_id)
+        if event["kind"] == "run.state"
+    ]
+    reason = reasons[-1] if reasons else None
+    if reason and reason.get("code") in (
+        ErrorCode.DISK_SPACE_INSUFFICIENT,
+        ErrorCode.DISK_SPACE_UNAVAILABLE,
+        ErrorCode.DISK_BUDGET_EXCEEDED,
+    ):
+        print(f"Warning: {reason['message']}", file=sys.stderr)
+    return 0 if details["status"] == "succeeded" else 2
 
 
 def main(argv=None):
@@ -113,21 +137,18 @@ def main(argv=None):
             run_id = new_run(store, task_id, "preprocessing")
             identifiers = {"task_id": task_id, "run_id": run_id}
             print_json(identifiers)
-            result = asyncio.run(execute(store, run_id, args.input))
-            print_json(run_details(store, run_id))
-            return 0 if result["status"] == "succeeded" else 2
+            asyncio.run(execute(store, run_id, args.input))
+            return execution_result(store, run_id)
         elif args.command in ("run", "intake"):
             task_id = args.task_id
             mode = "game" if args.command == "run" else "intake"
             run_id = new_run(store, task_id, mode)
             print_json({"task_id": task_id, "run_id": run_id})
-            result = asyncio.run(execute(store, run_id))
-            print_json(run_details(store, run_id))
-            return 0 if result["status"] == "succeeded" else 2
+            asyncio.run(execute(store, run_id))
+            return execution_result(store, run_id)
         elif args.command == "resume":
-            result = asyncio.run(execute(store, args.run_id, args.input))
-            print_json(run_details(store, args.run_id))
-            return 0 if result["status"] == "succeeded" else 2
+            asyncio.run(execute(store, args.run_id, args.input))
+            return execution_result(store, args.run_id)
         elif args.command == "status":
             print_json(run_details(store, args.run_id))
         elif args.command == "runs":

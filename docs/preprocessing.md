@@ -34,6 +34,48 @@ Changed URLs or list order require a new batch; `--input` may point to a moved f
 list. An optional `--key` deduplicates the submitted list; each preprocess command still creates a
 new execution run.
 
+## Disk admission
+
+Before starting any APK download, the kernel asks `apk.plan` for every item's storage budget. Header
+probes run with the configured worker limit. HEAD is preferred; if it cannot determine a size, a
+streamed GET with `Range: bytes=0-0` inspects headers without reading or saving the body. If both
+probes fail or size remains unknown, the full configured `max_apk_bytes` limit is budgeted for that
+entry, rather than treating unknown size as zero. An oversized declared APK rejects the batch before
+downloading.
+
+Required free space is the sum of:
+
+- All pending APK budgets, including queued entries and repeated URLs.
+- A 10% margin on those budgets.
+- 16 MiB per APK for work files, checkpoints, metadata, and tracing.
+- A 2 GiB reserve that should remain free.
+
+The last three settings are configurable in `[storage]` in `config/application.toml` and are frozen
+with the run. They must be positive; the percentage must be 1 through 100. Disk checks use the run
+directory's filesystem, rather than an assumed system drive. Every execution mode checks the reserve
+before business work; APK preprocessing additionally estimates its whole batch. Run creation and
+small tracking files precede admission.
+
+`status` includes the latest `storage` estimate, item budgets, and their basis. Each complete check
+has its own artifact and `preprocessing.storage.checked` event; recovery preserves earlier checks.
+Insufficient space produces `DISK_SPACE_INSUFFICIENT`, a CLI warning with required and available
+bytes, a blocked run, and exit code 2. No APK download worker starts for a rejected batch. Release
+space and use the existing `resume --input` command to estimate again.
+
+On recovery, an existing `application.apk` needs no download budget; the worker must still verify
+its saved hash before reuse. If that file disappears after admission, the zero budget prevents a
+replacement download. Partial files conservatively receive the full download budget, since a server
+may require a restart. APKs are inspected without extracting their contents, and promotion from
+`download.part` is a rename, so no second full APK copy is budgeted.
+
+The admitted budget is also enforced against response headers and streamed bytes. A larger or
+changed resource cannot silently exceed it: `DISK_BUDGET_EXCEEDED` blocks the batch for a new
+estimate on resume. Each worker checks current free space before transfer and before every 256 KiB
+write, allowing headroom for five concurrent chunks. A storage error stops queued dispatch and
+cancels active workers. These checks do not reserve filesystem blocks against other applications;
+sudden external consumption or hardware failure can still interrupt a write. Actual disk-full errors
+are classified explicitly and checkpoints are retained when persistence remains possible.
+
 ## Downloads and recovery
 
 The kernel maintains a FIFO queue with five workers by default. With 50 URLs, at most five APKs are
@@ -55,7 +97,8 @@ Resumption uses Range and If-Range only with a strong ETag. Partial responses mu
 total length, ETag, and the final resource URL digest. A full response replaces the partial file;
 changed resources or rejected ranges restart from zero. Servers without strong validators restart
 instead of appending uncertain bytes. Transient network failures, HTTP 408/429, and server errors
-use bounded retries. Other failures block the item; remaining items continue.
+use bounded retries. Other item failures block the item; remaining items continue unless the failure
+concerns storage, cancellation, or tracing.
 
 Queued items appear as `queued`, then `running`, `ready`, `blocked`, or `incomplete`. The kernel
 reserves an individual span at enqueue time; interleaved progress and errors are matched by span

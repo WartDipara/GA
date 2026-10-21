@@ -1,8 +1,8 @@
 name = "apk_preprocessing"
-version = "0.1.0"
+version = "0.2.0"
 protocol_version = "1.0"
 command = ["{python}", "{plugin}/main.py"]
-capabilities = ["apk.prepare"]
+capabilities = ["apk.plan", "apk.prepare"]
 required_capabilities = []
 optional_capabilities = []
 retry_safe = []

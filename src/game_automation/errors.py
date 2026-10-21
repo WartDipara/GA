@@ -46,6 +46,18 @@ class ErrorCode(StrEnum):
     DEVICE_NOT_IMPLEMENTED = ("DEVICE_NOT_IMPLEMENTED", "Device execution is not available")
     DEVICE_SELECTION_REQUIRED = ("DEVICE_SELECTION_REQUIRED", "Device selection required")
     DEVICE_UNAVAILABLE = ("DEVICE_UNAVAILABLE", "Device unavailable")
+    DISK_BUDGET_EXCEEDED = (
+        "DISK_BUDGET_EXCEEDED",
+        "APK exceeds its admitted disk budget; resume to estimate the batch again",
+    )
+    DISK_SPACE_INSUFFICIENT = (
+        "DISK_SPACE_INSUFFICIENT",
+        "Insufficient disk space; free disk space and resume",
+    )
+    DISK_SPACE_UNAVAILABLE = (
+        "DISK_SPACE_UNAVAILABLE",
+        "Cannot determine available disk space; execution blocked",
+    )
     DOCUMENT_TOO_LARGE = ("DOCUMENT_TOO_LARGE", "Document exceeds the 200,000-byte limit")
     DOWNLOAD_ENCODING = ("DOWNLOAD_ENCODING", "Server ignored the identity encoding request")
     DOWNLOAD_HTTP_ERROR = ("DOWNLOAD_HTTP_ERROR", "Download returned an unsuccessful HTTP status")
@@ -88,6 +100,10 @@ class ErrorCode(StrEnum):
     INVALID_SKILL = ("INVALID_SKILL", "Invalid skill name")
     INVALID_STAGE = ("INVALID_STAGE", "Invalid stage")
     INVALID_STATE = ("INVALID_STATE", "Operation is not allowed in the current state")
+    INVALID_STORAGE_POLICY = (
+        "INVALID_STORAGE_POLICY",
+        "Storage reserve and APK overhead must be positive integers; margin must be 1 through 100",
+    )
     LOCAL_APK_CHANGED = ("LOCAL_APK_CHANGED", "Completed APK differs from its checkpoint")
     LOCAL_DOWNLOAD_CHANGED = ("LOCAL_DOWNLOAD_CHANGED", "Partial APK differs from its checkpoint")
     LOCAL_ERROR = ("LOCAL_ERROR", "Local error")

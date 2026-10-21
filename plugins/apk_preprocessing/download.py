@@ -10,6 +10,7 @@ from http import HTTPStatus
 import httpx
 
 from game_automation.common import FrameworkError, atomic_json, digest, within
+from game_automation.disk import require_disk_space
 from game_automation.errors import ErrorCode
 
 CHUNK_BYTES = 256 * 1024
@@ -50,6 +51,8 @@ class Downloader:
         self.partial = within(workspace, "download.part")
         self.final = within(workspace, "application.apk")
         self.state_path = within(workspace, "download.json")
+        self.budget_bytes = request.get("download_budget_bytes", request["max_apk_bytes"])
+        self.reserve_bytes = request.get("disk_reserve_bytes", 2 * 1024**3)
         self.state = {}
 
     def check_cancel(self):
@@ -62,6 +65,10 @@ class Downloader:
         self.state["downloaded_bytes"] = stream.tell()
         self.state["prefix_sha256"] = checksum.hexdigest()
         atomic_json(self.state_path, self.state)
+
+    def check_disk_space(self):
+        # Allow all five workers one pending chunk without spending the reserve.
+        require_disk_space(self.partial.parent, self.reserve_bytes + 5 * CHUNK_BYTES)
 
     async def restore(self):
         self.check_cancel()
@@ -152,6 +159,8 @@ class Downloader:
                 )
             if response.status_code == HTTPStatus.OK:
                 total = length
+        if total is not None and total > self.budget_bytes:
+            raise FrameworkError(ErrorCode.DISK_BUDGET_EXCEEDED)
         if total is not None and total > self.request["max_apk_bytes"]:
             raise FrameworkError(ErrorCode.APK_TOO_LARGE)
         plan = {"offset": offset, "end": end, "total": total, "resource_id": resource_id}
@@ -183,6 +192,7 @@ class Downloader:
             }
             mode = "r+b" if offset else "wb"
             checksum = hashlib.sha256()
+            self.check_disk_space()
             with self.partial.open(mode) as stream:
                 if offset:
                     while chunk := stream.read(CHUNK_BYTES):
@@ -194,6 +204,8 @@ class Downloader:
                     async for chunk in response.aiter_raw(CHUNK_BYTES):
                         self.check_cancel()
                         count = stream.tell() + len(chunk)
+                        if count > self.budget_bytes:
+                            raise FrameworkError(ErrorCode.DISK_BUDGET_EXCEEDED)
                         if count > self.request["max_apk_bytes"] or (
                             total is not None and count > total
                         ):
@@ -206,6 +218,7 @@ class Downloader:
                                 ErrorCode.DOWNLOAD_RANGE_INVALID,
                                 "Response exceeds its declared range",
                             )
+                        self.check_disk_space()
                         stream.write(chunk)
                         checksum.update(chunk)
                         if count - checkpoint_offset >= CHECKPOINT_BYTES:
@@ -242,10 +255,13 @@ class Downloader:
         return self.final
 
     async def run(self, url):
+        self.check_disk_space()
         if await self.restore():
             return self.final
         if self.state.get("transfer_complete"):
             return await self.finalize()
+        if self.budget_bytes == 0:
+            raise FrameworkError(ErrorCode.DISK_BUDGET_EXCEEDED)
         timeout = httpx.Timeout(self.request["request_timeout_seconds"])
         async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
             for attempt in range(1, self.request["max_attempts"] + 1):

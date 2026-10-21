@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://game-automation.local/contracts/v1/apk-download-plan",
+  "type": "object",
+  "properties": {
+    "budget_bytes": { "type": "integer", "minimum": 0 },
+    "size_bytes": { "type": ["integer", "null"], "minimum": 0 },
+    "basis": { "enum": ["local_apk", "content_length", "content_range", "size_limit"] }
+  },
+  "required": ["budget_bytes", "size_bytes", "basis"],
+  "additionalProperties": false
+}
