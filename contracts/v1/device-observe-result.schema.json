@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://game-automation.local/contracts/v1/device-observe-result",
+  "type": "object",
+  "properties": {
+    "session": {
+      "type": "object",
+      "properties": {
+        "instance_index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "instance_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "serial": {
+          "type": "string",
+          "minLength": 1
+        },
+        "adb_executable": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": ["instance_index", "instance_id", "serial", "adb_executable"],
+      "additionalProperties": false
+    },
+    "display": {
+      "type": "object",
+      "properties": {
+        "display_id": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "rotation_degrees": {
+          "enum": [0, 90, 180, 270]
+        },
+        "width": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 16384
+        },
+        "height": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 16384
+        },
+        "package_name": {
+          "type": "string",
+          "pattern": "^[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z][A-Za-z0-9_]*)*$"
+        },
+        "activity": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": ["display_id", "rotation_degrees", "width", "height", "package_name", "activity"],
+      "additionalProperties": false
+    },
+    "screenshot": {
+      "type": "object",
+      "properties": {
+        "file_name": {
+          "const": "screen.png"
+        },
+        "size_bytes": {
+          "type": "integer",
+          "minimum": 24,
+          "maximum": 16777216
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "width": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 16384
+        },
+        "height": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 16384
+        }
+      },
+      "required": ["file_name", "size_bytes", "sha256", "width", "height"],
+      "additionalProperties": false
+    }
+  },
+  "required": ["session", "display", "screenshot"],
+  "additionalProperties": false
+}

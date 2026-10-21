@@ -51,6 +51,14 @@ AI_UNAVAILABLE; resolve the condition and resume. CODEX_VERSION_MISMATCH require
 version. SNAPSHOT_CHANGED/RUNTIME_CHANGED require a new execution batch. ACTION_ALREADY_DISPATCHED
 requires reconciliation, not a force replay.
 
+Device preparation reports `DEVICE_INSTALL_UNKNOWN` when a dispatched installation cannot be
+verified. Resume performs package inspection without sending another installation. Check the
+installation span's action.intent, action.dispatched, action.result, and device.package.observed
+events. `prepared` actions lack dispatch authorization; `executed` actions still need fingerprint
+verification. A different APK or instance cannot bypass a reservation. If a runtime upgrade requires
+a new execution batch, submit the same source workspace and instance again; it consults prior
+installation records. See [device preparation](device-preparation.md).
+
 ## Record boundaries
 
 Records contain public interface traffic, not all provider-internal context or complete hidden

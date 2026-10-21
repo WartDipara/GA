@@ -8,6 +8,19 @@ from game_automation.contracts import validate
 from game_automation.errors import ErrorCode
 from game_automation.plugin_sdk.rpc import Peer, spawn, terminate
 
+CAPABILITY_CONTRACTS = {
+    "task.intake": ("intake-request", "intake-result"),
+    "environment.check": ("environment-request", "environment-result"),
+    "apk.prepare": ("apk-prepare-request", "apk-metadata"),
+    "apk.plan": ("apk-plan-request", "apk-download-plan"),
+    "apk.preflight": ("apk-preflight-request", "apk-preflight-result"),
+    "emulator.discover": ("emulator-discovery-request", "emulator-discovery-result"),
+    "emulator.session": ("emulator-session-request", "emulator-session-result"),
+    "device.inspect": ("device-inspect-request", "device-inspect-result"),
+    "device.install": ("device-install-request", "device-install-result"),
+    "device.observe": ("device-observe-request", "device-observe-result"),
+}
+
 
 class Host:
     def __init__(self, store, run_id, router, manifest):
@@ -42,25 +55,46 @@ class Host:
             raise FrameworkError(ErrorCode.CANCELLED)
 
     async def call(
-        self, capability, params, *, parent_span_id=None, timeout=None, ancestry=(), span_id=None
+        self,
+        capability,
+        params,
+        *,
+        parent_span_id=None,
+        timeout=None,
+        ancestry=(),
+        span_id=None,
+        _action_id=None,
     ):
         self.check_cancel()
         if capability in ancestry or len(ancestry) >= 8:
             raise FrameworkError(ErrorCode.DEPENDENCY_CYCLE)
         plugin = self.router.resolve(capability)
-        if capability in plugin["mutating"]:
-            raise FrameworkError(ErrorCode.DEVICE_NOT_IMPLEMENTED)
+        mutating = capability in plugin["mutating"]
+        if capability == "device.install" and not mutating:
+            raise FrameworkError(ErrorCode.CAPABILITY_DENIED)
+        if mutating:
+            action = self.store.latest_device_action(self.run_id)
+            if (
+                capability != "device.install"
+                or action is None
+                or action["action_id"] != _action_id
+                or action["status"] != "prepared"
+                or action["run_id"] != self.run_id
+            ):
+                raise FrameworkError(ErrorCode.CAPABILITY_DENIED)
+        contracts = CAPABILITY_CONTRACTS.get(capability)
+        if contracts:
+            validate(self.store.run_dir(self.run_id) / "contracts", contracts[0], params)
         retries = (
             self.manifest["application"]["max_attempts"]
-            if capability in plugin["retry_safe"]
+            if not mutating and capability in plugin["retry_safe"]
             else 1
         )
         if timeout is None:
-            timeout = (
-                self.manifest["application"]["codex"]["timeout_seconds"] + 45
-                if capability == "ai.decide"
-                else self.manifest["application"]["call_timeout_seconds"]
-            )
+            if capability == "ai.decide":
+                timeout = self.manifest["application"]["codex"]["timeout_seconds"] + 45
+            elif capability != "emulator.session":
+                timeout = self.manifest["application"]["call_timeout_seconds"]
         elif timeout == 0:
             timeout = None
         initial_span_id = span_id
@@ -90,32 +124,10 @@ class Host:
             self.record("call.started", started_payload, **trace_ids)
             try:
                 result = await self._attempt(
-                    plugin, capability, params, timeout, trace_ids, ancestry
+                    plugin, capability, params, timeout, trace_ids, ancestry, _action_id
                 )
-                if capability == "task.intake":
-                    validate(self.store.run_dir(self.run_id) / "contracts", "intake-result", result)
-                elif capability == "environment.check":
-                    validate(
-                        self.store.run_dir(self.run_id) / "contracts", "environment-result", result
-                    )
-                elif capability == "apk.prepare":
-                    validate(self.store.run_dir(self.run_id) / "contracts", "apk-metadata", result)
-                elif capability == "apk.plan":
-                    validate(
-                        self.store.run_dir(self.run_id) / "contracts", "apk-download-plan", result
-                    )
-                elif capability == "apk.preflight":
-                    validate(
-                        self.store.run_dir(self.run_id) / "contracts",
-                        "apk-preflight-result",
-                        result,
-                    )
-                elif capability == "emulator.discover":
-                    validate(
-                        self.store.run_dir(self.run_id) / "contracts",
-                        "emulator-discovery-result",
-                        result,
-                    )
+                if contracts:
+                    validate(self.store.run_dir(self.run_id) / "contracts", contracts[1], result)
                 output_ref = self.artifact(f"calls/{span_id}/output.json", result)
                 completed_payload = {
                     "output_ref": output_ref,
@@ -138,7 +150,11 @@ class Host:
                     ErrorCode.TIMEOUT,
                     ErrorCode.PROCESS_EXITED,
                     ErrorCode.CANCELLED,
+                    ErrorCode.DEVICE_INSTALL_UNKNOWN,
                 )
+                if mutating:
+                    action = self.store.latest_device_action(self.run_id)
+                    incomplete = incomplete or action["status"] == "unknown"
                 failure_kind = "call.incomplete" if incomplete else "call.failed"
                 failure_payload = {
                     "error": error.as_dict(),
@@ -158,8 +174,59 @@ class Host:
                     continue
                 raise error from exc
 
-    async def _attempt(self, plugin, capability, params, timeout, trace_ids, ancestry):
+    async def install(self, params):
+        self.check_cancel()
+        plugin = self.router.resolve("device.install")
+        if "device.install" not in plugin["mutating"]:
+            raise FrameworkError(ErrorCode.CAPABILITY_DENIED)
+        validate(self.store.run_dir(self.run_id) / "contracts", "device-install-request", params)
+        max_actions = self.manifest["application"]["max_actions"]
+        if type(max_actions) is not int or max_actions <= 0:
+            raise FrameworkError(ErrorCode.BUDGET_EXHAUSTED)
+        span_id = uid("span")
+        input_ref = self.artifact(f"artifacts/{uid('install')}/input.json", params)
+        action_id = self.store.begin_device_action(
+            self.run_id,
+            params["session"]["instance_id"],
+            input_ref,
+            max_actions,
+            span_id,
+        )
+        try:
+            result = await self.call(
+                "device.install", params, timeout=0, _action_id=action_id, span_id=span_id
+            )
+            if self.store.latest_device_action(self.run_id)["status"] != "unknown":
+                raise FrameworkError(ErrorCode.CAPABILITY_DENIED)
+        except BaseException as exc:
+            action = self.store.latest_device_action(self.run_id)
+            if action["status"] == "prepared":
+                error = (
+                    exc.as_dict()
+                    if isinstance(exc, FrameworkError)
+                    else {"code": ErrorCode.CALL_FAILED, "message": type(exc).__name__}
+                )
+                self.store.finish_device_action(self.run_id, action_id, "rejected", error)
+            raise
+        status = "executed" if result["status"] == "installed" else "rejected"
+        self.store.finish_device_action(self.run_id, action_id, status, result)
+        return result
+
+    async def _attempt(self, plugin, capability, params, timeout, trace_ids, ancestry, action_id):
         async def inbound(method, payload):
+            if method == "host.action":
+                self.check_cancel()
+                if capability != "device.install" or action_id is None:
+                    raise FrameworkError(ErrorCode.CAPABILITY_DENIED)
+                expected_session = {
+                    "instance_id": params["session"]["instance_id"],
+                    "serial": params["session"]["serial"],
+                }
+                if payload != expected_session:
+                    raise FrameworkError(ErrorCode.CAPABILITY_DENIED)
+                self.store.dispatch_device_action(self.run_id, action_id)
+                acknowledgement = {"persisted": True}
+                return acknowledgement
             if method == "host.event":
                 self.check_cancel()
                 kind = payload.get("kind", "")

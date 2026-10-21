@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://game-automation.local/contracts/v1/emulator-session-request",
+  "type": "object",
+  "properties": {
+    "manager_executable": {
+      "type": ["string", "null"],
+      "minLength": 1
+    },
+    "adb_executable": {
+      "type": ["string", "null"],
+      "minLength": 1
+    },
+    "instance_index": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "instance_id": {
+      "type": ["string", "null"],
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "serial": {
+      "type": ["string", "null"],
+      "minLength": 1
+    },
+    "command_timeout_seconds": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 300
+    }
+  },
+  "required": [
+    "manager_executable",
+    "adb_executable",
+    "instance_index",
+    "instance_id",
+    "serial",
+    "command_timeout_seconds"
+  ],
+  "additionalProperties": false
+}

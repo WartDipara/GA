@@ -17,3 +17,7 @@ enabled = true
 [plugins.emulator_mumu]
 manifest = "plugins/emulator_mumu/plugin.toml"
 enabled = true
+
+[plugins.android_device]
+manifest = "plugins/android_device/plugin.toml"
+enabled = true

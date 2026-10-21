@@ -9,6 +9,7 @@ from game_automation.common import FrameworkError, json_text, redact
 from game_automation.contracts import validate
 from game_automation.errors import ErrorCode
 from game_automation.kernel.workflow import execute, new_run
+from game_automation.kernel.workflow.device import preparation_task
 from game_automation.kernel.workflow.intake import intake_status, read_document
 from game_automation.kernel.workflow.preprocessing import preprocessing_status, read_batch
 from game_automation.observability import build_insights, export_trace
@@ -44,6 +45,14 @@ def parser():
     )
     emulators.add_argument("--instance", type=int, help="MuMu instance index")
     emulators.add_argument("--capture", action="store_true", help="Save local device screenshots")
+    observe = commands.add_parser("observe", help="Capture the focused Android display")
+    observe.add_argument("--instance", type=int, required=True, help="MuMu instance index")
+    device = commands.add_parser(
+        "prepare-device", help="Install a ready APK in a dedicated instance"
+    )
+    device.add_argument("--from-run", required=True, help="Preprocessing run ID")
+    device.add_argument("--apk-index", type=int, required=True, help="Zero-based APK list index")
+    device.add_argument("--instance", type=int, required=True, help="Dedicated MuMu instance index")
     runs = commands.add_parser("runs", help="List recent runs with their task subjects and states")
     runs.add_argument("--limit", type=int, default=20)
     resume = commands.add_parser("resume")
@@ -86,6 +95,18 @@ def run_details(store, run_id):
         event for event in store.events(run_id) if event["kind"] == "environment.checked"
     ]
     details["environment"] = environment_events[-1]["payload"] if environment_events else None
+    for mode, kind, key in (
+        ("device", "device.prepared", "device"),
+        ("observation", "device.observed", "observation"),
+    ):
+        if details["mode"] == mode:
+            matching = [event["payload"] for event in store.events(run_id) if event["kind"] == kind]
+            details[key] = matching[-1] if matching else None
+    if details["mode"] == "device":
+        action = store.latest_device_action(run_id)
+        details["installation"] = (
+            {key: action[key] for key in ("run_id", "action_id", "status")} if action else None
+        )
     if details["mode"] == "emulators":
         discoveries = [
             event for event in store.events(run_id) if event["kind"] == "emulators.discovered"
@@ -117,6 +138,7 @@ def execution_result(store, run_id):
         ErrorCode.DISK_SPACE_INSUFFICIENT,
         ErrorCode.DISK_SPACE_UNAVAILABLE,
         ErrorCode.DISK_BUDGET_EXCEEDED,
+        ErrorCode.DEVICE_SPACE_INSUFFICIENT,
     ):
         print(f"Warning: {reason['message']}", file=sys.stderr)
     return 0 if details["status"] == "succeeded" else 2
@@ -154,6 +176,25 @@ def main(argv=None):
             }
             task_id = store.submit(task)
             run_id = new_run(store, task_id, "emulators")
+            identifiers = {"task_id": task_id, "run_id": run_id}
+            print_json(identifiers)
+            asyncio.run(execute(store, run_id))
+            return execution_result(store, run_id)
+        elif args.command in ("observe", "prepare-device"):
+            if args.instance < 0:
+                raise FrameworkError(ErrorCode.DEVICE_SELECTION_REQUIRED)
+            if args.command == "prepare-device":
+                task = preparation_task(store, args.from_run, args.apk_index, args.instance)
+                mode = "device"
+            else:
+                task = {
+                    "kind": "device_observation",
+                    "target": "mumu-observation",
+                    "instance_index": args.instance,
+                }
+                mode = "observation"
+            task_id = store.submit(task)
+            run_id = new_run(store, task_id, mode)
             identifiers = {"task_id": task_id, "run_id": run_id}
             print_json(identifiers)
             asyncio.run(execute(store, run_id))

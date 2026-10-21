@@ -47,6 +47,38 @@ class ErrorCode(StrEnum):
     DEVICE_NOT_IMPLEMENTED = ("DEVICE_NOT_IMPLEMENTED", "Device execution is not available")
     DEVICE_SELECTION_REQUIRED = ("DEVICE_SELECTION_REQUIRED", "Device selection required")
     DEVICE_UNAVAILABLE = ("DEVICE_UNAVAILABLE", "Device unavailable")
+    DEVICE_BINDING_CONFLICT = (
+        "DEVICE_BINDING_CONFLICT",
+        "This instance or APK workspace already belongs to another binding",
+    )
+    DEVICE_IDENTITY_CHANGED = (
+        "DEVICE_IDENTITY_CHANGED",
+        "The selected instance was replaced or its endpoint changed; execution blocked",
+    )
+    DEVICE_PACKAGE_CONFLICT = (
+        "DEVICE_PACKAGE_CONFLICT",
+        "The target package already exists without a matching installation record",
+    )
+    DEVICE_SPACE_INSUFFICIENT = (
+        "DEVICE_SPACE_INSUFFICIENT",
+        "Insufficient Android data space for the estimated installation budget",
+    )
+    DEVICE_INSTALL_REJECTED = (
+        "DEVICE_INSTALL_REJECTED",
+        "Android rejected the installation; inspect the package manager response",
+    )
+    DEVICE_INSTALL_UNKNOWN = (
+        "DEVICE_INSTALL_UNKNOWN",
+        "Installation outcome is unknown; inspection is required before another action",
+    )
+    DEVICE_OBSERVATION_UNSTABLE = (
+        "DEVICE_OBSERVATION_UNSTABLE",
+        "Focused display changed during capture; obtain a fresh observation",
+    )
+    DEVICE_APK_REQUIRED = (
+        "DEVICE_APK_REQUIRED",
+        "Select a ready APK item from a preprocessing run",
+    )
     DISK_BUDGET_EXCEEDED = (
         "DISK_BUDGET_EXCEEDED",
         "APK exceeds its admitted disk budget; resume to estimate the batch again",
