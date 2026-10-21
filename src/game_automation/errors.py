@@ -37,6 +37,7 @@ class ErrorCode(StrEnum):
     BUDGET_EXHAUSTED = ("BUDGET_EXHAUSTED", "Run time limit exceeded")
     CALL_FAILED = ("CALL_FAILED", "Call failed")
     CANCELLED = ("CANCELLED", "Cancellation requested")
+    COMMAND_OUTPUT_LIMIT = ("COMMAND_OUTPUT_LIMIT", "Command output exceeded its byte limit")
     CAPABILITY_DENIED = ("CAPABILITY_DENIED", "Requested capability is not permitted")
     CLOSED = ("CLOSED", "Connection closed")
     CODEX_UNAVAILABLE = ("CODEX_UNAVAILABLE", "Codex executable was not found")
@@ -103,6 +104,8 @@ class ErrorCode(StrEnum):
     INVALID_PROTOCOL = ("INVALID_PROTOCOL", "Expected JSON-RPC 2.0 object")
     INVALID_RUN_LIMIT = ("INVALID_RUN_LIMIT", "Run list limit must be between 1 and 200")
     INVALID_SKILL = ("INVALID_SKILL", "Invalid skill name")
+    INVALID_SCREENSHOT = ("INVALID_SCREENSHOT", "Screenshot evidence is missing or invalid")
+    INVALID_MUMU_OUTPUT = ("INVALID_MUMU_OUTPUT", "MuMu returned unrecognized instance information")
     INVALID_STAGE = ("INVALID_STAGE", "Invalid stage")
     INVALID_STATE = ("INVALID_STATE", "Operation is not allowed in the current state")
     INVALID_STORAGE_POLICY = (
@@ -112,9 +115,21 @@ class ErrorCode(StrEnum):
     LOCAL_APK_CHANGED = ("LOCAL_APK_CHANGED", "Completed APK differs from its checkpoint")
     LOCAL_DOWNLOAD_CHANGED = ("LOCAL_DOWNLOAD_CHANGED", "Partial APK differs from its checkpoint")
     LOCAL_ERROR = ("LOCAL_ERROR", "Local error")
+    LOCAL_COMMAND_FAILED = (
+        "LOCAL_COMMAND_FAILED",
+        "Local command failed; inspect command evidence",
+    )
     MESSAGE_TOO_LARGE = ("MESSAGE_TOO_LARGE", "Use artifact references for large payloads")
     METHOD_NOT_FOUND = ("METHOD_NOT_FOUND", "Inbound method is not supported")
     MISSING_CAPABILITY = ("MISSING_CAPABILITY", "Missing capability")
+    MUMU_UNAVAILABLE = (
+        "MUMU_UNAVAILABLE",
+        "MuMu manager was not found; start MuMu or set GAME_AUTO_MUMU_MANAGER",
+    )
+    MUMU_SELECTION_REQUIRED = (
+        "MUMU_SELECTION_REQUIRED",
+        "Multiple MuMu installations found; set GAME_AUTO_MUMU_MANAGER",
+    )
     NOT_FOUND = ("NOT_FOUND", "Requested resource was not found")
     PACKAGE_UNAVAILABLE = ("PACKAGE_UNAVAILABLE", "Package unavailable")
     PLUGIN_INCOMPATIBLE = ("PLUGIN_INCOMPATIBLE", "Handshake differs from registered manifest")

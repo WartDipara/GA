@@ -10,11 +10,14 @@ from game_automation.kernel.policy.storage import storage_settings
 from game_automation.observability import export_trace
 from game_automation.prompting import freeze, load
 
+from .emulators import discover_emulators
 from .environment import check_environment
 from .intake import intake
 from .preprocessing import preprocess
 
 BLOCKED = {
+    ErrorCode.MUMU_UNAVAILABLE,
+    ErrorCode.MUMU_SELECTION_REQUIRED,
     ErrorCode.AAPT2_UNAVAILABLE,
     ErrorCode.AAPT2_TIMEOUT,
     ErrorCode.DOWNLOAD_STATE_INVALID,
@@ -63,7 +66,7 @@ async def execute(store, run_id, source_file=None):
         run = store.run(run_id)
         if run["status"] in ("succeeded", "failed", "cancelled"):
             raise FrameworkError(ErrorCode.RUN_TERMINAL)
-        if run["mode"] not in ("game", "intake", "preprocessing"):
+        if run["mode"] not in ("game", "intake", "preprocessing", "emulators"):
             raise FrameworkError(ErrorCode.RUN_MODE_REMOVED)
         try:
             if run["status"] == "running":
@@ -103,14 +106,19 @@ async def execute(store, run_id, source_file=None):
             require_disk_space(store.run_dir(run_id), storage["reserve_bytes"])
             host = Host(store, run_id, Router(manifest["plugins"]), manifest)
             task = store.task(run["task_id"])
-            if run["mode"] == "preprocessing":
+            if run["mode"] == "emulators":
+                timeout = 0
+            elif run["mode"] == "preprocessing":
                 timeout = manifest["application"]["preprocessing"]["batch_timeout_seconds"]
             elif task.get("kind") == "document" or run["mode"] == "intake":
                 timeout = manifest["application"].get("intake", {}).get("timeout_seconds", 300)
             else:
                 timeout = task["limits"]["timeout_seconds"]
             async with asyncio.timeout(timeout or None):
-                if run["mode"] == "preprocessing":
+                if run["mode"] == "emulators":
+                    store.transition(run_id, "running", "environment")
+                    await discover_emulators(store, run_id, host, manifest, task)
+                elif run["mode"] == "preprocessing":
                     store.transition(run_id, "running", "preprocessing")
                     await preprocess(store, run_id, host, manifest, task, source_file)
                 else:
@@ -124,7 +132,8 @@ async def execute(store, run_id, source_file=None):
                         ErrorCode.DEVICE_NOT_IMPLEMENTED, "Game launch is not available"
                     )
             host.check_cancel()
-            stage = "preprocessing" if run["mode"] == "preprocessing" else "intake"
+            stages = {"preprocessing": "preprocessing", "emulators": "environment"}
+            stage = stages.get(run["mode"], "intake")
             store.transition(run_id, "succeeded", stage)
         except BaseException as exc:
             if isinstance(exc, (KeyboardInterrupt, asyncio.CancelledError)):

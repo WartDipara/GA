@@ -58,6 +58,12 @@ before business validation. Provider rules do not leak into other modules.
 
 ## Current scope
 
+MuMu is the initial emulator provider. The `emulator_mumu` plugin resolves its local tools and
+instance endpoints, queries Android readiness, and captures local screenshots on request. The kernel
+validates evidence and records discovery in the `emulators` run mode. Provider-specific paths and
+management commands stay inside the adapter. Lifecycle management and automated input remain
+separate, unavailable capabilities. See [MuMu discovery](emulators.md).
+
 APK preprocessing is a separate run mode that accepts URL-list digests and uses apk.plan to estimate
 the whole batch's disk budget before starting downloads. The kernel adds work-file overhead, a
 margin, and a free-space reserve. Insufficient capacity blocks execution; recovery estimates again.
