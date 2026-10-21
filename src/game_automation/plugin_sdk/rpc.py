@@ -20,8 +20,11 @@ class Peer:
     """
 
     def __init__(self, reader, writer, *, handler=None, observer=None, codex=False):
-        self.reader, self.writer = reader, writer
-        self.handler, self.observer, self.codex = handler, observer, codex
+        self.reader = reader
+        self.writer = writer
+        self.handler = handler
+        self.observer = observer
+        self.codex = codex
         self.pending = {}
         self.counter = 0
         self.handlers = set()
@@ -47,7 +50,8 @@ class Peer:
         future = asyncio.get_running_loop().create_future()
         self.pending[request_id] = future
         try:
-            await self.send({"id": request_id, "method": method, "params": params})
+            request_message = {"id": request_id, "method": method, "params": params}
+            await self.send(request_message)
             return await asyncio.wait_for(future, timeout)
         except TimeoutError as exc:
             raise FrameworkError(
@@ -73,12 +77,13 @@ class Peer:
                     if isinstance(exc, FrameworkError)
                     else FrameworkError("HANDLER_FAILED", type(exc).__name__)
                 )
-                await self.send(
-                    {
-                        "id": message["id"],
-                        "error": {"code": -32000, "message": str(error), "data": error.as_dict()},
-                    }
-                )
+                error_details = {
+                    "code": -32000,
+                    "message": str(error),
+                    "data": error.as_dict(),
+                }
+                error_response = {"id": message["id"], "error": error_details}
+                await self.send(error_response)
 
     def _handler_done(self, task):
         self.handlers.discard(task)

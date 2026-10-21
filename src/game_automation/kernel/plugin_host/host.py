@@ -10,7 +10,10 @@ from game_automation.plugin_sdk.rpc import Peer, spawn, terminate
 
 class Host:
     def __init__(self, store, run_id, router, manifest):
-        self.store, self.run_id, self.router, self.manifest = store, run_id, router, manifest
+        self.store = store
+        self.run_id = run_id
+        self.router = router
+        self.manifest = manifest
 
     def check_cancel(self):
         if self.store.run(self.run_id)["cancel_requested"]:
@@ -35,39 +38,43 @@ class Host:
         )
         for attempt in range(1, retries + 1):
             self.check_cancel()
-            span, request = uid("span"), uid("req")
-            ids = {"span_id": span, "parent_span_id": parent_span_id, "request_id": request}
+            span_id = uid("span")
+            request_id = uid("req")
+            trace_ids = {
+                "span_id": span_id,
+                "parent_span_id": parent_span_id,
+                "request_id": request_id,
+            }
             started = time.monotonic()
-            input_ref = self.store.artifact(self.run_id, f"calls/{span}/input.json", params)
-            self.store.event(
-                self.run_id,
-                "call.started",
-                {
-                    "capability": capability,
-                    "plugin": plugin["name"],
-                    "attempt": attempt,
-                    "input_ref": input_ref,
-                    "unavailable_optional_capabilities": [
-                        c for c in plugin["optional_capabilities"] if c not in self.router.providers
-                    ],
-                },
-                **ids,
-            )
+            input_ref = self.store.artifact(self.run_id, f"calls/{span_id}/input.json", params)
+            unavailable_capabilities = [
+                dependency
+                for dependency in plugin["optional_capabilities"]
+                if dependency not in self.router.providers
+            ]
+            started_payload = {
+                "capability": capability,
+                "plugin": plugin["name"],
+                "attempt": attempt,
+                "input_ref": input_ref,
+                "unavailable_optional_capabilities": unavailable_capabilities,
+            }
+            self.store.event(self.run_id, "call.started", started_payload, **trace_ids)
             try:
-                result = await self._attempt(plugin, capability, params, timeout, ids, ancestry)
+                result = await self._attempt(
+                    plugin, capability, params, timeout, trace_ids, ancestry
+                )
                 if capability == "task.intake":
                     validate(self.store.run_dir(self.run_id) / "contracts", "intake-result", result)
-                output_ref = self.store.artifact(self.run_id, f"calls/{span}/output.json", result)
-                self.store.event(
-                    self.run_id,
-                    "call.completed",
-                    {
-                        "output_ref": output_ref,
-                        "duration_ms": round((time.monotonic() - started) * 1000),
-                        "attempt": attempt,
-                    },
-                    **ids,
+                output_ref = self.store.artifact(
+                    self.run_id, f"calls/{span_id}/output.json", result
                 )
+                completed_payload = {
+                    "output_ref": output_ref,
+                    "duration_ms": round((time.monotonic() - started) * 1000),
+                    "attempt": attempt,
+                }
+                self.store.event(self.run_id, "call.completed", completed_payload, **trace_ids)
                 return result
             except BaseException as exc:
                 error = (
@@ -78,32 +85,31 @@ class Host:
                         type(exc).__name__,
                     )
                 )
-                self.store.event(
-                    self.run_id,
+                failure_kind = (
                     "call.incomplete"
                     if error.code in ("TIMEOUT", "PROCESS_EXITED", "CANCELLED")
-                    else "call.failed",
-                    {
-                        "error": error.as_dict(),
-                        "attempt": attempt,
-                        "duration_ms": round((time.monotonic() - started) * 1000),
-                    },
-                    **ids,
+                    else "call.failed"
                 )
+                failure_payload = {
+                    "error": error.as_dict(),
+                    "attempt": attempt,
+                    "duration_ms": round((time.monotonic() - started) * 1000),
+                }
+                self.store.event(self.run_id, failure_kind, failure_payload, **trace_ids)
                 if isinstance(exc, asyncio.CancelledError):
                     raise
                 if attempt < retries and error.retryable:
                     self.store.event(
                         self.run_id,
                         "call.retry",
-                        {"previous_span_id": span, "next_attempt": attempt + 1},
-                        **ids,
+                        {"previous_span_id": span_id, "next_attempt": attempt + 1},
+                        **trace_ids,
                     )
                     await asyncio.sleep(0.05 * attempt)
                     continue
                 raise error from exc
 
-    async def _attempt(self, plugin, capability, params, timeout, ids, ancestry):
+    async def _attempt(self, plugin, capability, params, timeout, trace_ids, ancestry):
         async def inbound(method, payload):
             if method == "host.event":
                 kind = payload.get("kind", "")
@@ -118,7 +124,7 @@ class Host:
                     kind,
                     payload.get("payload", {}),
                     event_id=payload.get("event_id"),
-                    **ids,
+                    **trace_ids,
                 )
                 acknowledgement = {"persisted": True}
                 return acknowledgement
@@ -129,14 +135,14 @@ class Host:
                 return await self.call(
                     needed,
                     payload["input"],
-                    parent_span_id=ids["span_id"],
+                    parent_span_id=trace_ids["span_id"],
                     ancestry=(*ancestry, capability),
                 )
             raise FrameworkError("METHOD_NOT_FOUND", method)
 
         async def observe(direction, message):
             # Nested provider event is persisted by inbound before its acknowledgement.
-            self.store.event(self.run_id, "rpc." + direction, {"message": message}, **ids)
+            self.store.event(self.run_id, "rpc." + direction, {"message": message}, **trace_ids)
 
         env = {**os.environ, "PYTHONUTF8": "1", "PYTHONUNBUFFERED": "1"}
         process = await spawn(plugin["command"], cwd=plugin["cwd"], env=env)
@@ -148,7 +154,7 @@ class Host:
                     self.run_id,
                     "plugin.stderr",
                     {"text": chunk.decode("utf-8", errors="replace")},
-                    **ids,
+                    **trace_ids,
                 )
 
         async def execute():
@@ -164,33 +170,29 @@ class Host:
             health = await peer.request("health", {}, timeout)
             if health != {"ok": True}:
                 raise FrameworkError("PLUGIN_UNHEALTHY", "Plugin health check failed")
-            return await peer.request(
-                "invoke",
-                {
-                    "capability": capability,
-                    "input": redact(params),
-                    "context": {
-                        "task_id": self.store.run(self.run_id)["task_id"],
-                        "run_id": self.run_id,
-                        **ids,
-                    },
-                },
-                timeout,
-            )
+            invocation_context = {
+                "task_id": self.store.run(self.run_id)["task_id"],
+                "run_id": self.run_id,
+                **trace_ids,
+            }
+            invocation_request = {
+                "capability": capability,
+                "input": redact(params),
+                "context": invocation_context,
+            }
+            return await peer.request("invoke", invocation_request, timeout)
 
         async def cancelled():
             while True:
                 self.check_cancel()
                 await asyncio.sleep(0.1)
 
-        operation, errors, cancel = (
-            asyncio.create_task(execute()),
-            asyncio.create_task(stderr()),
-            asyncio.create_task(cancelled()),
-        )
+        invocation_task = asyncio.create_task(execute())
+        stderr_task = asyncio.create_task(stderr())
+        cancellation_task = asyncio.create_task(cancelled())
         try:
             deadline = time.monotonic() + timeout
-            watchers = {operation, errors, cancel}
+            watchers = {invocation_task, stderr_task, cancellation_task}
             while True:
                 done, _ = await asyncio.wait(
                     watchers,
@@ -202,13 +204,15 @@ class Host:
                 for task in done:
                     if task.exception():
                         raise task.exception()
-                if operation in done:
-                    return operation.result()
+                if invocation_task in done:
+                    return invocation_task.result()
                 watchers -= done
         finally:
-            for task in (operation, errors, cancel):
+            for task in (invocation_task, stderr_task, cancellation_task):
                 task.cancel()
-            await asyncio.gather(operation, errors, cancel, return_exceptions=True)
+            await asyncio.gather(
+                invocation_task, stderr_task, cancellation_task, return_exceptions=True
+            )
             with contextlib.suppress(Exception):
                 await peer.close()
             await terminate(process)

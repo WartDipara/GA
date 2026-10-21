@@ -46,7 +46,8 @@ def source_inputs(store, run_id):
         for event in store.events(run_id)
         if event["kind"] == "task.supplement"
     )
-    return submission, sources
+    source_context = (submission, sources)
+    return source_context
 
 
 def check_result(contracts, result, sources, defaults, canonical):
@@ -129,20 +130,14 @@ async def intake(store, run_id, host, manifest):
         },
         "constraints": [],
     }
-    context_ref = store.artifact(
-        run_id,
-        f"artifacts/intake/{current}/sources.json",
-        {"sources": sources, "defaults": defaults},
-    )
-    store.event(
-        run_id,
-        "intake.input",
-        {
-            "revision": current,
-            "context_ref": context_ref,
-            "source_ids": [s["source_id"] for s in sources],
-        },
-    )
+    source_context = {"sources": sources, "defaults": defaults}
+    context_ref = store.artifact(run_id, f"artifacts/intake/{current}/sources.json", source_context)
+    input_payload = {
+        "revision": current,
+        "context_ref": context_ref,
+        "source_ids": [source["source_id"] for source in sources],
+    }
+    store.event(run_id, "intake.input", input_payload)
     params = {
         "task": None if document else submission,
         "sources": sources,
@@ -161,7 +156,7 @@ async def intake(store, run_id, host, manifest):
                 store,
                 run_id,
                 "intake",
-                {"sources": sources, "defaults": defaults},
+                source_context,
                 schema(contracts, "intake-result"),
             ),
         }

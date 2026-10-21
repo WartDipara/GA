@@ -20,8 +20,10 @@ def load_plugins(root: Path):
         if manifest["name"] != name:
             raise FrameworkError("INVALID_PLUGIN", "Plugin name mismatch")
         manifest["command"] = [
-            s.replace("{python}", sys.executable).replace("{plugin}", str(manifest_path.parent))
-            for s in manifest["command"]
+            argument.replace("{python}", sys.executable).replace(
+                "{plugin}", str(manifest_path.parent)
+            )
+            for argument in manifest["command"]
         ]
         manifest["cwd"] = str(manifest_path.parent)
         plugins[name] = manifest
@@ -30,7 +32,6 @@ def load_plugins(root: Path):
 
 class Router:
     def __init__(self, plugins):
-        self.plugins = plugins
         self.providers = {}
         for plugin in plugins.values():
             for capability in plugin["capabilities"]:

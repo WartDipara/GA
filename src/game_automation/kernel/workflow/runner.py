@@ -56,14 +56,15 @@ async def execute(store, run_id):
                 }
                 for event in events:
                     if event["kind"] == "call.started" and event["span_id"] not in closed:
+                        incomplete_payload = {
+                            "error": {"code": "PREVIOUS_PROCESS_EXITED"},
+                            "result": "unknown",
+                            "attempt": event["payload"]["attempt"],
+                        }
                         store.event(
                             run_id,
                             "call.incomplete",
-                            {
-                                "error": {"code": "PREVIOUS_PROCESS_EXITED"},
-                                "result": "unknown",
-                                "attempt": event["payload"]["attempt"],
-                            },
+                            incomplete_payload,
                             span_id=event["span_id"],
                             parent_span_id=event["parent_span_id"],
                             request_id=event["request_id"],
@@ -109,13 +110,12 @@ async def execute(store, run_id):
                     if isinstance(exc, FrameworkError)
                     else FrameworkError("INTERNAL_ERROR", type(exc).__name__)
                 )
-            status = (
-                "cancelled"
-                if error.code == "CANCELLED"
-                else "blocked"
-                if error.code in BLOCKED
-                else "failed"
-            )
+            if error.code == "CANCELLED":
+                status = "cancelled"
+            elif error.code in BLOCKED:
+                status = "blocked"
+            else:
+                status = "failed"
             # Persistence failure must escape, not become a fabricated terminal record.
             store.transition(run_id, status, reason=error.as_dict())
         export_trace(store, run_id)

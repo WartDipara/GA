@@ -22,24 +22,48 @@ class Store:
         version = self.db.execute("PRAGMA user_version").fetchone()[0]
         if version not in (0, 1):
             raise FrameworkError("SCHEMA_VERSION", "Unsupported database version")
-        self.db.executescript("""
-        CREATE TABLE IF NOT EXISTS tasks(
-          id TEXT PRIMARY KEY, submission_key TEXT UNIQUE, spec TEXT NOT NULL, created_at TEXT);
-        CREATE TABLE IF NOT EXISTS runs(
-          id TEXT PRIMARY KEY, task_id TEXT REFERENCES tasks(id), mode TEXT NOT NULL,
-          status TEXT NOT NULL, stage TEXT NOT NULL, cancel_requested INTEGER DEFAULT 0,
-          created_at TEXT, updated_at TEXT);
-        CREATE TABLE IF NOT EXISTS events(
-          seq INTEGER PRIMARY KEY AUTOINCREMENT, event_id TEXT UNIQUE NOT NULL,
-          run_id TEXT REFERENCES runs(id), span_id TEXT, kind TEXT NOT NULL, data TEXT NOT NULL);
-        CREATE INDEX IF NOT EXISTS event_run ON events(run_id,seq);
-        CREATE TABLE IF NOT EXISTS sessions(
-          run_id TEXT, role TEXT, thread_id TEXT, PRIMARY KEY(run_id,role));
-        CREATE TABLE IF NOT EXISTS actions(
-          run_id TEXT, action_id TEXT, status TEXT, result TEXT,
-          PRIMARY KEY(run_id,action_id));
-        PRAGMA user_version=1;
-        """)
+        schema_sql = """
+            CREATE TABLE IF NOT EXISTS tasks (
+                id TEXT PRIMARY KEY,
+                submission_key TEXT UNIQUE,
+                spec TEXT NOT NULL,
+                created_at TEXT
+            );
+            CREATE TABLE IF NOT EXISTS runs (
+                id TEXT PRIMARY KEY,
+                task_id TEXT REFERENCES tasks(id),
+                mode TEXT NOT NULL,
+                status TEXT NOT NULL,
+                stage TEXT NOT NULL,
+                cancel_requested INTEGER DEFAULT 0,
+                created_at TEXT,
+                updated_at TEXT
+            );
+            CREATE TABLE IF NOT EXISTS events (
+                seq INTEGER PRIMARY KEY AUTOINCREMENT,
+                event_id TEXT UNIQUE NOT NULL,
+                run_id TEXT REFERENCES runs(id),
+                span_id TEXT,
+                kind TEXT NOT NULL,
+                data TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS event_run ON events(run_id, seq);
+            CREATE TABLE IF NOT EXISTS sessions (
+                run_id TEXT,
+                role TEXT,
+                thread_id TEXT,
+                PRIMARY KEY(run_id, role)
+            );
+            CREATE TABLE IF NOT EXISTS actions (
+                run_id TEXT,
+                action_id TEXT,
+                status TEXT,
+                result TEXT,
+                PRIMARY KEY(run_id, action_id)
+            );
+            PRAGMA user_version=1;
+        """
+        self.db.executescript(schema_sql)
 
     def close(self):
         self.db.close()
@@ -152,16 +176,13 @@ class Store:
                 return
             raise FrameworkError("INVALID_STATE", f"Cannot change {run['status']} to {status}")
         with self.db:
-            self._event(
-                run_id,
-                "run.state",
-                {
-                    "from": run["status"],
-                    "to": status,
-                    "stage": stage or run["stage"],
-                    "reason": reason,
-                },
-            )
+            state_payload = {
+                "from": run["status"],
+                "to": status,
+                "stage": stage or run["stage"],
+                "reason": reason,
+            }
+            self._event(run_id, "run.state", state_payload)
             self.db.execute(
                 "UPDATE runs SET status=?,stage=?,updated_at=? WHERE id=?",
                 (status, stage or run["stage"], now(), run_id),

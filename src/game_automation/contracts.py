@@ -11,9 +11,8 @@ def schema(root: Path, name: str):
 
 
 def validate(root: Path, name: str, value):
-    errors = sorted(
-        Draft202012Validator(schema(root, name)).iter_errors(value), key=lambda e: str(e.path)
-    )
+    validator = Draft202012Validator(schema(root, name))
+    errors = sorted(validator.iter_errors(value), key=lambda error: str(error.path))
     if errors:
         # Do not echo invalid values: they can contain credentials.
         raise FrameworkError("INVALID_CONTRACT", f"{name}: invalid field at {list(errors[0].path)}")

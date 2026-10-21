@@ -6,11 +6,14 @@ import copy
 import json
 import re
 import shutil
+import tomllib
+from pathlib import Path
 
+from game_automation import __version__
 from game_automation.common import FrameworkError, uid
 from game_automation.plugin_sdk.rpc import Peer, serve, spawn, terminate
 
-CAPABILITIES = ["ai.decide"]
+MANIFEST = tomllib.loads(Path(__file__).with_name("plugin.toml").read_text(encoding="utf-8"))
 
 
 def strict_schema(schema):
@@ -32,7 +35,8 @@ def strict_schema(schema):
 
 def restore_optional(value, schema):
     if isinstance(value, dict):
-        properties, required = schema.get("properties", {}), schema.get("required", [])
+        properties = schema.get("properties", {})
+        required = schema.get("required", [])
         restored_value = {
             name: restore_optional(child, properties.get(name, {}))
             for name, child in value.items()
@@ -51,9 +55,8 @@ class CodexAdapter:
 
     async def emit(self, kind, payload):
         # Persistence acknowledgement is required before reading/sending more provider work.
-        await self.host.request(
-            "host.event", {"kind": kind, "payload": payload, "event_id": uid("provider")}
-        )
+        event_message = {"kind": kind, "payload": payload, "event_id": uid("provider")}
+        await self.host.request("host.event", event_message)
 
     async def decide(self, params):
         executable = shutil.which(params["codex"]["executable"])
@@ -88,15 +91,19 @@ class CodexAdapter:
             command += ["-c", f"{key}={json.dumps(value)}"]
         process = await spawn(command, cwd=params["workspace"])
         completed = asyncio.get_running_loop().create_future()
-        messages, summaries, usage = {}, [], None
-        thread_id, turn_id = None, None
+        messages = {}
+        summaries = []
+        usage = None
+        thread_id = None
+        turn_id = None
 
         async def observe(direction, message):
             nonlocal usage, thread_id, turn_id
             await self.emit("provider.wire", {"direction": direction, "message": message})
             if direction != "in" or "method" not in message:
                 return
-            method, data = message["method"], message.get("params", {})
+            method = message["method"]
+            data = message.get("params", {})
             if data.get("threadId") and thread_id and data["threadId"] != thread_id:
                 return
             if method in ("item/started", "item/completed"):
@@ -106,40 +113,35 @@ class CodexAdapter:
                     if item.get("type") in ("mcpToolCall", "commandExecution", "dynamicToolCall")
                     else "ai.item"
                 )
-                await self.emit(
-                    kind + (".started" if method == "item/started" else ".completed"),
-                    {
-                        "thread_id": data.get("threadId"),
-                        "turn_id": data.get("turnId"),
-                        "item_id": item.get("id"),
-                        "item": item,
-                    },
-                )
+                item_payload = {
+                    "thread_id": data.get("threadId"),
+                    "turn_id": data.get("turnId"),
+                    "item_id": item.get("id"),
+                    "item": item,
+                }
+                event_kind = kind + (".started" if method == "item/started" else ".completed")
+                await self.emit(event_kind, item_payload)
                 if item.get("type") == "reasoning" and item.get("summary") and not summaries:
                     summaries.append(item["summary"])
             elif method == "item/agentMessage/delta":
-                await self.emit(
-                    "ai.progress",
-                    {
-                        "thread_id": data.get("threadId"),
-                        "turn_id": data.get("turnId"),
-                        "item_id": data.get("itemId"),
-                        "text": data.get("delta", ""),
-                    },
-                )
+                progress_payload = {
+                    "thread_id": data.get("threadId"),
+                    "turn_id": data.get("turnId"),
+                    "item_id": data.get("itemId"),
+                    "text": data.get("delta", ""),
+                }
+                await self.emit("ai.progress", progress_payload)
             if method == "turn/started":
                 turn_id = data["turn"]["id"]
             elif method == "item/reasoning/summaryTextDelta":
                 summaries.append(data.get("delta", ""))
-                await self.emit(
-                    "ai.reasoning_summary",
-                    {
-                        "text": data.get("delta", ""),
-                        "thread_id": data.get("threadId"),
-                        "turn_id": data.get("turnId"),
-                        "item_id": data.get("itemId"),
-                    },
-                )
+                summary_payload = {
+                    "text": data.get("delta", ""),
+                    "thread_id": data.get("threadId"),
+                    "turn_id": data.get("turnId"),
+                    "item_id": data.get("itemId"),
+                }
+                await self.emit("ai.reasoning_summary", summary_payload)
             elif method == "thread/tokenUsage/updated":
                 usage = data.get("tokenUsage")
                 await self.emit("ai.usage", {"usage": usage})
@@ -182,21 +184,18 @@ class CodexAdapter:
 
         stderr_task = asyncio.create_task(stderr())
         try:
-            await peer.request(
-                "initialize",
-                {
-                    "clientInfo": {
-                        "name": "game_automation",
-                        "title": "Game Automation",
-                        "version": "0.1.0",
-                    }
-                },
-            )
+            client_info = {
+                "name": "game_automation",
+                "title": "Game Automation",
+                "version": __version__,
+            }
+            initialize_request = {"clientInfo": client_info}
+            await peer.request("initialize", initialize_request)
             await peer.notify("initialized", {})
             configuration = await peer.request("config/read", {"includeLayers": False})
             for name in configuration.get("config", {}).get("mcp_servers") or {}:
                 overrides[f"mcp_servers.{name}.enabled"] = False
-            start = {
+            thread_request = {
                 "cwd": params["workspace"],
                 "sandbox": "read-only",
                 "approvalPolicy": "untrusted",
@@ -207,30 +206,26 @@ class CodexAdapter:
                 "config": overrides,
             }
             if params["codex"].get("model"):
-                start["model"] = params["codex"]["model"]
+                thread_request["model"] = params["codex"]["model"]
             if params.get("thread_id"):
-                start["threadId"] = params["thread_id"]
-            result = await peer.request(
-                "thread/resume" if params.get("thread_id") else "thread/start", start
-            )
-            thread_id = result["thread"]["id"]
-            await self.emit(
-                "ai.runtime",
-                {
-                    "runtime": actual_version,
-                    "model": result.get("model"),
-                    "reasoning_effort": result.get("reasoningEffort"),
-                    "sandbox": result.get("sandbox"),
-                    "thread_id": thread_id,
-                },
-            )
-            await self.emit("ai.session", {"role": params["role"], "thread_id": thread_id})
-            turn_input = {
-                **params["turn"],
-                "outputSchema": strict_schema(params["turn"]["outputSchema"]),
+                thread_request["threadId"] = params["thread_id"]
+            thread_method = "thread/resume" if params.get("thread_id") else "thread/start"
+            thread_result = await peer.request(thread_method, thread_request)
+            thread_id = thread_result["thread"]["id"]
+            runtime_payload = {
+                "runtime": actual_version,
+                "model": thread_result.get("model"),
+                "reasoning_effort": thread_result.get("reasoningEffort"),
+                "sandbox": thread_result.get("sandbox"),
+                "thread_id": thread_id,
             }
-            result = await peer.request("turn/start", {"threadId": thread_id, **turn_input})
-            turn_id = result["turn"]["id"]
+            await self.emit("ai.runtime", runtime_payload)
+            await self.emit("ai.session", {"role": params["role"], "thread_id": thread_id})
+            turn_request = dict(params["turn"])
+            turn_request["threadId"] = thread_id
+            turn_request["outputSchema"] = strict_schema(params["turn"]["outputSchema"])
+            turn_result = await peer.request("turn/start", turn_request)
+            turn_id = turn_result["turn"]["id"]
             deadline = asyncio.get_running_loop().time() + params["codex"]["timeout_seconds"]
             while not completed.done():
                 if peer.failure:
@@ -287,12 +282,14 @@ def handler_factory(peer):
 
     async def handler(method, params):
         if method == "initialize":
-            response = {"protocol_version": "1.0", "version": "0.2.0", "capabilities": CAPABILITIES}
+            response = {
+                field: MANIFEST[field] for field in ("protocol_version", "version", "capabilities")
+            }
             return response
         if method == "health":
             response = {"ok": True}
             return response
-        if method == "invoke" and params["capability"] in CAPABILITIES:
+        if method == "invoke" and params["capability"] in MANIFEST["capabilities"]:
             return await adapter.decide(params["input"])
         raise FrameworkError("METHOD_NOT_FOUND", method)
 

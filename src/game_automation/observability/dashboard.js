@@ -5,26 +5,31 @@
   const getElement = (id) => document.getElementById(id);
   const formatNumber = (value) =>
     value === null || value === undefined ? 'Unavailable' : Number(value).toLocaleString('en-US');
-  let picked = data.requests.length - 1;
+  let selectedRequestIndex = data.requests.length - 1;
   let category = 'all';
-  const createElement = (tag, text, cls) => {
+  const createElement = (tag, text, className) => {
     const element = document.createElement(tag);
-    if (text !== undefined) element.textContent = text;
-    if (cls) element.className = cls;
+    if (text !== undefined) {
+      element.textContent = text;
+    }
+    if (className) {
+      element.className = className;
+    }
     return element;
   };
-  const createButton = (text, click, cls = '') => {
-    const element = createElement('button', text, cls);
+  const createButton = (text, click, className = '') => {
+    const element = createElement('button', text, className);
     element.type = 'button';
     element.addEventListener('click', click);
     return element;
   };
   const reset = (id) => {
-    getElement(id).replaceChildren();
-    return getElement(id);
+    const element = getElement(id);
+    element.replaceChildren();
+    return element;
   };
   const select = (index) => {
-    picked = index;
+    selectedRequestIndex = index;
     category = 'all';
     render();
   };
@@ -47,14 +52,17 @@
   metric(
     'Reported tokens',
     formatNumber(summary.usage.totalTokens),
-    `Attributed turns ${summary.usage_coverage}${summary.usage_complete ? '' : '  |  partial data'}`,
+    `Attributed turns ${summary.usage_coverage}` +
+      `${summary.usage_complete ? '' : '  |  partial data'}`,
   );
   metric('Run status', data.run.status, `${summary.events} durable events`);
   getElement('run-title').textContent = data.run.id;
   getElement('run-meta').textContent =
     `${data.run.mode}  |  ${data.run.stage}  |  ${data.run.created_at}`;
   getElement('visibility').textContent =
-    'Visibility: application submissions and public provider events. Full model context, internal request counts, and cost are unavailable. Approximate text estimates are not billing or window occupancy.';
+    'Visibility: application submissions and public provider events. ' +
+    'Full model context, internal request counts, and cost are unavailable. ' +
+    'Approximate text estimates are not billing or window occupancy.';
   getElement('request-select').addEventListener('change', (event) =>
     select(Number(event.target.value)),
   );
@@ -63,7 +71,7 @@
   getElement('event-search').addEventListener('input', () => renderEvents());
 
   function render() {
-    const request = data.requests[picked];
+    const request = data.requests[selectedRequestIndex];
     reset('request-select');
     data.requests.forEach((entry, index) => {
       const option = createElement(
@@ -71,16 +79,16 @@
         `Turn ${index + 1}  |  ${entry.status}  |  ${entry.turn_id || entry.source}`,
       );
       option.value = index;
-      option.selected = picked === index;
+      option.selected = selectedRequestIndex === index;
       getElement('request-select').append(option);
     });
     reset('trend');
-    const max = Math.max(1, ...data.requests.map((r) => r.estimated_input_tokens));
+    const max = Math.max(1, ...data.requests.map((request) => request.estimated_input_tokens));
     data.requests.forEach((entry, index) => {
       const bar = createButton(
         '',
         () => select(index),
-        `trend-step ${index === picked ? 'selected' : ''}`,
+        `trend-step ${index === selectedRequestIndex ? 'selected' : ''}`,
       );
       bar.setAttribute('aria-label', `Select turn ${index + 1}`);
       bar.title = `Turn ${index + 1}: visible input ~${entry.estimated_input_tokens} tokens`;
@@ -100,8 +108,13 @@
       renderEvents();
       return;
     }
-    getElement('request-info').textContent =
-      `${request.source}  |  ${request.status}  |  ${request.timestamp}  |  span ${request.span_id || 'Unavailable'}`;
+    const requestDetails = [
+      request.source,
+      request.status,
+      request.timestamp,
+      `span ${request.span_id || 'Unavailable'}`,
+    ];
+    getElement('request-info').textContent = requestDetails.join('  |  ');
     reset('actuals');
     const usage = request.usage;
     for (const [label, key] of [
@@ -118,8 +131,10 @@
       createElement(
         'small',
         usage?.run_attribution === 'known'
-          ? 'Turn deltas use reported cumulative counters from the same thread. Repeated snapshots are not added.'
-          : 'The baseline is unknown or usage is missing. Last-request usage cannot stand in for a complete turn.',
+          ? 'Turn deltas use reported cumulative counters from the same thread. ' +
+              'Repeated snapshots are not added.'
+          : 'The baseline is unknown or usage is missing. ' +
+              'Last-request usage cannot stand in for a complete turn.',
       ),
     );
     if (usage?.last_model_request) {
@@ -139,13 +154,15 @@
     }
     const total = Math.max(
       1,
-      Object.values(request.composition).reduce((sum, c) => sum + c.estimated_tokens, 0),
+      Object.values(request.composition).reduce((sum, bucket) => sum + bucket.estimated_tokens, 0),
     );
     reset('composition');
     reset('legend');
     for (const [key, label] of Object.entries(data.categories)) {
       const values = request.composition[key];
-      if (!values.items) continue;
+      if (!values.items) {
+        continue;
+      }
       const segment = createButton(
         '',
         () => {
@@ -155,7 +172,8 @@
         `segment cat-${key}`,
       );
       segment.style.width = `${(100 * values.estimated_tokens) / total}%`;
-      segment.title = `${label}: ${values.items} items,~${formatNumber(values.estimated_tokens)} tokens`;
+      segment.title =
+        `${label}: ${values.items} items, ~` + `${formatNumber(values.estimated_tokens)} tokens`;
       segment.setAttribute('aria-label', segment.title);
       getElement('composition').append(segment);
       getElement('legend').append(
@@ -170,11 +188,14 @@
       );
     }
     getElement('diff').textContent = request.diff.comparable
-      ? `Compared with the previous turn in this thread: ${request.diff.added.length} added, ${request.diff.removed.length} removed (application submissions only; server-side pruning is not inferred).`
+      ? 'Compared with the previous turn in this thread: ' +
+        `${request.diff.added.length} added, ${request.diff.removed.length} removed ` +
+        '(application submissions only; server-side pruning is not inferred).'
       : 'No previous turn in this thread is available for comparison.';
     getElement('summary-state').textContent = request.summary_available
       ? 'Public reasoning summary: recorded'
-      : 'Public reasoning summary: unavailable; see assistant output or execution events for decision notes';
+      : 'Public reasoning summary: unavailable; ' +
+        'see assistant output or execution events for decision notes';
     reset('notes');
     request.notes.forEach((text) => getElement('notes').append(createElement('p', text)));
     renderBrowser();
@@ -182,12 +203,14 @@
   }
 
   function renderBrowser() {
-    const request = data.requests[picked];
+    const request = data.requests[selectedRequestIndex];
     reset('categories');
     reset('browser');
-    if (!request) return;
+    if (!request) {
+      return;
+    }
     for (const [key, label] of [['all', 'All'], ...Object.entries(data.categories)]) {
-      const count = request.items.filter((i) => key === 'all' || i.category === key).length;
+      const count = request.items.filter((entry) => key === 'all' || entry.category === key).length;
       getElement('categories').append(
         createButton(
           `${label} ${count}`,
@@ -201,9 +224,9 @@
     }
     const query = getElement('content-search').value.toLowerCase();
     const entries = request.items.filter(
-      (i) =>
-        (category === 'all' || i.category === category) &&
-        `${i.title}\n${i.content}`.toLowerCase().includes(query),
+      (entry) =>
+        (category === 'all' || entry.category === category) &&
+        `${entry.title}\n${entry.content}`.toLowerCase().includes(query),
     );
     for (const entry of entries) {
       const details = createElement('details', undefined, 'context-item');
@@ -211,7 +234,8 @@
       details.append(
         createElement(
           'summary',
-          `${data.categories[entry.category]} / ${entry.title}  |  ~${formatNumber(entry.estimated_tokens)} tokens`,
+          `${data.categories[entry.category]} / ${entry.title}  |  ~` +
+            `${formatNumber(entry.estimated_tokens)} tokens`,
         ),
       );
       if (request.diff.added.includes(entry.id))
@@ -233,13 +257,17 @@
   }
 
   function renderEvents() {
-    const request = data.requests[picked];
+    const request = data.requests[selectedRequestIndex];
     const query = getElement('event-search').value.toLowerCase();
     const scope = getElement('event-filter').value;
     reset('context-events');
     for (const event of data.context_events) {
-      if (scope === 'request' && event.request_id !== request?.id) continue;
-      if (!`${event.kind} ${event.detail}`.toLowerCase().includes(query)) continue;
+      if (scope === 'request' && event.request_id !== request?.id) {
+        continue;
+      }
+      if (!`${event.kind} ${event.detail}`.toLowerCase().includes(query)) {
+        continue;
+      }
       const detail = createElement('details', undefined, 'event-row');
       detail.append(
         createElement('summary', `#${event.seq}  |  ${event.kind}`),

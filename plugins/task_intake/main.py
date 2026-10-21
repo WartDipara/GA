@@ -11,7 +11,7 @@ from game_automation.plugin_sdk.rpc import serve
 MANIFEST = tomllib.loads(Path(__file__).with_name("plugin.toml").read_text(encoding="utf-8"))
 
 
-def factory(peer):
+def create_handler(peer):
     async def handler(method, params):
         if method == "initialize":
             intake_response = {
@@ -23,9 +23,9 @@ def factory(peer):
             return intake_response
         if method != "invoke" or params["capability"] != "task.intake":
             raise FrameworkError("METHOD_NOT_FOUND", method)
-        value = params["input"]
-        if value["task"] is not None:
-            task = value["task"]
+        intake_request = params["input"]
+        if intake_request["task"] is not None:
+            task = intake_request["task"]
             intake_response = {
                 "status": "ready",
                 "task": task,
@@ -41,12 +41,13 @@ def factory(peer):
                 ],
             }
             return intake_response
-        if value["ai"] is None:
+        if intake_request["ai"] is None:
             raise FrameworkError("INVALID_CONTRACT", "Document intake requires an AI request")
+        dependency_request = {"capability": "ai.decide", "input": intake_request["ai"]}
         result = await peer.request(
             "host.call",
-            {"capability": "ai.decide", "input": value["ai"]},
-            timeout=value["ai"]["codex"]["timeout_seconds"] + 45,
+            dependency_request,
+            timeout=intake_request["ai"]["codex"]["timeout_seconds"] + 45,
         )
         return result["decision"]
 
@@ -54,4 +55,4 @@ def factory(peer):
 
 
 if __name__ == "__main__":
-    asyncio.run(serve(factory))
+    asyncio.run(serve(create_handler))

@@ -51,11 +51,17 @@ def project(events, run, read_text):
     """Deterministically rebuild a view without importing a provider or executing tools.
 
     read_text(relative_path) returns a bounded, redacted snapshot preview. File
-    errors are visible as notes. This interface also permits artifact-free tests.
+    errors are visible as notes. The projection only reads committed records.
     """
-    requests, by_span, by_turn, pending = [], {}, {}, {}
-    calls, terminal, context_events = {}, {}, []
-    instructions, fresh_threads, totals = {}, set(), {}
+    requests = []
+    by_span = {}
+    by_turn = {}
+    pending = {}
+    call_spans = set()
+    context_events = []
+    instructions = {}
+    fresh_threads = set()
+    totals = {}
     category_names = dict(CATEGORIES)
     raw_spans = {event.get("span_id") for event in events if event["kind"] == "provider.wire"}
 
@@ -91,9 +97,14 @@ def project(events, run, read_text):
             if instructions.get(span, {}).get(name):
                 item(request, "instructions", name, instructions[span][name], event, name)
         frozen = []
+        skill_snapshots = {}
         for entry in params.get("input", []):
             if isinstance(entry, dict) and entry.get("type") == "skill":
-                content, _ = read_text(f"skills/{entry.get('name', '')}/SKILL.md")
+                skill_name = entry.get("name", "")
+                relative = f"skills/{skill_name}/SKILL.md"
+                if skill_name not in skill_snapshots:
+                    skill_snapshots[skill_name] = read_text(relative)
+                content, _ = skill_snapshots[skill_name]
                 if content is not None:
                     frozen.append((entry.get("name", ""), content))
         materialized = skill_prefix(frozen) if frozen else None
@@ -103,7 +114,7 @@ def project(events, run, read_text):
             key = f"input_{index}"
             if entry.get("type") == "skill":
                 relative = f"skills/{entry.get('name', '')}/SKILL.md"
-                content, note = read_text(relative)
+                content, note = skill_snapshots[entry.get("name", "")]
                 item(
                     request,
                     "skills",
@@ -191,17 +202,16 @@ def project(events, run, read_text):
                 identity,
             )
         elif kind == "contextCompaction":
-            context_events.append(
-                {
-                    "seq": event["seq"],
-                    "kind": "compaction",
-                    "request_id": request["id"],
-                    "detail": (
-                        "Public compaction event; removed content is not exposed "
-                        "and full context is not reconstructed"
-                    ),
-                }
-            )
+            compaction_event = {
+                "seq": event["seq"],
+                "kind": "compaction",
+                "request_id": request["id"],
+                "detail": (
+                    "Public compaction event; removed content is not exposed "
+                    "and full context is not reconstructed"
+                ),
+            }
+            context_events.append(compaction_event)
 
     def record_usage(request, usage):
         if not isinstance(usage, dict):
@@ -216,7 +226,7 @@ def project(events, run, read_text):
                 else None
                 for key in USAGE_KEYS
             }
-            if all(v is None or v >= 0 for v in candidate.values()):
+            if all(value is None or value >= 0 for value in candidate.values()):
                 delta = candidate
         request["usage"] = {
             "source": "provider_reported",
@@ -229,10 +239,12 @@ def project(events, run, read_text):
         if total is not None and request.get("thread_id"):
             totals[request["thread_id"]] = total
 
-    for event in sorted(events, key=lambda e: event["seq"]):
-        kind, payload, span = event["kind"], event.get("payload", {}), event.get("span_id")
+    for event in sorted(events, key=lambda entry: entry["seq"]):
+        kind = event["kind"]
+        payload = event.get("payload", {})
+        span = event.get("span_id")
         if kind == "call.started":
-            calls[span] = event
+            call_spans.add(span)
             if payload.get("input_ref"):
                 body, _ = read_text(payload["input_ref"])
                 try:
@@ -246,7 +258,6 @@ def project(events, run, read_text):
                 ):
                     make_request(event, params["turn"], "framework.input")
         if kind in ("call.completed", "call.failed", "call.incomplete"):
-            terminal[span] = event
             if span in by_span and by_span[span]["status"] == "incomplete":
                 by_span[span]["status"] = (
                     "completed" if kind == "call.completed" else kind.removeprefix("call.")
@@ -265,14 +276,13 @@ def project(events, run, read_text):
                 elif method == "turn/start":
                     request = make_request(event, params, "provider.wire")
                     pending[(span, message.get("id"))] = (method, request)
-                    context_events.append(
-                        {
-                            "seq": event["seq"],
-                            "kind": "request",
-                            "request_id": request["id"],
-                            "detail": "App Server turn input submitted",
-                        }
-                    )
+                    request_event = {
+                        "seq": event["seq"],
+                        "kind": "request",
+                        "request_id": request["id"],
+                        "detail": "App Server turn input submitted",
+                    }
+                    context_events.append(request_event)
                 continue
             correlation = pending.pop((span, message.get("id")), None) if "id" in message else None
             if correlation:
@@ -335,14 +345,13 @@ def project(events, run, read_text):
                 for entry in turn.get("items", []):
                     provider_item(request, entry, event)
             elif method in ("thread/compacted", "error", "warning"):
-                context_events.append(
-                    {
-                        "seq": event["seq"],
-                        "kind": "compaction" if method == "thread/compacted" else method,
-                        "request_id": request["id"],
-                        "detail": text_of(params),
-                    }
-                )
+                provider_event = {
+                    "seq": event["seq"],
+                    "kind": "compaction" if method == "thread/compacted" else method,
+                    "request_id": request["id"],
+                    "detail": text_of(params),
+                }
+                context_events.append(provider_event)
         elif span not in raw_spans and span in by_span:
             request = by_span[span]
             if kind == "ai.reasoning_summary":
@@ -367,9 +376,13 @@ def project(events, run, read_text):
             "verification.unavailable",
             "run.state",
         ):
-            context_events.append(
-                {"seq": event["seq"], "kind": kind, "detail": text_of(payload), "span_id": span}
-            )
+            workflow_event = {
+                "seq": event["seq"],
+                "kind": kind,
+                "detail": text_of(payload),
+                "span_id": span,
+            }
+            context_events.append(workflow_event)
 
     previous = {}
     for request in requests:
@@ -397,11 +410,17 @@ def project(events, run, read_text):
         request["diff"] = {
             "comparable": before is not None,
             "added": [
-                v["id"] for key, v in inputs.items() if before is not None and key not in before
+                entry["id"]
+                for key, entry in inputs.items()
+                if before is not None and key not in before
             ],
             "removed": [
-                {"category": v["category"], "title": v["title"], "sha256": v["sha256"]}
-                for key, v in (before or {}).items()
+                {
+                    "category": entry["category"],
+                    "title": entry["title"],
+                    "sha256": entry["sha256"],
+                }
+                for key, entry in (before or {}).items()
                 if key not in inputs
             ],
         }
@@ -412,7 +431,7 @@ def project(events, run, read_text):
             for key in ("instructions", "skills", "inputs", "schema", "attachments")
         )
         request["summary_available"] = any(
-            i["category"] == "reasoning" and i["content"] for i in request["items"]
+            entry["category"] == "reasoning" and entry["content"] for entry in request["items"]
         )
         request["notes"].append(
             "Only application-visible content is shown. A skill reference path does not prove "
@@ -441,7 +460,7 @@ def project(events, run, read_text):
         "context_events": context_events,
         "summary": {
             "events": len(events),
-            "calls": len(calls),
+            "calls": len(call_spans),
             "failed_calls": counts["call.failed"],
             "incomplete_calls": counts["call.incomplete"],
             "ai_turns": len(requests),
@@ -464,19 +483,23 @@ def build_insights(store, run_id):
         try:
             path = within(store.run_dir(run_id), relative)
             if path.stat().st_size > 1024 * 1024:
-                return (
+                preview_result = (
                     None,
                     f"{relative} exceeds the 1 MiB preview limit; the original file is retained",
                 )
+                return preview_result
             content = path.read_text(encoding="utf-8")
             # Only use pinned Skill content, and expose tampering as missing evidence.
             if relative.startswith("skills/"):
                 manifest_path = store.run_dir(run_id) / "manifest.json"
                 manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
                 if manifest.get("files", {}).get(relative) != digest(path.read_bytes()):
-                    return None, f"{relative} does not match its frozen digest"
-            return text_of(redact(content)), None
+                    preview_result = (None, f"{relative} does not match its frozen digest")
+                    return preview_result
+            preview_result = (text_of(redact(content)), None)
+            return preview_result
         except (OSError, ValueError, FrameworkError):
-            return None, f"{relative} cannot be read"
+            preview_result = (None, f"{relative} cannot be read")
+            return preview_result
 
     return project(store.events(run_id), store.run(run_id), read_text)
