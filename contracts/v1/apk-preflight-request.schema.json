@@ -1,0 +1,10 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://game-automation.local/contracts/v1/apk-preflight-request",
+  "type": "object",
+  "properties": {
+    "aapt2_executable": { "type": ["string", "null"], "minLength": 1 }
+  },
+  "required": ["aapt2_executable"],
+  "additionalProperties": false
+}

@@ -57,6 +57,13 @@ receives its own locked workspace, resumable download checkpoints, and compact m
 `GAME_AUTO_AAPT2` locally. No model call is required. See [APK preprocessing](docs/preprocessing.md)
 for the input contract, recovery behavior, and isolation.
 
+AAPT2 is checked before network probes or downloads. Complete local transfers recover through hash
+and ZIP validation; redirects have bounded hops and unread intermediate bodies. Retryable error
+responses honor valid server retry waits. Preprocessing has no overall item/batch duration or
+transient-attempt cap by default. Network I/O timeouts remain finite; retry backoff and server
+cooldowns survive recovery. Positive configuration values can impose explicit duration or attempt
+limits.
+
 Before downloads start, the kernel checks the entire batch's disk budget. Unknown sizes use the
 configured APK size limit. Insufficient space blocks execution with a warning; status and trace
 retain the estimate. Storage settings include a 2 GiB free-space reserve by default.

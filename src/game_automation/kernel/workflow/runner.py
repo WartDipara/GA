@@ -15,6 +15,11 @@ from .intake import intake
 from .preprocessing import preprocess
 
 BLOCKED = {
+    ErrorCode.AAPT2_UNAVAILABLE,
+    ErrorCode.AAPT2_TIMEOUT,
+    ErrorCode.DOWNLOAD_STATE_INVALID,
+    ErrorCode.DOWNLOAD_REDIRECT_LIMIT,
+    ErrorCode.DOWNLOAD_RETRY_DEFERRED,
     ErrorCode.MISSING_CAPABILITY,
     ErrorCode.SKILL_MISSING,
     ErrorCode.INVALID_SKILL,
@@ -104,7 +109,7 @@ async def execute(store, run_id, source_file=None):
                 timeout = manifest["application"].get("intake", {}).get("timeout_seconds", 300)
             else:
                 timeout = task["limits"]["timeout_seconds"]
-            async with asyncio.timeout(timeout):
+            async with asyncio.timeout(timeout or None):
                 if run["mode"] == "preprocessing":
                     store.transition(run_id, "running", "preprocessing")
                     await preprocess(store, run_id, host, manifest, task, source_file)

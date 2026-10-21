@@ -1,13 +1,26 @@
 import asyncio
 import hashlib
-import json
 import os
 import re
+import time
 import zipfile
 import zlib
 from http import HTTPStatus
 
 import httpx
+from checkpoint import (
+    complete_checkpoint,
+    file_checksum,
+    file_version,
+    new_checkpoint,
+    read_checkpoint,
+)
+from network import (
+    retry_after_seconds,
+    retryable_network_error,
+    retryable_response,
+    stream_response,
+)
 
 from game_automation.common import FrameworkError, atomic_json, digest, within
 from game_automation.disk import require_disk_space
@@ -15,13 +28,9 @@ from game_automation.errors import ErrorCode
 
 CHUNK_BYTES = 256 * 1024
 CHECKPOINT_BYTES = 8 * 1024 * 1024
+CHECKPOINT_SECONDS = 30
 CONTENT_RANGE = re.compile(r"bytes ([0-9]+)-([0-9]+)/([0-9]+)")
 STRONG_ETAG = re.compile(r'"[\x21\x23-\x7e]*"')
-
-
-def file_digest(path):
-    with path.open("rb") as stream:
-        return hashlib.file_digest(stream, "sha256").hexdigest()
 
 
 def validate_archive(path, max_bytes):
@@ -53,6 +62,11 @@ class Downloader:
         self.state_path = within(workspace, "download.json")
         self.budget_bytes = request.get("download_budget_bytes", request["max_apk_bytes"])
         self.reserve_bytes = request.get("disk_reserve_bytes", 2 * 1024**3)
+        timeout = request.get("timeout_seconds", 0)
+        self.deadline = time.monotonic() + timeout if timeout else None
+        self.retry_after = None
+        self.checksum = hashlib.sha256()
+        self.partial_version = None
         self.state = {}
 
     def check_cancel(self):
@@ -62,7 +76,10 @@ class Downloader:
     def checkpoint(self, stream, checksum):
         stream.flush()
         os.fsync(stream.fileno())
-        self.state["downloaded_bytes"] = stream.tell()
+        count = stream.tell()
+        if count > self.state.get("downloaded_bytes", 0):
+            self.state["retry_backoff_seconds"] = 1
+        self.state["downloaded_bytes"] = count
         self.state["prefix_sha256"] = checksum.hexdigest()
         atomic_json(self.state_path, self.state)
 
@@ -72,18 +89,10 @@ class Downloader:
 
     async def restore(self):
         self.check_cancel()
-        if self.state_path.exists():
-            try:
-                self.state = json.loads(self.state_path.read_text(encoding="utf-8"))
-                if self.state["source_id"] != self.request["source_id"]:
-                    raise ValueError
-                count = self.state["downloaded_bytes"]
-                if not isinstance(count, int) or not 0 <= count <= self.request["max_apk_bytes"]:
-                    raise ValueError
-            except (ValueError, KeyError, TypeError) as exc:
-                raise FrameworkError(ErrorCode.DOWNLOAD_STATE_INVALID) from exc
+        self.state = read_checkpoint(self.partial.parent, self.request)
         if self.final.exists():
-            actual = await asyncio.to_thread(file_digest, self.final)
+            checksum = await asyncio.to_thread(file_checksum, self.final)
+            actual = checksum.hexdigest()
             if actual != self.state.get("prefix_sha256"):
                 raise FrameworkError(ErrorCode.LOCAL_APK_CHANGED)
             await self.event(
@@ -95,14 +104,17 @@ class Downloader:
             if self.partial.stat().st_size >= count:
                 with self.partial.open("r+b") as stream:
                     stream.truncate(count)
-                actual = await asyncio.to_thread(file_digest, self.partial)
-                if actual != self.state.get("prefix_sha256"):
+                self.partial_version = file_version(self.partial.stat())
+                self.checksum = await asyncio.to_thread(file_checksum, self.partial)
+                unchanged = file_version(self.partial.stat()) == self.partial_version
+                if not unchanged or self.checksum.hexdigest() != self.state["prefix_sha256"]:
                     raise FrameworkError(ErrorCode.LOCAL_DOWNLOAD_CHANGED)
                 return False
-        self.state = {}
+        self.state = new_checkpoint(self.request["source_id"], self.state)
         return False
 
     async def response_plan(self, response, offset, resume, etag, attempt):
+        self.retry_after = retry_after_seconds(response) if retryable_response(response) else None
         response_payload = {
             "attempt": attempt,
             "status": response.status_code,
@@ -110,17 +122,13 @@ class Downloader:
         }
         await self.event("download.response", response_payload)
         if response.status_code == HTTPStatus.REQUESTED_RANGE_NOT_SATISFIABLE and resume:
-            self.state = {}
+            self.state = new_checkpoint(self.request["source_id"], self.state)
             raise FrameworkError(ErrorCode.DOWNLOAD_RESTART, retryable=True)
         if response.status_code not in (HTTPStatus.OK, HTTPStatus.PARTIAL_CONTENT):
-            retryable = (
-                response.status_code in (HTTPStatus.REQUEST_TIMEOUT, HTTPStatus.TOO_MANY_REQUESTS)
-                or response.is_server_error
-            )
             raise FrameworkError(
                 ErrorCode.DOWNLOAD_HTTP_ERROR,
                 f"Download returned HTTP {response.status_code}",
-                retryable=retryable,
+                retryable=retryable_response(response),
             )
         if response.headers.get("content-encoding", "identity").lower() != "identity":
             raise FrameworkError(ErrorCode.DOWNLOAD_ENCODING)
@@ -137,7 +145,7 @@ class Downloader:
             same_resource = received_etag == etag and resource_id == self.state.get("resource_id")
             same_size = self.state.get("total_bytes") in (None, total)
             if not valid_range or not same_resource or not same_size:
-                self.state = {}
+                self.state = new_checkpoint(self.request["source_id"], self.state)
                 raise FrameworkError(
                     ErrorCode.DOWNLOAD_RESTART,
                     "Resource changed; restarting download",
@@ -179,55 +187,70 @@ class Downloader:
             offset = 0
         request_payload = {"attempt": attempt, "offset": offset, "resuming": resume}
         await self.event("download.request", request_payload)
-        async with client.stream("GET", url, headers=headers) as response:
+        async with stream_response(client, "GET", url, headers, self.event) as response:
             plan = await self.response_plan(response, offset, resume, etag, attempt)
             offset = plan["offset"]
             end = plan["end"]
             total = plan["total"]
-            self.state = {
-                "source_id": self.request["source_id"],
-                "etag": response.headers.get("etag"),
-                "resource_id": plan["resource_id"],
-                "total_bytes": total,
-            }
+            self.state = new_checkpoint(self.request["source_id"], self.state)
+            self.state["etag"] = response.headers.get("etag")
+            self.state["resource_id"] = plan["resource_id"]
+            self.state["total_bytes"] = total
+            self.state["downloaded_bytes"] = offset
             mode = "r+b" if offset else "wb"
-            checksum = hashlib.sha256()
+            if not offset:
+                self.checksum = hashlib.sha256()
+            checksum = self.checksum
             self.check_disk_space()
-            with self.partial.open(mode) as stream:
-                if offset:
-                    while chunk := stream.read(CHUNK_BYTES):
-                        checksum.update(chunk)
-                stream.seek(offset)
-                self.checkpoint(stream, checksum)
-                checkpoint_offset = offset
-                try:
-                    async for chunk in response.aiter_raw(CHUNK_BYTES):
-                        self.check_cancel()
-                        count = stream.tell() + len(chunk)
-                        if count > self.budget_bytes:
-                            raise FrameworkError(ErrorCode.DISK_BUDGET_EXCEEDED)
-                        if count > self.request["max_apk_bytes"] or (
-                            total is not None and count > total
-                        ):
-                            raise FrameworkError(
-                                ErrorCode.APK_TOO_LARGE,
-                                "Response exceeds the allowed download size",
-                            )
-                        if end is not None and count > end + 1:
-                            raise FrameworkError(
-                                ErrorCode.DOWNLOAD_RANGE_INVALID,
-                                "Response exceeds its declared range",
-                            )
-                        self.check_disk_space()
-                        stream.write(chunk)
-                        checksum.update(chunk)
-                        if count - checkpoint_offset >= CHECKPOINT_BYTES:
-                            self.checkpoint(stream, checksum)
-                            progress = {"downloaded_bytes": count, "total_bytes": total}
-                            await self.event("download.progress", progress)
-                            checkpoint_offset = count
-                finally:
+            stream = self.partial.open(mode)
+            try:
+                with stream:
+                    if offset:
+                        current_version = file_version(os.fstat(stream.fileno()))
+                        if current_version != self.partial_version:
+                            raise FrameworkError(ErrorCode.LOCAL_DOWNLOAD_CHANGED)
+                    stream.seek(offset)
                     self.checkpoint(stream, checksum)
+                    checkpoint_offset = offset
+                    checkpoint_time = time.monotonic()
+                    try:
+                        async for chunk in response.aiter_raw():
+                            self.check_cancel()
+                            count = stream.tell() + len(chunk)
+                            if count > self.budget_bytes:
+                                raise FrameworkError(ErrorCode.DISK_BUDGET_EXCEEDED)
+                            if count > self.request["max_apk_bytes"] or (
+                                total is not None and count > total
+                            ):
+                                raise FrameworkError(
+                                    ErrorCode.APK_TOO_LARGE,
+                                    "Response exceeds the allowed download size",
+                                )
+                            if end is not None and count > end + 1:
+                                raise FrameworkError(
+                                    ErrorCode.DOWNLOAD_RANGE_INVALID,
+                                    "Response exceeds its declared range",
+                                )
+                            require_disk_space(
+                                self.partial.parent,
+                                self.reserve_bytes + 5 * max(CHUNK_BYTES, len(chunk)),
+                            )
+                            stream.write(chunk)
+                            checksum.update(chunk)
+                            checkpoint_due = (
+                                time.monotonic() - checkpoint_time >= CHECKPOINT_SECONDS
+                            )
+                            if count - checkpoint_offset >= CHECKPOINT_BYTES or checkpoint_due:
+                                self.checkpoint(stream, checksum)
+                                progress = {"downloaded_bytes": count, "total_bytes": total}
+                                await self.event("download.progress", progress)
+                                checkpoint_offset = count
+                                checkpoint_time = time.monotonic()
+                    finally:
+                        self.checkpoint(stream, checksum)
+            finally:
+                # Windows may update the modification time only after the writer closes.
+                self.partial_version = file_version(self.partial.stat())
             count = self.state["downloaded_bytes"]
             if (total is not None and count != total) or (end is not None and count != end + 1):
                 raise FrameworkError(
@@ -243,9 +266,12 @@ class Downloader:
             await asyncio.to_thread(validate_archive, self.partial, self.request["max_apk_bytes"])
         except FrameworkError:
             self.state["transfer_complete"] = False
+            self.state["archive_invalid"] = True
             self.state["etag"] = None
             atomic_json(self.state_path, self.state)
             raise
+        self.state["transfer_complete"] = True
+        atomic_json(self.state_path, self.state)
         evidence = {
             "sizeBytes": self.state["downloaded_bytes"],
             "sha256": self.state["prefix_sha256"],
@@ -258,19 +284,27 @@ class Downloader:
         self.check_disk_space()
         if await self.restore():
             return self.final
-        if self.state.get("transfer_complete"):
+        if complete_checkpoint(self.state):
             return await self.finalize()
         if self.budget_bytes == 0:
             raise FrameworkError(ErrorCode.DISK_BUDGET_EXCEEDED)
         timeout = httpx.Timeout(self.request["request_timeout_seconds"])
-        async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
-            for attempt in range(1, self.request["max_attempts"] + 1):
+        async with httpx.AsyncClient(timeout=timeout, follow_redirects=False) as client:
+            attempt = 0
+            while True:
+                attempt += 1
+                self.retry_after = None
+                await self.wait_for_retry()
+                self.check_disk_space()
                 try:
-                    await self.transfer(client, url, attempt)
+                    if not complete_checkpoint(self.state):
+                        await self.transfer(client, url, attempt)
                     return await self.finalize()
                 except httpx.HTTPError as exc:
                     error = FrameworkError(
-                        ErrorCode.DOWNLOAD_NETWORK_ERROR, type(exc).__name__, retryable=True
+                        ErrorCode.DOWNLOAD_NETWORK_ERROR,
+                        type(exc).__name__,
+                        retryable=retryable_network_error(exc),
                     )
                 except FrameworkError as exc:
                     if exc.code in (
@@ -286,6 +320,38 @@ class Downloader:
                     "downloaded_bytes": self.state.get("downloaded_bytes", 0),
                 }
                 await self.event("download.attempt_failed", failed_payload)
-                if not error.retryable or attempt == self.request["max_attempts"]:
+                if not error.retryable:
                     raise error
-                await asyncio.sleep(min(2 ** (attempt - 1), 10))
+                maximum = self.request.get("retry_max_seconds", 300)
+                backoff = min(self.state.get("retry_backoff_seconds", 1), maximum)
+                delay = max(backoff, self.retry_after or 0)
+                self.state["retry_backoff_seconds"] = min(backoff * 2, maximum)
+                self.state["retry_not_before"] = time.time() + delay
+                atomic_json(self.state_path, self.state)
+                scheduled = {
+                    "next_attempt": attempt + 1,
+                    "wait_seconds": delay,
+                    "retry_not_before": self.state["retry_not_before"],
+                }
+                await self.event("download.retry_scheduled", scheduled)
+                limit = self.request["max_attempts"]
+                if limit and attempt >= limit:
+                    raise error
+
+    async def wait_for_retry(self):
+        self.check_cancel()
+        retry_at = self.state.get("retry_not_before", 0)
+        delay = max(0, retry_at - time.time())
+        if self.deadline is not None:
+            remaining = max(0, self.deadline - time.monotonic() - 5)
+            if delay >= remaining:
+                await self.event("download.retry_deferred", {"retry_not_before": retry_at})
+                raise FrameworkError(ErrorCode.DOWNLOAD_RETRY_DEFERRED)
+        if delay:
+            waiting = {"retry_not_before": retry_at, "wait_seconds": delay}
+            await self.event("download.retry_waiting", waiting)
+            await asyncio.sleep(delay)
+        self.check_cancel()
+        if "retry_not_before" in self.state:
+            del self.state["retry_not_before"]
+            atomic_json(self.state_path, self.state)

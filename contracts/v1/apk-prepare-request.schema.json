@@ -9,10 +9,12 @@
     "workspace": { "type": "string", "minLength": 1 },
     "aapt2_executable": { "type": ["string", "null"], "minLength": 1 },
     "request_timeout_seconds": { "type": "integer", "minimum": 1, "maximum": 300 },
-    "max_attempts": { "type": "integer", "minimum": 1, "maximum": 10 },
+    "max_attempts": { "type": "integer", "minimum": 0, "maximum": 10 },
     "max_apk_bytes": { "type": "integer", "minimum": 1 },
     "download_budget_bytes": { "type": "integer", "minimum": 0 },
-    "disk_reserve_bytes": { "type": "integer", "minimum": 1 }
+    "disk_reserve_bytes": { "type": "integer", "minimum": 1 },
+    "timeout_seconds": { "type": "integer", "minimum": 0 },
+    "retry_max_seconds": { "type": "integer", "minimum": 1 }
   },
   "required": [
     "source_file",

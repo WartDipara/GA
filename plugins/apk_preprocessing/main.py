@@ -10,7 +10,7 @@ from pathlib import Path
 
 import httpx
 from download import Downloader
-from metadata import inspect_apk
+from metadata import inspect_apk, preflight_aapt2
 from planning import plan_download
 
 from game_automation.common import FileLock, FrameworkError, digest, within
@@ -54,14 +54,18 @@ def create_handler(peer):
         if method == "health":
             response = {"ok": True}
             return response
-        if method != "invoke" or params["capability"] not in ("apk.plan", "apk.prepare"):
+        if method != "invoke" or params["capability"] not in MANIFEST["capabilities"]:
             raise FrameworkError(ErrorCode.METHOD_NOT_FOUND, method)
         request = params["input"]
+        if params["capability"] == "apk.preflight":
+            return await preflight_aapt2(request["aapt2_executable"], event)
         url = read_source(request)
         workspace = Path(request["workspace"]).resolve()
-        if params["capability"] == "apk.plan":
-            return await plan_download(url, workspace, request, event)
         workspace.mkdir(parents=True, exist_ok=True)
+        if params["capability"] == "apk.plan":
+            lock_path = within(workspace, "workspace.lock")
+            with FileLock(lock_path, ErrorCode.APK_WORKSPACE_BUSY):
+                return await plan_download(url, workspace, request, event)
         event_loop = asyncio.get_running_loop()
         stop_event = threading.Event()
 

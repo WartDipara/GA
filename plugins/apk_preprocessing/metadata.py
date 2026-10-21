@@ -40,14 +40,14 @@ def resolve_aapt2(configured):
     raise FrameworkError(ErrorCode.AAPT2_UNAVAILABLE)
 
 
-async def inspect_apk(apk, configured, event):
-    executable = resolve_aapt2(configured)
-    command = [executable, "dump", "badging", str(apk)]
+async def run_aapt2(
+    command, event, *, cwd=None, timeout=60, failure_code=ErrorCode.APK_PARSE_FAILED
+):
     await event("metadata.started", {"arguments": command})
     process = None
     try:
-        async with asyncio.timeout(60):
-            process = await spawn(command, cwd=str(apk.parent / "work"))
+        async with asyncio.timeout(timeout):
+            process = await spawn(command, cwd=cwd)
             stdout, stderr = await process.communicate()
     except TimeoutError as exc:
         raise FrameworkError(ErrorCode.AAPT2_TIMEOUT) from exc
@@ -66,7 +66,29 @@ async def inspect_apk(apk, configured, event):
     }
     await event("metadata.completed", evidence)
     if process.returncode != 0:
-        raise FrameworkError(ErrorCode.APK_PARSE_FAILED)
+        raise FrameworkError(failure_code)
+    return evidence
+
+
+async def preflight_aapt2(configured, event):
+    executable = str(Path(resolve_aapt2(configured)).resolve())
+    command = [executable, "version"]
+    output = await run_aapt2(command, event, timeout=10, failure_code=ErrorCode.AAPT2_UNAVAILABLE)
+    version_text = output["stdout"] + "\n" + output["stderr"]
+    version_pattern = r"^Android Asset Packaging Tool \(aapt\) 2(?:\.|$)"
+    if not re.search(version_pattern, version_text, re.M):
+        raise FrameworkError(
+            ErrorCode.AAPT2_UNAVAILABLE, "Configured executable did not identify itself as AAPT2"
+        )
+    result = {"aapt2_executable": executable}
+    return result
+
+
+async def inspect_apk(apk, configured, event):
+    executable = resolve_aapt2(configured)
+    command = [executable, "dump", "badging", str(apk)]
+    result = await run_aapt2(command, event, cwd=str(apk.parent / "work"))
+    output = result["stdout"]
     package_line = next((line for line in output.splitlines() if line.startswith("package: ")), "")
     fields = dict(re.findall(r"([A-Za-z]+)='([^']*)'", package_line))
     package = fields.get("name", "")
