@@ -51,10 +51,11 @@ uv run game-auto status <run_id>
 uv run game-auto resume <run_id> --input var/apks.json
 ```
 
-Each APK receives its own workspace, resumable download checkpoints, and compact metadata:
-`apkName`, `packageName`, version, size, and SHA-256. Install Android SDK Build Tools for AAPT2, or
-set `GAME_AUTO_AAPT2` locally. No model call is required. See
-[APK preprocessing](docs/preprocessing.md) for the input contract, recovery behavior, and isolation.
+Five APK workers process the list concurrently; additional entries wait in FIFO order. Each APK
+receives its own locked workspace, resumable download checkpoints, and compact metadata: `apkName`,
+`packageName`, version, size, and SHA-256. Install Android SDK Build Tools for AAPT2, or set
+`GAME_AUTO_AAPT2` locally. No model call is required. See [APK preprocessing](docs/preprocessing.md)
+for the input contract, recovery behavior, and isolation.
 
 ## Trace inspection
 

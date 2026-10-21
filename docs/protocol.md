@@ -64,11 +64,13 @@ workspace, and download settings. The input file is read only, and its selected 
 digest. Raw addresses are not included in RPC messages. The kernel validates requests and metadata;
 the plugin writes only its assigned APK files and download checkpoint, never SQLite.
 
-preprocessing.apk.started/ready/blocked events identify each item. The host associates capability
-calls with their spans; plugin.preprocessing events expose HTTP attempts, progress, restarts,
-archive validation, and metadata-tool output. The kernel writes metadata and batch-summary
-artifacts. Resume reuses verified local files or continues safe partial downloads, with distinct
-call spans. See [APK preprocessing](preprocessing.md).
+preprocessing.apk.queued/started/ready/blocked events identify each item. The kernel reserves a
+distinct span when an item enters the FIFO queue, and the host uses that span for its capability
+call. Progress, errors, and completion stay associated with the item even when five workers
+interleave. plugin.preprocessing events expose HTTP attempts, progress, restarts, archive
+validation, and metadata-tool output. The kernel writes metadata and batch-summary artifacts. Resume
+reuses verified local files or continues safe partial downloads, with distinct call spans. See
+[APK preprocessing](preprocessing.md).
 
 ## Task intake
 

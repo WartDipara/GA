@@ -15,12 +15,35 @@ class Host:
         self.run_id = run_id
         self.router = router
         self.manifest = manifest
+        self.failure = None
+
+    def stop(self, error):
+        if self.failure is None:
+            self.failure = error
+
+    def record(self, kind, payload, **trace_ids):
+        try:
+            return self.store.event(self.run_id, kind, payload, **trace_ids)
+        except Exception as exc:
+            self.stop(exc)
+            raise
+
+    def artifact(self, relative, value):
+        try:
+            return self.store.artifact(self.run_id, relative, value)
+        except Exception as exc:
+            self.stop(exc)
+            raise
 
     def check_cancel(self):
+        if self.failure is not None:
+            raise self.failure
         if self.store.run(self.run_id)["cancel_requested"]:
             raise FrameworkError(ErrorCode.CANCELLED)
 
-    async def call(self, capability, params, *, parent_span_id=None, timeout=None, ancestry=()):
+    async def call(
+        self, capability, params, *, parent_span_id=None, timeout=None, ancestry=(), span_id=None
+    ):
         self.check_cancel()
         if capability in ancestry or len(ancestry) >= 8:
             raise FrameworkError(ErrorCode.DEPENDENCY_CYCLE)
@@ -37,9 +60,10 @@ class Host:
             if capability == "ai.decide"
             else self.manifest["application"]["call_timeout_seconds"]
         )
+        initial_span_id = span_id
         for attempt in range(1, retries + 1):
             self.check_cancel()
-            span_id = uid("span")
+            span_id = initial_span_id if initial_span_id and attempt == 1 else uid("span")
             request_id = uid("req")
             trace_ids = {
                 "span_id": span_id,
@@ -47,7 +71,7 @@ class Host:
                 "request_id": request_id,
             }
             started = time.monotonic()
-            input_ref = self.store.artifact(self.run_id, f"calls/{span_id}/input.json", params)
+            input_ref = self.artifact(f"calls/{span_id}/input.json", params)
             unavailable_capabilities = [
                 dependency
                 for dependency in plugin["optional_capabilities"]
@@ -60,7 +84,7 @@ class Host:
                 "input_ref": input_ref,
                 "unavailable_optional_capabilities": unavailable_capabilities,
             }
-            self.store.event(self.run_id, "call.started", started_payload, **trace_ids)
+            self.record("call.started", started_payload, **trace_ids)
             try:
                 result = await self._attempt(
                     plugin, capability, params, timeout, trace_ids, ancestry
@@ -73,15 +97,13 @@ class Host:
                     )
                 elif capability == "apk.prepare":
                     validate(self.store.run_dir(self.run_id) / "contracts", "apk-metadata", result)
-                output_ref = self.store.artifact(
-                    self.run_id, f"calls/{span_id}/output.json", result
-                )
+                output_ref = self.artifact(f"calls/{span_id}/output.json", result)
                 completed_payload = {
                     "output_ref": output_ref,
                     "duration_ms": round((time.monotonic() - started) * 1000),
                     "attempt": attempt,
                 }
-                self.store.event(self.run_id, "call.completed", completed_payload, **trace_ids)
+                self.record("call.completed", completed_payload, **trace_ids)
                 return result
             except BaseException as exc:
                 if isinstance(exc, FrameworkError):
@@ -104,12 +126,11 @@ class Host:
                     "attempt": attempt,
                     "duration_ms": round((time.monotonic() - started) * 1000),
                 }
-                self.store.event(self.run_id, failure_kind, failure_payload, **trace_ids)
+                self.record(failure_kind, failure_payload, **trace_ids)
                 if isinstance(exc, asyncio.CancelledError):
                     raise
                 if attempt < retries and error.retryable:
-                    self.store.event(
-                        self.run_id,
+                    self.record(
                         "call.retry",
                         {"previous_span_id": span_id, "next_attempt": attempt + 1},
                         **trace_ids,
@@ -121,6 +142,7 @@ class Host:
     async def _attempt(self, plugin, capability, params, timeout, trace_ids, ancestry):
         async def inbound(method, payload):
             if method == "host.event":
+                self.check_cancel()
                 kind = payload.get("kind", "")
                 if not kind.startswith(("provider.", "ai.", "plugin.")):
                     raise FrameworkError(ErrorCode.INVALID_EVENT)
@@ -128,8 +150,7 @@ class Host:
                     self.store.save_session(
                         self.run_id, payload["payload"]["role"], payload["payload"]["thread_id"]
                     )
-                self.store.event(
-                    self.run_id,
+                self.record(
                     kind,
                     payload.get("payload", {}),
                     event_id=payload.get("event_id"),
@@ -153,7 +174,7 @@ class Host:
 
         async def observe(direction, message):
             # Nested provider event is persisted by inbound before its acknowledgement.
-            self.store.event(self.run_id, "rpc." + direction, {"message": message}, **trace_ids)
+            self.record("rpc." + direction, {"message": message}, **trace_ids)
 
         env = {**os.environ, "PYTHONUTF8": "1", "PYTHONUNBUFFERED": "1"}
         process = await spawn(plugin["command"], cwd=plugin["cwd"], env=env)
@@ -161,8 +182,7 @@ class Host:
 
         async def stderr():
             while chunk := await process.stderr.readline():
-                self.store.event(
-                    self.run_id,
+                self.record(
                     "plugin.stderr",
                     {"text": chunk.decode("utf-8", errors="replace")},
                     **trace_ids,

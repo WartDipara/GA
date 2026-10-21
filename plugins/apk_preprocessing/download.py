@@ -43,13 +43,18 @@ def validate_archive(path, max_bytes):
 
 
 class Downloader:
-    def __init__(self, workspace, request, event):
+    def __init__(self, workspace, request, event, stop_event):
         self.request = request
         self.event = event
+        self.stop_event = stop_event
         self.partial = within(workspace, "download.part")
         self.final = within(workspace, "application.apk")
         self.state_path = within(workspace, "download.json")
         self.state = {}
+
+    def check_cancel(self):
+        if self.stop_event.is_set():
+            raise FrameworkError(ErrorCode.CANCELLED)
 
     def checkpoint(self, stream, checksum):
         stream.flush()
@@ -59,6 +64,7 @@ class Downloader:
         atomic_json(self.state_path, self.state)
 
     async def restore(self):
+        self.check_cancel()
         if self.state_path.exists():
             try:
                 self.state = json.loads(self.state_path.read_text(encoding="utf-8"))
@@ -152,6 +158,7 @@ class Downloader:
         return plan
 
     async def transfer(self, client, url, attempt):
+        self.check_cancel()
         offset = self.state.get("downloaded_bytes", 0)
         etag = self.state.get("etag")
         resume = bool(offset and etag and STRONG_ETAG.fullmatch(etag))
@@ -185,6 +192,7 @@ class Downloader:
                 checkpoint_offset = offset
                 try:
                     async for chunk in response.aiter_raw(CHUNK_BYTES):
+                        self.check_cancel()
                         count = stream.tell() + len(chunk)
                         if count > self.request["max_apk_bytes"] or (
                             total is not None and count > total
@@ -217,6 +225,7 @@ class Downloader:
             atomic_json(self.state_path, self.state)
 
     async def finalize(self):
+        self.check_cancel()
         try:
             await asyncio.to_thread(validate_archive, self.partial, self.request["max_apk_bytes"])
         except FrameworkError:
@@ -248,7 +257,11 @@ class Downloader:
                         ErrorCode.DOWNLOAD_NETWORK_ERROR, type(exc).__name__, retryable=True
                     )
                 except FrameworkError as exc:
-                    if exc.code == ErrorCode.TRACE_UNAVAILABLE:
+                    if exc.code in (
+                        ErrorCode.TRACE_UNAVAILABLE,
+                        ErrorCode.CANCELLED,
+                        ErrorCode.CLOSED,
+                    ):
                         raise
                     error = exc
                 failed_payload = {

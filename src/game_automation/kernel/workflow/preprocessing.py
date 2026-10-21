@@ -1,8 +1,9 @@
+import asyncio
 import json
 import os
 from urllib.parse import urlsplit
 
-from game_automation.common import FrameworkError, digest, within
+from game_automation.common import FrameworkError, digest, uid, within
 from game_automation.contracts import validate
 from game_automation.errors import ErrorCode
 
@@ -36,25 +37,98 @@ def read_batch(source_file, contracts):
 
 def preprocessing_status(store, run_id):
     items = {}
-    active_index = None
+    span_items = {}
+    active_spans = {}
+    legacy_index = None
+    item_events = {
+        "preprocessing.apk.queued",
+        "preprocessing.apk.started",
+        "preprocessing.apk.ready",
+        "preprocessing.apk.blocked",
+    }
     for event in store.events(run_id):
-        if event["kind"] in (
-            "preprocessing.apk.started",
-            "preprocessing.apk.ready",
-            "preprocessing.apk.blocked",
-        ):
+        kind = event["kind"]
+        span_id = event["span_id"]
+        if kind == "run.state" and event["payload"]["to"] in ("blocked", "failed", "cancelled"):
+            state = event["payload"]
+            for item in items.values():
+                if item["status"] == "running":
+                    item["status"] = "incomplete"
+                    item["error"] = state.get("reason")
+                elif item["status"] == "queued" and state["to"] == "cancelled":
+                    item["status"] = "cancelled"
+            continue
+        if kind in item_events:
             item = dict(event["payload"])
-            items[item["index"]] = item
-            active_index = item["index"]
-        elif active_index is not None and items[active_index]["status"] == "running":
-            item = items[active_index]
-            if event["kind"] == "plugin.preprocessing.download.progress":
-                item["progress"] = event["payload"]
-            elif event["kind"] in ("call.failed", "call.incomplete"):
-                item["status"] = "incomplete" if event["kind"] == "call.incomplete" else "blocked"
-                item["error"] = event["payload"]["error"]
+            index = item["index"]
+            item["span_id"] = span_id
+            items[index] = item
+            if span_id:
+                span_items[span_id] = index
+                active_spans[index] = span_id
+            elif kind == "preprocessing.apk.started":
+                legacy_index = index
+        elif (
+            kind == "call.started"
+            and event["payload"]["capability"] == "apk.prepare"
+            and legacy_index is not None
+        ):
+            # Older sequential runs did not reserve an item span before dispatch.
+            span_items[span_id] = legacy_index
+            active_spans[legacy_index] = span_id
+            items[legacy_index]["span_id"] = span_id
+            legacy_index = None
+        if span_id not in span_items:
+            continue
+        index = span_items[span_id]
+        item = items[index]
+        if active_spans[index] != span_id or item["status"] != "running":
+            continue
+        if kind == "plugin.preprocessing.download.progress":
+            item["progress"] = event["payload"]
+        elif kind in ("call.failed", "call.incomplete"):
+            item["status"] = "incomplete" if kind == "call.incomplete" else "blocked"
+            item["error"] = event["payload"]["error"]
     results = [items[index] for index in sorted(items)]
     return results
+
+
+async def prepare_apk(store, run_id, host, settings, source_file, item, span_id):
+    workspace_ref = item["workspace_ref"]
+    workspace = within(store.run_dir(run_id), workspace_ref)
+    aapt2 = os.environ.get("GAME_AUTO_AAPT2") or os.environ.get("AAPT2_CMD") or None
+    request = {
+        "source_file": str(source_file.resolve()),
+        "source_index": item["index"],
+        "source_id": item["source_id"],
+        "workspace": str(workspace),
+        "aapt2_executable": aapt2,
+        "request_timeout_seconds": settings["request_timeout_seconds"],
+        "max_attempts": settings["max_attempts"],
+        "max_apk_bytes": settings["max_apk_bytes"],
+    }
+    validate(store.run_dir(run_id) / "contracts", "apk-prepare-request", request)
+    item["status"] = "running"
+    store.event(run_id, "preprocessing.apk.started", item, span_id=span_id)
+    try:
+        metadata = await host.call(
+            "apk.prepare", request, timeout=settings["apk_timeout_seconds"], span_id=span_id
+        )
+    except FrameworkError as exc:
+        if exc.code in (ErrorCode.TRACE_UNAVAILABLE, ErrorCode.CANCELLED, ErrorCode.CLOSED):
+            raise
+        item["status"] = "blocked"
+        item["error"] = exc.as_dict()
+        kind = "preprocessing.apk.blocked"
+    else:
+        metadata_ref = store.artifact(run_id, f"{workspace_ref}/metadata.json", metadata)
+        item["status"] = "ready"
+        item["metadata"] = metadata
+        item["metadata_ref"] = metadata_ref
+        item["apk_ref"] = f"{workspace_ref}/application.apk"
+        kind = "preprocessing.apk.ready"
+    store.event(run_id, kind, item, span_id=span_id)
+    return item["status"] == "blocked"
 
 
 async def preprocess(store, run_id, host, manifest, submission, source_file):
@@ -71,66 +145,52 @@ async def preprocess(store, run_id, host, manifest, submission, source_file):
             "APK list differs from this batch; use the original list or create a new batch",
         )
     settings = manifest["application"]["preprocessing"]
-    blocked = False
+    worker_count = settings["download_workers"]
+    if type(worker_count) is not int or not 1 <= worker_count <= 5:
+        raise FrameworkError(ErrorCode.INVALID_DOWNLOAD_WORKERS)
+    queue = asyncio.Queue()
     for index, source_id in enumerate(submission["source_ids"]):
         host.check_cancel()
-        workspace_ref = f"apks/apk_{index + 1:04d}"
-        workspace = within(store.run_dir(run_id), workspace_ref)
-        request = {
-            "source_file": str(source_file.resolve()),
-            "source_index": index,
-            "source_id": source_id,
-            "workspace": str(workspace),
-            "aapt2_executable": os.environ.get("GAME_AUTO_AAPT2")
-            or os.environ.get("AAPT2_CMD")
-            or None,
-            "request_timeout_seconds": settings["request_timeout_seconds"],
-            "max_attempts": settings["max_attempts"],
-            "max_apk_bytes": settings["max_apk_bytes"],
-        }
-        validate(contracts, "apk-prepare-request", request)
+        span_id = uid("span")
         item = {
             "index": index,
             "source_id": source_id,
-            "workspace_ref": workspace_ref,
-            "status": "running",
+            "workspace_ref": f"apks/apk_{index + 1:04d}",
+            "status": "queued",
         }
-        store.event(run_id, "preprocessing.apk.started", item)
-        start_seq = store.events(run_id)[-1]["seq"]
+        store.event(run_id, "preprocessing.apk.queued", item, span_id=span_id)
+        entry = (item, span_id)
+        queue.put_nowait(entry)
+    worker_count = min(worker_count, queue.qsize())
+    queue_details = {"workers": worker_count, "items": queue.qsize()}
+    store.event(run_id, "preprocessing.queue.started", queue_details)
+    blocked = False
+
+    async def worker():
+        nonlocal blocked
         try:
-            metadata = await host.call(
-                "apk.prepare", request, timeout=settings["apk_timeout_seconds"]
-            )
-        except FrameworkError as exc:
-            if exc.code in (ErrorCode.TRACE_UNAVAILABLE, ErrorCode.CANCELLED, ErrorCode.CLOSED):
-                raise
-            item["status"] = "blocked"
-            item["error"] = exc.as_dict()
-            blocked = True
-            kind = "preprocessing.apk.blocked"
-        else:
-            metadata_ref = store.artifact(run_id, f"{workspace_ref}/metadata.json", metadata)
-            item["status"] = "ready"
-            item["metadata"] = metadata
-            item["metadata_ref"] = metadata_ref
-            item["apk_ref"] = f"{workspace_ref}/application.apk"
-            kind = "preprocessing.apk.ready"
-        call = next(
-            (
-                event
-                for event in reversed(store.events(run_id))
-                if event["kind"] == "call.started"
-                and event["payload"]["capability"] == "apk.prepare"
-                and event["seq"] > start_seq
-            ),
-            None,
-        )
-        trace_ids = (
-            {key: call[key] for key in ("span_id", "parent_span_id", "request_id")} if call else {}
-        )
-        store.event(run_id, kind, item, **trace_ids)
+            while True:
+                host.check_cancel()
+                try:
+                    item, span_id = queue.get_nowait()
+                except asyncio.QueueEmpty:
+                    return
+                if await prepare_apk(store, run_id, host, settings, source_file, item, span_id):
+                    blocked = True
+        except BaseException as exc:
+            host.stop(exc)
+            raise
+
+    try:
+        async with asyncio.TaskGroup() as workers:
+            for index in range(worker_count):
+                workers.create_task(worker(), name=f"apk-worker-{index + 1}")
+    except ExceptionGroup as failures:
+        error = host.failure if host.failure is not None else failures.exceptions[0]
+        raise error
     summary = {"items": preprocessing_status(store, run_id)}
     summary_ref = store.artifact(run_id, "artifacts/preprocessing.json", summary)
-    store.event(run_id, "preprocessing.completed", {"summary_ref": summary_ref, "blocked": blocked})
+    completed = {"summary_ref": summary_ref, "blocked": blocked}
+    store.event(run_id, "preprocessing.completed", completed)
     if blocked:
         raise FrameworkError(ErrorCode.PREPROCESSING_BLOCKED)
