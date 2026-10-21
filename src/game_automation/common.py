@@ -33,6 +33,16 @@ def json_text(value) -> str:
     return json.dumps(value, ensure_ascii=False, indent=2, allow_nan=False)
 
 
+def skill_prefix(contents):
+    """Materialize trusted frozen instructions without relying on provider discovery."""
+    return (
+        "\n\n".join(
+            f'<runtime_skill name="{name}">\n{text}\n</runtime_skill>' for name, text in contents
+        )
+        + "\n\n"
+    )
+
+
 # Defense in depth, not a guarantee that arbitrary prose never contains secrets.
 SENSITIVE = re.compile(
     r"^(?:authorization|password|passwd|secret|api[_-]?key|(?:access_|refresh_)?token|cookie|set-cookie)$",

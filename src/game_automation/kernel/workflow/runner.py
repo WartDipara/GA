@@ -8,6 +8,8 @@ from game_automation.kernel.policy import ExecutionLock
 from game_automation.observability import export_trace
 from game_automation.prompting import build_input, freeze, load
 
+from .intake import intake
+
 BLOCKED = {
     "MISSING_CAPABILITY",
     "SKILL_MISSING",
@@ -24,6 +26,8 @@ BLOCKED = {
     "ACTION_ALREADY_DISPATCHED",
     "BUDGET_EXHAUSTED",
     "DEVICE_NOT_IMPLEMENTED",
+    "INTAKE_NEEDS_INPUT",
+    "INTAKE_NEW_RUN_REQUIRED",
 }
 
 
@@ -216,15 +220,30 @@ async def execute(store, run_id):
             store.transition(run_id, "running")
             host = Host(store, run_id, Router(manifest["plugins"]), manifest)
             task = store.task(run["task_id"])
-            async with asyncio.timeout(task["limits"]["timeout_seconds"]):
+            timeout = (
+                manifest["application"].get("intake", {}).get("timeout_seconds", 300)
+                if task.get("kind") == "document" or run["mode"] == "intake"
+                else task["limits"]["timeout_seconds"]
+            )
+            async with asyncio.timeout(timeout):
                 if run["mode"] == "demo":
                     await demo(store, run_id, host)
                 elif run["mode"] in ("codex-probe", "codex-smoke"):
                     await codex(store, run_id, host, manifest, run["mode"] == "codex-probe")
                 else:
-                    await host.call("task.intake", {"task": task})
+                    store.transition(run_id, "running", "intake")
+                    task = await intake(store, run_id, host, manifest)
+                    if run["mode"] != "intake":
+                        store.transition(run_id, "running", "environment")
+                        # This boundary remains blocked until device checks are implemented.
+                        await host.call("environment.check", {"task": task})
+                        raise FrameworkError(
+                            "DEVICE_NOT_IMPLEMENTED", "Game execution is not available"
+                        )
             host.check_cancel()
-            store.transition(run_id, "succeeded", "reporting")
+            store.transition(
+                run_id, "succeeded", "intake" if run["mode"] == "intake" else "reporting"
+            )
         except BaseException as exc:
             if isinstance(exc, (KeyboardInterrupt, asyncio.CancelledError)):
                 error = FrameworkError("CANCELLED", "Execution interrupted")

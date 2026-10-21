@@ -1,0 +1,9 @@
+name = "task_intake"
+version = "0.1.0"
+protocol_version = "1.0"
+command = ["{python}", "{plugin}/main.py"]
+capabilities = ["task.intake"]
+required_capabilities = []
+optional_capabilities = ["ai.decide"]
+retry_safe = []
+mutating = []

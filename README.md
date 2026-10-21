@@ -1,8 +1,8 @@
 # Game Automation
 
-An evidence-first game testing framework focused on interaction coverage and recorded paths. The current release provides M0 infrastructure: process plugins, persistent tasks and runs, explicit skill injection, Codex App Server integration, and context insights with offline trace browsing.
+An evidence-first game testing framework focused on interaction coverage and recorded paths. The current release provides M0 infrastructure and M1 task intake: process plugins, persistent submissions and runs, explicit skill injection, Codex App Server integration, document clarification, and context insights with offline trace browsing.
 
-Document parsing, Android control, perception, exploration algorithms, and game coverage reports are planned modules. `demo` uses fixtures. `codex-smoke` performs real inference against synthetic observations and does not control a device.
+UTF-8 TXT/Markdown and canonical JSON intake are available. Android control, perception, exploration algorithms, and game coverage reports are planned modules. `demo` uses fixtures. `codex-smoke` performs real inference against synthetic observations and does not control a device.
 
 ## Quick start
 
@@ -38,21 +38,28 @@ uv run game-auto codex-probe
 uv run game-auto codex-smoke
 ```
 
-Each AI turn explicitly receives the frozen project-base and stage skills. The configured account's default model is used unless a model is specified. Public events, summaries when supplied, usage, and structured decisions are recorded. A successful handshake alone does not verify inference or real-game capability.
+Each AI turn explicitly receives the frozen project-base and stage skills as skill references and full text in the recorded request. This avoids depending on provider discovery when automatic catalogs/instructions are disabled. The configured account's default model is used unless a model is specified. Public events, summaries when supplied, usage, and structured decisions are recorded. A successful handshake alone does not verify inference or real-game capability.
 
 ## Tasks and recovery
 
-The initial interface accepts canonical JSON matching contracts/v1/task.schema.json. Natural-language document parsing is not implemented yet.
+Submit canonical JSON matching contracts/v1/task.schema.json, or a UTF-8 TXT/Markdown document of at most 200,000 bytes. Documents are copied and redacted at submission, so editing the original file does not change a task. Word, PDF, OCR, and remote URL ingestion are not supported in M1.
 
 ```powershell
 uv run game-auto submit --task contracts/v1/examples/task.json --key test-001
-uv run game-auto run <task_id>
-uv run game-auto provide <run_id> --text "Additional task information"
+uv run game-auto submit --document contracts/v1/examples/intake.md --key document-001
+uv run game-auto intake <task_id>
+uv run game-auto status <run_id>
+uv run game-auto provide <run_id> --text "The target Android package is com.example.game"
 uv run game-auto resume <run_id>
+
+# Full game workflow; currently blocks at environment.check after intake
+uv run game-auto run <task_id>
 uv run game-auto cancel <run_id>
 ```
 
-Real game runs currently become blocked because task.intake is unavailable. The same submission key and task return the existing task; changed contents require a new key. `run` creates a new execution batch. `resume` continues queued/blocked runs or reconciles a running status left by a crashed process. Terminal runs are preserved.
+`intake` completes only task parsing and validation. Canonical JSON needs no model call. Documents call task_intake -> ai.decide with frozen intake skills, and consume account quota. `status` shows clarification questions or the accepted task, sources, and defaults. A run with missing information blocks; add a supplement and resume. Resuming without new information does not repeat a clarification call. Every accepted field has source/default attribution; target quotes and policy limits are checked by the kernel. This verifies evidence links, not the semantic accuracy of arbitrary prose extraction.
+
+Real game runs currently become blocked at environment.check after intake. Intake acceptance does not prove that an app exists or any game interaction was tested. The same submission key and contents return the existing task; changed contents require a new key. `run` and `intake` create execution batches. `resume` continues queued/blocked runs or reconciles a running status left by a crashed process. Terminal runs are preserved. Once intake is accepted, changing requirements needs a new submission; an environment-blocked resume reuses the accepted task.
 
 Source skill edits do not alter old snapshots. Framework or plugin code changes require a new run. Unknown action outcomes cannot be replayed automatically; there is no force-replay switch. Supplements are append-only.
 
@@ -69,6 +76,7 @@ Exit codes: 0 for successful commands/runs, 2 for blocked/failed runs or command
 | src/game_automation/observability/ | Read-only projections, context browser, trace export |
 | src/game_automation/storage/ | Authoritative state, events, and artifacts |
 | plugins/agent_codex/ | Provider-specific protocol and strict-output adaptation |
+| plugins/task_intake/ | Canonical pass-through and declared AI dependency for document extraction |
 | tests/fixtures/ | Explicit synthetic plugins/providers; no devices |
 | var/ | Local database, snapshots, reports, references, and test files; ignored by Git |
 
@@ -102,6 +110,6 @@ git remote set-url --add --push origin https://codeup.aliyun.com/smwl/yss-worksp
 git remote set-url --add --push origin https://github.com/WartDipara/GA.git
 ```
 
-Run setup once; for an existing checkout inspect `git remote -v` first. `git push origin master` publishes master to both destinations. Verify with `git ls-remote --heads origin master` and `git ls-remote --heads github master`. Two-server publication is not atomic: if one push fails, resolve its error and retry that remote without force-pushing.
+Run setup once; for an existing checkout inspect `git remote -v` first. On the current master branch, `git push` publishes to both destinations because master tracks origin/master; `git push origin master` is explicit. New branches need an upstream, for example `git push -u origin <branch>`. Verify with `git ls-remote --heads origin master` and `git ls-remote --heads github master`. Two-server publication is not atomic: if one push fails, resolve its error and retry that remote without force-pushing.
 
 See [architecture](docs/architecture.md), [protocol](docs/protocol.md), [debugging](docs/debugging.md), [context insights](docs/context-insights.md), and [validation](docs/validation.md).

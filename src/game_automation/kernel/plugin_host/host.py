@@ -34,7 +34,11 @@ class Host:
             if capability in plugin["retry_safe"] and not mutating
             else 1
         )
-        timeout = timeout or self.manifest["application"]["call_timeout_seconds"]
+        timeout = timeout or (
+            self.manifest["application"]["codex"]["timeout_seconds"] + 45
+            if capability == "ai.decide"
+            else self.manifest["application"]["call_timeout_seconds"]
+        )
         for attempt in range(1, retries + 1):
             self.check_cancel()
             span, request = uid("span"), uid("req")
@@ -59,6 +63,8 @@ class Host:
                 if mutating:
                     self.store.reserve_action(self.run_id, params["action"]["id"])
                 result = await self._attempt(plugin, capability, params, timeout, ids, ancestry)
+                if capability == "task.intake":
+                    validate(self.store.run_dir(self.run_id) / "contracts", "intake-result", result)
                 if mutating:
                     validate(self.store.run_dir(self.run_id) / "contracts", "action-result", result)
                     if result["action_id"] != params["action"]["id"]:

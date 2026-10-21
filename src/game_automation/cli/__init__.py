@@ -8,6 +8,7 @@ from pathlib import Path
 from game_automation.common import FrameworkError, json_text, redact
 from game_automation.contracts import validate
 from game_automation.kernel.workflow import execute, new_run
+from game_automation.kernel.workflow.intake import intake_status, read_document
 from game_automation.observability import build_insights, export_trace
 from game_automation.storage import Store
 
@@ -24,13 +25,16 @@ def parser():
         help="Repository root (default: current directory)",
     )
     commands = cli.add_subparsers(dest="command", required=True)
-    submit = commands.add_parser(
-        "submit", help="Submit a canonical JSON task (document parsing is not implemented)"
-    )
-    submit.add_argument("--task", type=Path, required=True)
+    submit = commands.add_parser("submit", help="Submit canonical JSON or a UTF-8 text document")
+    source = submit.add_mutually_exclusive_group(required=True)
+    source.add_argument("--task", type=Path)
+    source.add_argument("--document", type=Path, help="UTF-8 TXT or Markdown; copied at submission")
     submit.add_argument("--key", help="Idempotency key")
     run = commands.add_parser("run", help="Create a run; report missing capabilities as blocked")
     run.add_argument("task_id")
+    commands.add_parser(
+        "intake", help="Parse and validate a task without starting a game"
+    ).add_argument("task_id")
     for name in ("resume", "status", "cancel"):
         commands.add_parser(name).add_argument("run_id")
     provide = commands.add_parser(
@@ -81,12 +85,16 @@ def main(argv=None):
             raise FrameworkError("PROJECT_NOT_FOUND", "Run from the repository or pass --project")
         store = Store(root)
         if args.command == "submit":
-            task = json.loads(args.task.read_text(encoding="utf-8-sig"))
-            validate(root / "contracts/v1", "task", task)
+            task = (
+                read_document(args.document)
+                if args.document
+                else json.loads(args.task.read_text(encoding="utf-8-sig"))
+            )
+            validate(root / "contracts/v1", "document" if args.document else "task", task)
             print_json({"task_id": store.submit(task, args.key)})
-        elif args.command in ("run", "demo", "codex-probe", "codex-smoke"):
-            if args.command == "run":
-                task_id, mode = args.task_id, "game"
+        elif args.command in ("run", "intake", "demo", "codex-probe", "codex-smoke"):
+            if args.command in ("run", "intake"):
+                task_id, mode = args.task_id, "game" if args.command == "run" else "intake"
             else:
                 mode = args.command
                 task_id = store.submit(
@@ -102,20 +110,28 @@ def main(argv=None):
             run_id = new_run(store, task_id, mode)
             print_json({"task_id": task_id, "run_id": run_id})
             result = asyncio.run(execute(store, run_id))
-            print_json({**result, "trace": str(store.run_dir(run_id) / "reports/trace.html")})
+            print_json(
+                {
+                    **result,
+                    "intake": intake_status(store, run_id),
+                    "trace": str(store.run_dir(run_id) / "reports/trace.html"),
+                }
+            )
             return 0 if result["status"] == "succeeded" else 2
         elif args.command == "resume":
             result = asyncio.run(execute(store, args.run_id))
-            print_json(result)
+            print_json({**result, "intake": intake_status(store, args.run_id)})
             return 0 if result["status"] == "succeeded" else 2
         elif args.command == "status":
             print_json(
-                {**store.run(args.run_id), "unknown_actions": store.unknown_actions(args.run_id)}
+                {
+                    **store.run(args.run_id),
+                    "unknown_actions": store.unknown_actions(args.run_id),
+                    "intake": intake_status(store, args.run_id),
+                }
             )
         elif args.command == "provide":
-            if store.run(args.run_id)["status"] != "blocked":
-                raise FrameworkError("INVALID_STATE", "Supplement input only on blocked runs")
-            store.event(args.run_id, "task.supplement", {"text": args.text})
+            store.supplement(args.run_id, args.text)
             print_json({"saved": True, "run_id": args.run_id})
         elif args.command == "cancel":
             store.cancel(args.run_id)

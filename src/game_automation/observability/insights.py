@@ -10,7 +10,7 @@ import json
 import math
 from collections import Counter
 
-from game_automation.common import FrameworkError, digest, redact, within
+from game_automation.common import FrameworkError, digest, redact, skill_prefix, within
 
 CATEGORIES = {
     "instructions": "Application instructions",
@@ -90,6 +90,13 @@ def project(events, run, read_text):
         for name in ("baseInstructions", "developerInstructions"):
             if instructions.get(span, {}).get(name):
                 item(request, "instructions", name, instructions[span][name], event, name)
+        frozen = []
+        for entry in params.get("input", []):
+            if isinstance(entry, dict) and entry.get("type") == "skill":
+                content, _ = read_text(f"skills/{entry.get('name', '')}/SKILL.md")
+                if content is not None:
+                    frozen.append((entry.get("name", ""), content))
+        materialized = skill_prefix(frozen) if frozen else None
         for index, entry in enumerate(params.get("input", [])):
             if not isinstance(entry, dict):
                 continue
@@ -110,7 +117,12 @@ def project(events, run, read_text):
                 if note:
                     request["notes"].append(note)
             elif entry.get("type") == "text":
-                item(request, "inputs", f"Input {index + 1}", entry.get("text", ""), event, key)
+                text = entry.get("text", "")
+                # Full skill text is already represented above. Only remove a verified
+                # prefix matching these frozen files, never arbitrary task text.
+                if materialized and text.startswith(materialized):
+                    text = text[len(materialized) :]
+                item(request, "inputs", f"Input {index + 1}", text, event, key)
             else:
                 item(request, "attachments", entry.get("type", "attachment"), entry, event, key)
         if params.get("outputSchema") is not None:

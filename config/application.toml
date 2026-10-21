@@ -3,6 +3,9 @@ call_timeout_seconds = 30
 max_attempts = 2
 max_actions = 100
 
+[intake]
+timeout_seconds = 300
+
 [codex]
 executable = "codex"
 version = "0.162.1"

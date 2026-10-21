@@ -62,6 +62,8 @@ def test_skill_snapshot_and_new_batch(store, run_id):
     assert (store.run_dir(run_id) / "skills/game-exploration/SKILL.md").read_text(
         encoding="utf-8"
     ) == old
+    actual_text = next(i["text"] for i in turn["input"] if i["type"] == "text")
+    assert old in actual_text and "A new test instruction." not in actual_text
     new = new_run(store, store.run(run_id)["task_id"], "demo")
     assert load(store, new)["files"] != load(store, run_id)["files"]
 

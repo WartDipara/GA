@@ -3,6 +3,7 @@ import json
 
 import pytest
 
+from game_automation.common import skill_prefix
 from game_automation.observability import build_insights, export_trace
 from game_automation.observability.insights import project
 
@@ -75,6 +76,22 @@ def usage(wire, total, *, span="span_1", turn="turn_1"):
 
 def fold(events):
     return project(events, {"id": "run"}, lambda relative: ("pinned skill", None))
+
+
+def test_materialized_skill_text_is_visible_once_without_hiding_source_data():
+    events, _, wire = ledger()
+    prefix = skill_prefix([("project-base", "pinned skill")])
+    begin(wire, text=prefix + "user task")
+    result = fold(events)
+    items = result["requests"][0]["items"]
+    assert [i["content"] for i in items if i["category"] == "skills"] == ["pinned skill"]
+    assert [i["content"] for i in items if i["category"] == "inputs"] == ["user task"]
+    # A different body cannot be hidden by imitating the trusted wrapper.
+    events, _, wire = ledger()
+    mismatched = skill_prefix([("project-base", "untrusted source")])
+    begin(wire, text=mismatched + "user task")
+    items = fold(events)["requests"][0]["items"]
+    assert [i["content"] for i in items if i["category"] == "inputs"] == [mismatched + "user task"]
 
 
 def test_actual_usage_is_not_multiplied_by_updates_or_normalized_duplicates():

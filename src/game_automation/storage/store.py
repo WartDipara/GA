@@ -201,6 +201,35 @@ class Store:
             self.db.execute("UPDATE runs SET cancel_requested=1 WHERE id=?", (run_id,))
             self._event(run_id, "run.cancel_requested", {})
 
+    def supplement(self, run_id, text):
+        if not text.strip() or "\x00" in text or len(text.encode("utf-8")) > 200_000:
+            raise FrameworkError(
+                "INVALID_DOCUMENT",
+                "Supplement must contain 1 to 200,000 UTF-8 bytes and no null bytes",
+            )
+        try:
+            with self.db:
+                # Serialize the state check and append against a concurrent resume.
+                self.db.execute("BEGIN IMMEDIATE")
+                run = self.run(run_id)
+                if run["status"] != "blocked":
+                    raise FrameworkError("INVALID_STATE", "Supplement input only on blocked runs")
+                if (
+                    run["mode"] in ("intake", "game")
+                    and self.db.execute(
+                        "SELECT 1 FROM events WHERE run_id=? AND kind='intake.accepted'", (run_id,)
+                    ).fetchone()
+                ):
+                    raise FrameworkError(
+                        "INTAKE_NEW_RUN_REQUIRED",
+                        "Intake is accepted; submit a new task to change requirements",
+                    )
+                return self._event(run_id, "task.supplement", {"text": text})
+        except sqlite3.Error as exc:
+            raise FrameworkError(
+                "TRACE_UNAVAILABLE", "Cannot persist supplement; execution halted"
+            ) from exc
+
     def reserve_action(self, run_id, action_id):
         # Never replay an already-dispatched action, including an unknown result.
         with self.db:

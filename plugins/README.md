@@ -2,11 +2,12 @@
 
 Implemented: agent_codex provides the pinned App Server handshake, explicit skill inputs, public event collection, and structured results.
 
+Implemented: task_intake provides canonical pass-through and text/Markdown extraction through the optional ai.decide dependency, with kernel validation and clarification recovery. See [task intake](../docs/task-intake.md).
+
 The synthetic plugin is in tests/fixtures/plugin. Every capability uses the fixture. prefix.
 
 | Planned module | Boundary |
 |---|---|
-| task_intake | Natural-language/documents to canonical tasks, source attribution, clarification |
 | environment | Device, package, permission, and required-environment checks |
 | android_device | Application lifecycle, observations, actions, post-action evidence |
 | perception | Candidate elements and recognition evidence |

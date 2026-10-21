@@ -1,0 +1,151 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://game-automation.local/contracts/v1/intake-result",
+  "type": "object",
+  "properties": {
+    "status": {
+      "enum": [
+        "ready",
+        "needs_input"
+      ]
+    },
+    "task": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "objective": {
+              "type": "string",
+              "minLength": 1
+            },
+            "platform": {
+              "enum": [
+                "android",
+                "fixture"
+              ]
+            },
+            "target": {
+              "type": "string",
+              "minLength": 1
+            },
+            "scope": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "limits": {
+              "type": "object",
+              "properties": {
+                "max_actions": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "timeout_seconds": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              },
+              "required": [
+                "max_actions",
+                "timeout_seconds"
+              ],
+              "additionalProperties": false
+            },
+            "constraints": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          },
+          "required": [
+            "objective",
+            "platform",
+            "target",
+            "scope",
+            "limits",
+            "constraints"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "questions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "field": {
+            "enum": [
+              "objective",
+              "platform",
+              "target",
+              "scope",
+              "limits",
+              "constraints"
+            ]
+          },
+          "question": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "field",
+          "question"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "reason_summary": {
+      "type": "string",
+      "minLength": 1
+    },
+    "provenance": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "field": {
+            "enum": [
+              "objective",
+              "platform",
+              "target",
+              "scope",
+              "limits",
+              "constraints"
+            ]
+          },
+          "source_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "quote": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "field",
+          "source_id",
+          "quote"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "status",
+    "task",
+    "questions",
+    "reason_summary",
+    "provenance"
+  ],
+  "additionalProperties": false
+}

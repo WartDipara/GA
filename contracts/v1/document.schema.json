@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://game-automation.local/contracts/v1/document",
+  "type": "object",
+  "properties": {
+    "kind": {
+      "const": "document"
+    },
+    "filename": {
+      "type": "string",
+      "minLength": 1
+    },
+    "text": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200000
+    }
+  },
+  "required": [
+    "kind",
+    "filename",
+    "text"
+  ],
+  "additionalProperties": false
+}

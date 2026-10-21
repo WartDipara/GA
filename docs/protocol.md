@@ -32,3 +32,7 @@ trace.schema defines the public envelope. Payloads depend on event kind. Provide
 ## Validation
 
 Test handshake, success, invalid inputs, timeout/crash, stderr, and malformed output. Device-changing capabilities additionally need disconnection/unknown handling, before/after evidence, budgets, and no automatic replay. Integration tests use real child processes with synthetic providers.
+
+## Task intake
+
+The task.intake capability uses intake-request and intake-result schemas. Canonical input is returned unchanged; document extraction uses the declared optional ai.decide dependency. The kernel assembles explicit frozen intake skills and outputSchema before the plugin call. Host schema checks happen before call.completed; semantic source, status, and budget validation happens before intake.accepted. An accepted task is distinct from the original immutable submission. See [task intake](task-intake.md) for defaults, questions, revision IDs, and recovery semantics.

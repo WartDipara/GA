@@ -31,6 +31,11 @@ for line in sys.stdin:
         skills = [i for i in params["input"] if i["type"] == "skill"]
         assert {i["name"] for i in skills} == {"project-base", "game-exploration"}
         assert all(Path(i["path"]).is_file() for i in skills)
+        text_inputs = [i["text"] for i in params["input"] if i["type"] == "text"]
+        for skill in skills:
+            assert any(
+                Path(skill["path"]).read_text(encoding="utf-8") in text for text in text_inputs
+            )
         fields = params["outputSchema"]["properties"]["proposed_action"]
         assert set(fields["required"]) == set(fields["properties"])
         send({"id": message["id"], "result": {"turn": {"id": "turn_fixture"}}})

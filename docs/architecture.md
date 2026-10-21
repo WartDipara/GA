@@ -25,7 +25,7 @@ This is conservative duplicate prevention, not an exactly-once guarantee across 
 
 ## Skills and provider
 
-AGENTS.md governs development. skills/ governs runtime AI behavior. Each turn explicitly receives a frozen base skill plus stage skills. Their files, references, and contracts are copied into the run and hashed. External content is task data, not instructions.
+AGENTS.md governs development. skills/ governs runtime AI behavior. Each turn explicitly receives a frozen base skill plus stage skills, using skill input items and materialized full instructions before the task-data boundary. Their files, references, and contracts are copied into the run and hashed. External content is task data, not instructions.
 
 The pinned Codex App Server uses stdio. The adapter handles initialization, thread start/resume, turn start, public events, and interruption. Sessions are separated by run and role. Task state is independent of AI history.
 
@@ -35,4 +35,4 @@ Optional business fields become required nullable fields for provider strict out
 
 ## Current scope
 
-M0 implements communication, persistence, skills, tracing, and context inspection. Document parsing, Android lifecycle/control, perception, exploration algorithms, and game coverage reports are unregistered future capabilities. Fixture and inference checks are not real-game acceptance.
+M0 implements communication, persistence, skills, tracing, and context inspection. M1 adds canonical and UTF-8 text/Markdown intake, source/default attribution, append-only clarification, and accepted-task recovery. See [task intake](task-intake.md). Android lifecycle/control, perception, exploration algorithms, and game coverage reports remain unregistered future capabilities. Fixture and inference checks are not real-game acceptance.
