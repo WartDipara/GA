@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://game-automation.local/contracts/v1/perception-request",
+  "type": "object",
+  "properties": {
+    "image_path": {
+      "type": "string",
+      "maxLength": 2000
+    },
+    "previous_image_path": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 2000
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "controls": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "resource_id": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "class_name": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "bounds": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "minItems": 4,
+            "maxItems": 4
+          },
+          "clickable": {
+            "type": "boolean"
+          },
+          "sensitive": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "resource_id",
+          "label",
+          "class_name",
+          "bounds",
+          "clickable",
+          "sensitive"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "excluded_regions": {
+      "type": "array",
+      "items": {
+        "type": "array",
+        "items": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "minItems": 4,
+        "maxItems": 4
+      },
+      "maxItems": 30
+    }
+  },
+  "required": [
+    "image_path",
+    "previous_image_path",
+    "controls",
+    "excluded_regions"
+  ],
+  "additionalProperties": false
+}

@@ -24,6 +24,7 @@ CAPABILITY_CONTRACTS = {
     "device.execute": ("device-execute-request", "device-execute-result"),
     "emulator.activate": ("emulator-activate-request", "emulator-activate-result"),
     "device.logs": ("device-logs-request", "device-logs-result"),
+    "perception.analyze": ("perception-request", "perception-result"),
 }
 
 
