@@ -110,6 +110,13 @@ or models. Large traces use bounded HTML previews; complete events remain in SQL
 streams them. Large context views identify their limited event window. The existing context
 projection remains inspired by dsh-context.
 
+Each action exposes `execution_duration_ms` and `execution_status`, joined by its span to the
+host's existing monotonic call timer. Timing includes device execution checks and plugin overhead;
+it excludes AI planning, subsequent waiting, log collection and outcome review. Failed/incomplete
+calls retain their elapsed time. Missing terminal records remain unknown, never zero. The HTML
+report lists the 20 longest measured actions and shows timing beside each action record. Rebuilding
+older reports uses their original call measurements without operating the device.
+
 Cross-game comparison checks different package identities, frozen runtime sources and actual goal
 completion. Equal code hashes alone do not establish acceptance. Same-role restoration and a panel
 path have real evidence. Native combat/skill selection have real evidence; verified stage advancement,

@@ -31,9 +31,12 @@ REPORT_KINDS = (
 
 def action_path(store, run_id):
     directory = store.run_dir(run_id)
+    terminal_kinds = ("call.completed", "call.failed", "call.incomplete")
+    timings = {event["span_id"]: event for event in store.iter_events(run_id, kinds=terminal_kinds)}
     path = []
     for action in store.action_records(run_id):
         request = json.loads(within(directory, action["input_ref"]).read_text(encoding="utf-8"))
+        timing = timings.get(action["span_id"])
         item = {
             "action_id": action["action_id"],
             "status": action["status"],
@@ -41,6 +44,8 @@ def action_path(store, run_id):
             "span_id": action["span_id"],
             "input_ref": action["input_ref"],
             "result": action.get("result"),
+            "execution_duration_ms": timing["payload"].get("duration_ms") if timing else None,
+            "execution_status": timing["kind"].removeprefix("call.") if timing else "unknown",
         }
         if request.get("observation_path"):
             item["before_image"] = (
@@ -55,6 +60,21 @@ def write_html(store, run_id, report):
         return html.escape(str(value), quote=True)
 
     rows = []
+    timed_actions = sorted(
+        (action for action in report["action_path"] if action["execution_duration_ms"] is not None),
+        key=lambda action: action["execution_duration_ms"],
+        reverse=True,
+    )
+    timing_rows = []
+    for action in timed_actions[:20]:
+        action_id = escaped(action["action_id"])
+        action_type = escaped((action["proposal"] or {}).get("type", "unknown"))
+        duration = action["execution_duration_ms"]
+        timing_rows.append(
+            f"<tr><td>{action_id}</td>"
+            f"<td>{action_type}</td><td>{duration} ms</td>"
+            f"<td>{escaped(action['execution_status'])}</td></tr>"
+        )
     images = {item["observation_id"]: item["evidence_ref"] for item in report["observations"]}
     for action in report["action_path"][-2000:]:
         image = action.get("before_image")
@@ -65,9 +85,14 @@ def write_html(store, run_id, report):
         if after:
             picture += f'<img loading="lazy" src="../{escaped(after)}" alt="After action">'
         payload = json.dumps(action, ensure_ascii=False, indent=2)
+        duration = action["execution_duration_ms"]
+        execution_time = f"{duration} ms" if duration is not None else "Unknown"
         rows.append(
-            f"<article><h3>{escaped(action['action_id'])}</h3>"
+            f'<article id="{escaped(action["action_id"])}">'
+            f"<h3>{escaped(action['action_id'])}</h3>"
             f"<p>Recorded action state: {escaped(action['status'])}</p>"
+            f"<p>Execution time: {execution_time}; "
+            f"call status: {escaped(action['execution_status'])}</p>"
             f"{picture}<pre>{escaped(payload)}</pre></article>"
         )
     decisions = "".join(
@@ -96,7 +121,9 @@ def write_html(store, run_id, report):
         "<title>Gameplay evidence</title><style>body{background:#101820;color:#e6edf3;"
         "font:16px system-ui;max-width:1100px;margin:32px auto;padding:20px}"
         "article{background:#1c2833;padding:20px;margin:16px 0;border-radius:10px}"
-        "pre{white-space:pre-wrap;overflow-wrap:anywhere}img{max-width:280px}a{color:#84caff}</style>"
+        "pre{white-space:pre-wrap;overflow-wrap:anywhere}img{max-width:280px}a{color:#84caff}"
+        "table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:8px;"
+        "border-bottom:1px solid #364655;overflow-wrap:anywhere}</style>"
         f"<h1>Gameplay evidence</h1><p>{escaped(run_id)}</p>"
         "<p>AI proposals, dispatched actions and verified outcomes are separate records. "
         "A local predicate verifies only its stated condition.</p>"
@@ -104,7 +131,16 @@ def write_html(store, run_id, report):
         '<p><a href="gameplay.json">Complete gameplay data</a> · '
         '<a href="trace.html">Calls and model context</a></p>'
         "<p>HTML shows the latest 2,000 actions and 1,000 decisions. "
-        "The JSON report retains the complete batch history.</p><h2>Action path</h2>"
+        "The JSON report retains the complete batch history.</p>"
+        "<h2>Longest execution times</h2>"
+        "<p>Up to 20 actions, ordered by measured execution time. Timing covers the device "
+        "execution call, including safety checks and plugin overhead. AI planning, subsequent "
+        "waiting, log collection and outcome review are excluded. Missing timing is unknown; "
+        "failed or incomplete calls show elapsed time, not proof of device completion.</p>"
+        "<table><thead><tr><th>Action</th><th>Type</th><th>Execution time</th>"
+        "<th>Call status</th></tr></thead><tbody>"
+        + "".join(timing_rows)
+        + "</tbody></table><h2>Action path</h2>"
         + "".join(rows)
         + "<h2>Decision explanations</h2>"
         + decisions
