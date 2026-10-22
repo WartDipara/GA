@@ -217,6 +217,7 @@
           "kind": {
             "enum": [
               "screen",
+              "image",
               "control",
               "focused_package",
               "alive"

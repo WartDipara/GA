@@ -123,6 +123,7 @@ class DeviceRuntime:
             "observation_id": observation["observation_id"],
             "action": action,
             "run_id": self.run_id,
+            "image_ref": observation["evidence_ref"],
         }
         self.progress.save()
         request = {
@@ -174,6 +175,10 @@ async def play(store, run_id, host, manifest, task):
     logs = await host.call("device.logs", request, timeout=0)
     host.record("gameplay.logs", logs)
     previous = store.latest_device_action(run_id)
+    if previous and previous["status"] in ("verified", "reconciled"):
+        for path in progress.data["paths"]:
+            if path["action_id"] == previous["action_id"]:
+                path["status"] = previous.get("result", {}).get("status", previous["status"])
     if previous and previous["status"] in ("unknown", "executed", "prepared"):
         reference = within(store.run_dir(previous["run_id"]), previous["input_ref"])
         intent = json.loads(reference.read_text(encoding="utf-8"))

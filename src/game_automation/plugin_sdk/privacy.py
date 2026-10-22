@@ -54,7 +54,8 @@ async def credential_regions(data, values):
                     min(image.height, int(max(item.y + item.height for item in bounds)) + 8),
                 ]
                 rectangles.append(rectangle)
-        return rectangles, matched_username
+        result = rectangles, matched_username
+        return result
     except (ImportError, OSError, TimeoutError) as exc:
         raise FrameworkError(
             ErrorCode.CREDENTIAL_UNAVAILABLE, "Screenshot privacy processing is unavailable"

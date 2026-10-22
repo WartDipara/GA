@@ -28,6 +28,8 @@ def gameplay_report(store, run_id):
         "decisions": decisions,
         "wait_duration_ms": sum(item["duration_ms"] for item in waits),
         "corrections": selected("gameplay.correction"),
+        "cache_hits": selected("gameplay.cache.hit"),
+        "cache_invalidations": selected("gameplay.cache.invalidated"),
         "verified_business_goals": selected("gameplay.goal.completed"),
         "outcomes": selected("gameplay.outcome"),
         "usage": selected("ai.usage") or None,
