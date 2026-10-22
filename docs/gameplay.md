@@ -97,7 +97,21 @@ Local Windows OCR masks known credential text in canvas-rendered screens before 
 is a best-effort text detector, not a guarantee for arbitrary private content; declared sensitive
 fields are masked geometrically. Missing OCR blocks screenshot processing.
 
-Real task evidence established small-account selection and the server-entry transition. A later
-login-invalid notice reported another-device account use; entering gameplay and the requested
-in-game interaction remain unverified. The runtime preserves that blocker and identity checkpoint.
-`reports/gameplay.json` is a read-only projection of actual calls, waits, actions and outcome events.
+Real task evidence verified same-role restoration and opening/closing an in-game panel. Failed and
+blocked batches remain separate evidence. `reports/gameplay.json` is a read-only projection of
+actual calls, waits, actions and outcome events.
+
+## Native battle goal
+
+`--goal advance-battle` uses the shared observation, planning, execution and trace components.
+Battle Skills load only for that goal. Native automatic combat is observed explicitly; ordinary
+combat waiting stays local. Advancement requires an attributed victory settlement followed by a
+different observed stage marker. A defeat or unknown result cannot establish progression.
+
+The bounded real task entered battle and handled game-provided skill choices, reaching its planning
+boundary before settlement. No cleared stage is claimed. Identity, battle state and an unverified
+action remain available for fresh observation and reconciliation.
+
+Log windows are collected after actions, filter PID records by monotonic process start time, and
+mark unsupported timestamp formats or changed lifetimes unavailable. Real collection confirmed
+available lifetime-scoped windows without including emulator processes.

@@ -92,7 +92,7 @@ SENSITIVE_FIELD_PATTERN = re.compile(
 )
 INLINE_SECRET_PATTERN = re.compile(
     r"(?i)((?:password|passwd|api[_-]?key|access_token|refresh_token|token|secret|"
-    r"authorization|cookie)\s*[=:]\s*)"
+    r"authorization|cookie)[\"']?\s*[=:]\s*)"
     r"""(?:"[^"\n]*"|'[^'\n]*'|[^\s,;&]+)"""
 )
 SENSITIVE_FIELD_SUFFIXES = (

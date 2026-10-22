@@ -45,7 +45,7 @@ class Perception:
         result = after, facts
         return result
 
-    async def wait_for_change(self, before, seconds=90):
+    async def wait_for_change(self, before, seconds=90, minimum_seconds=0):
         started = time.monotonic()
         deadline = started + seconds
         original_runtime = before["runtime"]
@@ -60,7 +60,11 @@ class Perception:
                 or facts["difference"] is not None
                 and facts["difference"] >= 0.08
             )
-            if changed or time.monotonic() >= deadline:
+            if (
+                changed
+                and time.monotonic() - started >= minimum_seconds
+                or time.monotonic() >= deadline
+            ):
                 break
         self.runtime.host.record(
             "gameplay.wait",

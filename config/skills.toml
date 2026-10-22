@@ -3,3 +3,4 @@ base = "project-base"
 intake = ["task-intake"]
 exploration = ["game-exploration"]
 reporting = ["report-analysis"]
+battle = ["game-exploration", "game-battle"]

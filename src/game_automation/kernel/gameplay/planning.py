@@ -53,7 +53,7 @@ class Planner:
         turn = build_input(
             runtime.store,
             runtime.run_id,
-            "exploration",
+            "battle" if runtime.task["goal"] == "advance-battle" else "exploration",
             context,
             schema(directory / "contracts", "gameplay-decision"),
             images=images,

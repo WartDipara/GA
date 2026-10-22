@@ -78,6 +78,7 @@ def parser():
             "routine",
             "login-and-interact",
             "explore",
+            "advance-battle",
         ],
     )
     play.add_argument("--routine", type=Path, help="Guarded JSON routine, at most five steps")

@@ -3,6 +3,7 @@
 from game_automation.common import FrameworkError
 from game_automation.errors import ErrorCode
 
+from .battle import NativeBattleProgress
 from .knowledge import KnowledgeCache
 from .local import Perception, execute_routine
 from .planning import Planner
@@ -14,6 +15,7 @@ async def run_hybrid(runtime, manifest, observation):
     planner = Planner(runtime, manifest)
     router = DecisionRouter()
     cache = KnowledgeCache(runtime)
+    battle = NativeBattleProgress(runtime) if runtime.task["goal"] == "advance-battle" else None
     progress = runtime.progress.data
     observation, facts = await perception.settle(observation)
     last_state = None
@@ -104,6 +106,8 @@ async def run_hybrid(runtime, manifest, observation):
                 identity[field] = value
             progress["identity"] = identity or None
         runtime.progress.update(decision, observation["observation_id"])
+        if battle:
+            battle.update(decision.get("battle_progress"), observation)
         progress["checkpoint"] = {
             "run_id": runtime.run_id,
             "observation_id": observation["observation_id"],
@@ -121,6 +125,11 @@ async def run_hybrid(runtime, manifest, observation):
         ):
             raise FrameworkError(ErrorCode.GAMEPLAY_BLOCKED, decision["reason_summary"])
         if disposition == "complete":
+            if battle and not battle.goal_verified():
+                raise FrameworkError(
+                    ErrorCode.GAMEPLAY_BLOCKED,
+                    "Battle completion requires settlement and a new stage marker",
+                )
             interactions = [
                 path
                 for path in progress["paths"]
@@ -143,9 +152,17 @@ async def run_hybrid(runtime, manifest, observation):
             return observation
         if decision["action"] is None:
             raise FrameworkError(ErrorCode.AI_OUTPUT_INVALID)
+        if limit and planner.turns >= limit:
+            raise FrameworkError(
+                ErrorCode.BUDGET_EXHAUSTED,
+                "Planning boundary reached before dispatching another action",
+            )
         action = decision["action"]
         if requested_wait:
-            observation, facts = await perception.wait_for_change(observation)
+            minimum = 30 if battle and battle.data["phase"] == "active" else 0
+            observation, facts = await perception.wait_for_change(
+                observation, minimum_seconds=minimum
+            )
             continue
         if action["type"] == "credential" and not decision["sensitive_regions"]:
             raise FrameworkError(ErrorCode.CAPABILITY_DENIED)
