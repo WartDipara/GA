@@ -4,6 +4,7 @@ import html
 import json
 from pathlib import Path
 from string import Template
+from urllib.parse import quote
 
 from game_automation.common import FrameworkError, atomic_json, within
 from game_automation.observability import build_insights
@@ -11,10 +12,22 @@ from game_automation.observability import build_insights
 
 def export_trace(store, run_id):
     """Offline context dashboard and raw evidence viewer; no network or device calls."""
-    if store.event_bytes(run_id) > 16 * 1024**2:
-        from game_automation.reporting.compact_trace import export_compact
+    document, insights = render_trace(store, run_id)
+    path = store.run_dir(run_id) / "reports/trace.html"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(document, encoding="utf-8", newline="\n")
+    if insights is not None:
+        atomic_json(path.with_name("context.json"), insights)
+    return path
 
-        return export_compact(store, run_id)
+
+def render_trace(store, run_id):
+    """Render current committed evidence without changing files or database state."""
+    if store.event_bytes(run_id) > 16 * 1024**2:
+        from game_automation.reporting.compact_trace import render_compact
+
+        result = (render_compact(store, run_id), None)
+        return result
     events = store.events(run_id)
     start_kinds = ("call.started", "gameplay.step.started", "workflow.stage.started")
     spans = {event["span_id"]: event for event in events if event["kind"] in start_kinds}
@@ -70,10 +83,8 @@ def export_trace(store, run_id):
                             f"<figcaption>{html.escape(relative)}</figcaption></figure>"
                         )
                     else:
-                        artifacts.append(
-                            f'<a href="{html.escape(path.as_uri(), quote=True)}">'
-                            f"{html.escape(relative)}</a>"
-                        )
+                        evidence_link = html.escape(f"../{quote(relative, safe='/')}", quote=True)
+                        artifacts.append(f'<a href="{evidence_link}">{html.escape(relative)}</a>')
         return (
             f"<details><summary>#{event['seq']} {html.escape(event['kind'])} "
             f"{html.escape(event['timestamp'])}</summary><pre>{content}</pre>{''.join(artifacts)}</details>"
@@ -117,8 +128,5 @@ def export_trace(store, run_id):
         dashboard_data=embedded,
         dashboard_script=script,
     )
-    path = store.run_dir(run_id) / "reports/trace.html"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(document, encoding="utf-8", newline="\n")
-    atomic_json(path.with_name("context.json"), insights)
-    return path
+    result = (document, insights)
+    return result

@@ -4,7 +4,7 @@ import html
 import json
 
 
-def export_compact(store, run_id):
+def render_compact(store, run_id):
     kinds = (
         "call.started",
         "gameplay.step.started",
@@ -60,7 +60,4 @@ def export_compact(store, run_id):
         '<p><a href="gameplay.html">Gameplay actions, screenshots and decisions</a></p>'
         + "".join(rows)
     )
-    target = store.run_dir(run_id) / "reports/trace.html"
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(document, encoding="utf-8", newline="\n")
-    return target
+    return document

@@ -69,6 +69,11 @@ duration for its earlier execution. Detailed action and model timings remain in 
 The workflow HTML trace links to child traces, and the task report indexes all execution reports.
 Offline status and export commands never invoke devices or models.
 
+Use `game-auto serve-trace <workflow_run_id>` in another terminal to poll the whole task every three
+seconds. The local page shows all stage states and the latest 200 task events, including durations,
+and links to detailed stage traces. Refresh, pause and interval controls are built in. See
+[debugging](debugging.md) for read-only boundaries and custom ports.
+
 Resume the owning workflow, not its child execution. Successfully checkpointed stages are skipped;
 an incomplete or blocked child resumes using its original run and action ledger. Even a child
 created just before a crash is rediscovered before another child can be created for that step.

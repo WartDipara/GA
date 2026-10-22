@@ -6,6 +6,14 @@ class ErrorCode(StrEnum):
 
     WORKFLOW_INVALID = ("WORKFLOW_INVALID", "Workflow stages or instance assignments are invalid")
     WORKFLOW_BLOCKED = ("WORKFLOW_BLOCKED", "A workflow stage needs attention before continuing")
+    TRACE_VIEWER_CONFIG = (
+        "TRACE_VIEWER_CONFIG",
+        "Viewer port must be 0 through 65535; interval must be 1 through 60",
+    )
+    TRACE_VIEWER_UNAVAILABLE = (
+        "TRACE_VIEWER_UNAVAILABLE",
+        "Cannot open the local trace viewer; check the port and database",
+    )
 
     AAPT2_TIMEOUT = ("AAPT2_TIMEOUT", "AAPT2 inspection timed out")
     AAPT2_UNAVAILABLE = ("AAPT2_UNAVAILABLE", "Install Android Build Tools or set GAME_AUTO_AAPT2")

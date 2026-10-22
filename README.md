@@ -32,7 +32,13 @@ uv run game-auto status <run_id>
 uv run game-auto provide <run_id> --text "The target package is com.example.game"
 uv run game-auto resume <run_id>
 uv run game-auto cancel <run_id>
+uv run game-auto serve-trace <run_id>
 ```
+
+`serve-trace` prints a local browser URL and polls the task's committed records every three seconds.
+It includes child executions, event search, duration records, pause/resume and manual refresh.
+It reads SQLite without modifying the workflow or invoking devices. Run it in a separate terminal;
+use `--interval` and `--port` to adjust polling and the loopback port. See [debugging](docs/debugging.md).
 
 Missing information blocks intake and produces questions. Supplements are append-only. Accepted
 requirements are immutable; submit a new task to change them. `run <task_id>` starts intake and

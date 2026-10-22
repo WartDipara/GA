@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en-US">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="Content-Security-Policy"
+      content="default-src 'none'; style-src 'unsafe-inline'; script-src 'sha256-${script_hash}'; connect-src 'self'; base-uri 'none'; form-action 'none'">
+    <title>Live task trace</title>
+    <style>${style}</style>
+  </head>
+  <body>
+    <main id="live-view" data-interval="${interval}">
+      <header>
+        <div class="eyebrow">GAME AUTOMATION | LIVE TASK TRACE</div>
+        <h1 id="task-title">Loading task</h1>
+        <p>Read-only polling of committed records. No model or device operations.</p>
+      </header>
+      <section class="panel">
+        <noscript>JavaScript is required for periodic refresh. Use export-trace for offline records.</noscript>
+        <div class="toolbar">
+          <label>Refresh interval
+            <select id="refresh-interval" aria-label="Refresh interval"></select>
+          </label>
+          <button id="pause-refresh" type="button">Pause</button>
+          <button id="refresh-now" type="button">Refresh now</button>
+        </div>
+        <p id="refresh-state" role="status" aria-live="polite">Waiting for records</p>
+        <p id="refresh-error" class="notice" hidden></p>
+      </section>
+      <section class="metrics" id="live-metrics" aria-label="Task overview"></section>
+      <section class="panel">
+        <h2>Executions</h2>
+        <p>Trace links open a detailed snapshot in another tab. This page keeps polling.</p>
+        <div class="browser">
+          <table class="execution-table">
+            <thead><tr><th>Stage</th><th>Status</th><th>Current phase</th><th>Trace</th></tr></thead>
+            <tbody id="executions"></tbody>
+          </table>
+        </div>
+      </section>
+      <section class="panel">
+        <h2>Task timeline</h2>
+        <div class="toolbar">
+          <select id="run-filter" aria-label="Execution filter"></select>
+          <input id="live-search" placeholder="Search events" aria-label="Search events">
+        </div>
+        <p class="muted">Latest 200 committed events across this task, newest first.
+          Previews are bounded; detailed traces retain full records.
+          Unavailable duration does not mean zero.</p>
+        <div id="live-events"></div>
+      </section>
+    </main>
+    <script>${script}</script>
+  </body>
+</html>
