@@ -156,13 +156,15 @@ them.
 
 | Location               | Responsibility                                           |
 | ---------------------- | -------------------------------------------------------- |
-| `src/game_automation/` | CLI, kernel, prompting, tracing, storage, and plugin SDK |
+| `src/game_automation/` | CLI, kernel, prompting, event projection, reports, storage, and SDK |
 | `plugins/`             | Independent capability implementations                   |
 | `skills/`              | Runtime AI instructions                                  |
 | `contracts/v1/`        | Shared JSON schemas                                      |
 | `config/`              | Application, plugin, and Skill configuration             |
 | `docs/`                | Architecture and protocol documentation                  |
 | `var/`                 | Private local runtime data, excluded from Git            |
+
+See [source layout](docs/project-layout.md) for module ownership, report assets and package rules.
 
 ## Development
 
@@ -179,7 +181,7 @@ Verification is compilation only. Do not add or run mock or smoke tests.
 ```powershell
 $env:PYTHONPYCACHEPREFIX = Join-Path (Get-Location) "var/bytecode"
 uv run python -m compileall -q src plugins
-node --check src/game_automation/observability/dashboard.js
+node --check src/game_automation/reporting/web/dashboard.js
 ```
 
 Compilation does not verify runtime behavior. See [architecture](docs/architecture.md),

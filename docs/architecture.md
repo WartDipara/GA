@@ -9,6 +9,9 @@ details, and storage is the only business database writer.
 Observability is a read-only projection of committed events and frozen artifacts. A deterministic
 projection produces one context read model for the CLI, JSON export, and browser. Raw evidence
 remains available separately. See [context insights](context-insights.md).
+`observability.py` owns that projection. `reporting/` owns offline rendering and evidence summaries;
+its `web/` directory contains the shared HTML template, CSS and JavaScript. The kernel and storage
+remain responsible for authoritative event writes. See [source layout](project-layout.md).
 
 No cross-plugin private imports or database sharing. Manifests declare protocol versions,
 capabilities, required/optional dependencies, and retry/action characteristics. Missing required

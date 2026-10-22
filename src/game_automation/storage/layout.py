@@ -54,7 +54,7 @@ def upgrade(db, directory, version):
 
 def relocate(store):
     """Move registered directories on the same volume; interruption is safe to resume."""
-    from game_automation.observability.workspaces import task_report
+    from game_automation.reporting.task_index import task_report
 
     with FileLock(store.var / "execution.lock"), FileLock(store.var / "layout.lock"):
         store.check_cleanup()

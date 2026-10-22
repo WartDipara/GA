@@ -4,7 +4,7 @@ from game_automation.common import FrameworkError, uid, within
 from game_automation.contracts import validate
 from game_automation.disk import free_disk_bytes, insufficient_disk_space, require_disk_space
 from game_automation.errors import ErrorCode
-from game_automation.kernel.policy.storage import storage_settings
+from game_automation.kernel.storage_policy import storage_settings
 
 
 async def admit_apk_batch(store, run_id, host, manifest, submission, source_file, worker_count):

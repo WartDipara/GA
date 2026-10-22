@@ -9,14 +9,15 @@ from pathlib import Path
 from game_automation.common import FrameworkError, json_text, redact
 from game_automation.contracts import validate
 from game_automation.errors import ErrorCode
-from game_automation.kernel.workflow import execute, new_run
 from game_automation.kernel.workflow.device import preparation_task
 from game_automation.kernel.workflow.gameplay import gameplay_task
 from game_automation.kernel.workflow.intake import intake_status, read_document
 from game_automation.kernel.workflow.preprocessing import preprocessing_status, read_batch
-from game_automation.observability import build_insights, export_trace
+from game_automation.kernel.workflow.runner import execute, new_run
+from game_automation.observability import build_insights
 from game_automation.plugin_sdk.credentials import save_profile
-from game_automation.storage import Store
+from game_automation.reporting.trace import export_trace
+from game_automation.storage.store import Store
 
 
 def parser():
@@ -316,12 +317,12 @@ def main(argv=None):
             asyncio.run(execute(store, run_id, args.input))
             return execution_result(store, run_id)
         elif args.command == "report":
-            from game_automation.observability.gameplay import gameplay_report
+            from game_automation.reporting.gameplay import gameplay_report
 
             gameplay_report(store, args.run_id)
             print_json({"report": str(store.run_dir(args.run_id) / "reports/gameplay.html")})
         elif args.command == "compare-games":
-            from game_automation.observability.migration import compare_games
+            from game_automation.reporting.game_comparison import compare_games
 
             print_json(compare_games(store, args.first_run, args.second_run))
         elif args.command == "status":
@@ -331,7 +332,7 @@ def main(argv=None):
         elif args.command == "tasks":
             print_json(store.list_tasks(args.limit))
         elif args.command == "task-status":
-            from game_automation.observability.workspaces import task_report
+            from game_automation.reporting.task_index import task_report
 
             print_json(task_report(store, args.task_id))
         elif args.command == "migrate-workspaces":

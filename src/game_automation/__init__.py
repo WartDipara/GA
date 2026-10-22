@@ -1,3 +1,3 @@
-"""Game automation framework; real-device exploration is not implemented yet."""
+"""Game test workflow framework."""
 
 __version__ = "0.1.0"

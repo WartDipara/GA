@@ -1,36 +1,25 @@
-# Plugin status
+# Capability plugins
 
-Implemented: apk_preprocessing provides streaming downloads, durable resume checkpoints, archive
-integrity checks, and compact AAPT2 metadata in a separate workspace per APK. It does not change
-packages or operate devices. See [APK preprocessing](../docs/preprocessing.md).
+Each enabled directory owns an independent JSON-RPC 2.0 / stdio process, a `plugin.toml` manifest
+and its implementation. The kernel loads bindings from `config/plugins.toml`; names do not imply
+that another plugin may import private implementation files.
 
-Implemented: agent_codex provides the pinned App Server handshake, explicit skill inputs, public
-event collection, and structured results.
+| Plugin | Implemented boundary |
+| --- | --- |
+| agent_codex | Pinned App Server connection, explicit Skills, structured decisions and public events |
+| task_intake | Canonical JSON handling and AI-assisted text/Markdown intake |
+| environment | Read-only ADB availability, boot and package checks |
+| apk_preprocessing | Resumable downloads, archive checks and concise AAPT2 metadata |
+| emulator_mumu | Vendor discovery, verified sessions and kernel-authorized application activation |
+| android_device | Package installation, process/display state, capture, guarded input and scoped logs |
+| perception | Local frame comparison and accessible-control candidates; unknown canvas semantics |
 
-Implemented: task_intake provides canonical pass-through and text/Markdown extraction through the
-optional ai.decide dependency, with kernel validation and clarification recovery. See
-[task intake](../docs/task-intake.md).
+Plugins request declared dependencies through `host.call` and await event-persistence
+acknowledgements. They never access the business database. stdout is protocol-only. A separate
+process is not a security sandbox.
 
-Implemented: environment provides read-only ADB availability, deterministic device selection, boot
-completion, and installed package checks. Commands and results are traced through the host. Device
-verification remains pending. See [environment checks](../docs/environment.md).
-
-| Planned module | Boundary                                                                   |
-| -------------- | -------------------------------------------------------------------------- |
-| perception     | Candidate elements and recognition evidence                                |
-| exploration    | Path management, exploration policy, outcome verification                  |
-| reporting      | Game coverage reports; the current exporter is an execution/context viewer |
-
-Planned capabilities are intentionally not registered. Each implemented plugin has a manifest,
-dependency declaration, and source. Plugins request declared dependencies through host.call and wait
-for host.event persistence acknowledgements. No plugin writes SQLite. A separate process is not a
-security sandbox.
-
-Implemented: emulator_mumu provides automatic discovery and pinned instance sessions. Vendor tool
-locations, instance creation identity, and advertised endpoints remain inside this adapter.
-
-Implemented: android_device provides package inspection, bound single-APK installation, and focused
-display observations through the declared emulator.session dependency. The kernel owns reservations
-and installation dispatch grants. Runtime acceptance of this workflow is pending; application
-launch, general input control, and emulator lifecycle management remain unavailable. See
-[device preparation](../docs/device-preparation.md).
+The framework's `kernel/gameplay/` coordinates exploration, routines and battle goals. Offline report
+generation lives under `src/game_automation/reporting/`; there is no placeholder reporting plugin.
+Device and gameplay acceptance remain bounded by recorded evidence, separately from code availability.
+See [gameplay](../docs/gameplay.md), [device preparation](../docs/device-preparation.md) and
+[source layout](../docs/project-layout.md).

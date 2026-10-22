@@ -6,13 +6,13 @@ from pathlib import Path
 from string import Template
 
 from game_automation.common import FrameworkError, atomic_json, within
-from game_automation.observability.insights import build_insights
+from game_automation.observability import build_insights
 
 
 def export_trace(store, run_id):
     """Offline context dashboard and raw evidence viewer; no network or device calls."""
     if store.event_bytes(run_id) > 16 * 1024**2:
-        from game_automation.observability.compact import export_compact
+        from game_automation.reporting.compact_trace import export_compact
 
         return export_compact(store, run_id)
     events = store.events(run_id)
@@ -96,11 +96,11 @@ def export_trace(store, run_id):
         .replace(">", "\\u003e")
         .replace("&", "\\u0026")
     )
-    assets = Path(__file__).parent
+    assets = Path(__file__).parent / "web"
     script = (assets / "dashboard.js").read_text(encoding="utf-8")
     css = (assets / "dashboard.css").read_text(encoding="utf-8")
     script_hash = base64.b64encode(hashlib.sha256(script.encode()).digest()).decode("ascii")
-    template = Template((assets / "trace.html").read_text(encoding="utf-8"))
+    template = Template((assets / "trace.template.html").read_text(encoding="utf-8"))
     document = template.substitute(
         script_hash=script_hash,
         run_title=html.escape(run_id),
@@ -111,6 +111,6 @@ def export_trace(store, run_id):
     )
     path = store.run_dir(run_id) / "reports/trace.html"
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(document, encoding="utf-8")
+    path.write_text(document, encoding="utf-8", newline="\n")
     atomic_json(path.with_name("context.json"), insights)
     return path

@@ -5,6 +5,9 @@
   without BOM and LF line endings.
 - Keep code minimal and cohesive. Implement current requirements; avoid speculative abstractions,
   duplicate logic, unused helpers, demonstration branches, and unnecessary dependencies.
+- Put implementations in explicitly named modules, not __init__.py. Keep the root package initializer
+  for version metadata; internal directories use implicit namespace packages and explicit imports.
+  Group report renderers under reporting/ and HTML/CSS/JavaScript resources under reporting/web/.
 - Start each development increment by checking out a feature branch named codex/<feature> from
   master. Commit the completed increment, merge it into master, and delete the feature branch after
   the merge succeeds. Publish master to the configured push destinations.
