@@ -7,6 +7,7 @@ from game_automation.common import FrameworkError, redact, uid
 from game_automation.contracts import validate
 from game_automation.errors import ErrorCode
 from game_automation.plugin_sdk.rpc import Peer, spawn, terminate
+from game_automation.prompting.resources import resource_root
 
 CAPABILITY_CONTRACTS = {
     "task.intake": ("intake-request", "intake-result"),
@@ -34,6 +35,7 @@ class Host:
         self.run_id = run_id
         self.router = router
         self.manifest = manifest
+        self.contracts = resource_root(store, run_id, "contracts", manifest=manifest)
         self.failure = None
 
     def stop(self, error):
@@ -92,7 +94,7 @@ class Host:
                 raise FrameworkError(ErrorCode.CAPABILITY_DENIED)
         contracts = CAPABILITY_CONTRACTS.get(capability)
         if contracts:
-            validate(self.store.run_dir(self.run_id) / "contracts", contracts[0], params)
+            validate(self.contracts, contracts[0], params)
         retries = (
             self.manifest["application"]["max_attempts"]
             if not mutating and capability in plugin["retry_safe"]
@@ -135,7 +137,7 @@ class Host:
                     plugin, capability, params, timeout, trace_ids, ancestry, _action_id
                 )
                 if contracts:
-                    validate(self.store.run_dir(self.run_id) / "contracts", contracts[1], result)
+                    validate(self.contracts, contracts[1], result)
                 output_ref = self.artifact(f"calls/{span_id}/output.json", result)
                 completed_payload = {
                     "output_ref": output_ref,
@@ -183,11 +185,14 @@ class Host:
                 raise error from exc
 
     async def install(self, params):
+        from game_automation.prompting.snapshots import load
+
+        load(self.store, self.run_id)
         self.check_cancel()
         plugin = self.router.resolve("device.install")
         if "device.install" not in plugin["mutating"]:
             raise FrameworkError(ErrorCode.CAPABILITY_DENIED)
-        validate(self.store.run_dir(self.run_id) / "contracts", "device-install-request", params)
+        validate(self.contracts, "device-install-request", params)
         max_actions = self.manifest["application"]["max_actions"]
         if type(max_actions) is not int or max_actions <= 0:
             raise FrameworkError(ErrorCode.BUDGET_EXHAUSTED)
@@ -225,7 +230,7 @@ class Host:
 
         load(self.store, self.run_id)
         self.check_cancel()
-        validate(self.store.run_dir(self.run_id) / "contracts", "device-execute-request", params)
+        validate(self.contracts, "device-execute-request", params)
         span_id = uid("span")
         input_ref = self.artifact(f"artifacts/{uid('action')}/input.json", params)
         action_id = self.store.begin_device_action(

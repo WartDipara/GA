@@ -14,7 +14,7 @@ async def check_environment(store, run_id, host, manifest, task):
         "device_serial": os.environ.get("GAME_AUTO_DEVICE_SERIAL") or None,
         "command_timeout_seconds": settings["command_timeout_seconds"],
     }
-    validate(store.run_dir(run_id) / "contracts", "environment-request", request)
+    validate(host.contracts, "environment-request", request)
     timeout = request["command_timeout_seconds"] * 4 + 15
     result = await host.call("environment.check", request, timeout=timeout)
     call = next(

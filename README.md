@@ -114,7 +114,7 @@ uv run game-auto compare-games <first_run> <second_run>
 
 Use `--adopt-existing` during preparation to preserve a matching installed game's data. Gameplay has
 no default overall limit; optional `--max-turns` bounds one invocation. Unknown outcomes require
-observation/reconciliation. `--new-batch` retains task identity while freezing updated code/Skills.
+observation/reconciliation. `--new-batch` retains task identity while pinning updated code/Skills.
 
 ```powershell
 uv run game-auto trace <run_id> --follow
@@ -124,10 +124,13 @@ uv run game-auto export-trace <run_id> --format html
 ```
 
 One business task owns one directory under `var/tasks/<task_id>/`. Preparation and gameplay inherit
-the task from their source execution. Each execution stores frozen Skills, calls, artifacts and
+the task from their source execution. Each execution stores a dependency manifest, calls, artifacts and
 reports under `executions/<run_id>/`; resume keeps that directory and `--new-batch` adds a child
 execution. The task's `reports/task.html` indexes all stages, and `apks/index.json` locates isolated
 APK workspaces without copying downloads.
+Skills and contracts are shared external dependencies under `skills/` and `contracts/v1/`. Executions
+record their paths and content hashes, without copying those directories. Changed or missing
+dependencies block resume until the pinned version is restored or a new batch is created.
 
 ```powershell
 uv run game-auto tasks

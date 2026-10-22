@@ -3,7 +3,7 @@
 ## Boundaries
 
 CLI -> kernel -> independent process plugins. Plugins use host.call for declared dependencies; the
-kernel routes and traces every call. Prompting freezes skills, agent_codex owns provider-specific
+kernel routes and traces every call. Prompting pins shared resources, agent_codex owns provider-specific
 details, and storage is the only business database writer.
 
 Observability is a read-only projection of committed events and frozen artifacts. A deterministic
@@ -49,9 +49,11 @@ limits.
 ## Skills and provider
 
 AGENTS.md governs development. skills/ governs runtime AI behavior. Each turn explicitly receives a
-frozen base skill plus stage skills, using skill input items and materialized full instructions
-before the task-data boundary. Their files, references, and contracts are copied into the run and
-hashed. External content is task data, not instructions.
+base Skill plus stage Skills from shared project resources, using explicit Skill paths and
+materialized full instructions before the task-data boundary. Execution manifests pin resource roots
+and content hashes without copying Skills or contracts. Resume requires the same dependency version;
+missing or changed resources block execution. Submitted requests remain trace evidence. External
+content is task data, not instructions.
 
 The pinned Codex App Server uses stdio. The adapter handles initialization, thread start/resume,
 turn start, public events, and interruption. Sessions are separated by run and role. Task state is

@@ -39,8 +39,9 @@ uv run game-auto export-trace <run_id> --format html
    reasoning; decision explanations and evidence remain inspectable.
 5. Compare decision.proposed, action.intent, action.result, and verification.\*. Suggestions,
    execution, and verified effects are separate facts.
-6. Inspect the run's manifest.json, skills/, calls/, artifacts/, reports/trace.html, and
-   reports/context.json.
+6. Inspect the run's manifest.json, referenced shared resource roots, calls/, artifacts/,
+   reports/trace.html, and reports/context.json. Resource hashes must match; per-execution Skills
+   and contracts directories exist only in legacy snapshots.
 
 The context dashboard groups observed instructions, skills, inputs, schemas, responses, summaries,
 tools, and attachment references. Text estimates are approximate. Reported usage is separate;

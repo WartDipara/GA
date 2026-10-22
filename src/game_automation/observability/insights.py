@@ -11,6 +11,7 @@ import math
 from collections import Counter
 
 from game_automation.common import FrameworkError, digest, redact, skill_prefix, within
+from game_automation.prompting.resources import resource_root
 
 CATEGORIES = {
     "instructions": "Application instructions",
@@ -481,7 +482,12 @@ def project(events, run, read_text):
 def build_insights(store, run_id):
     def read_text(relative):
         try:
-            path = within(store.run_dir(run_id), relative)
+            if relative.startswith("skills/"):
+                path = within(
+                    resource_root(store, run_id, "skills"), relative.removeprefix("skills/")
+                )
+            else:
+                path = within(store.run_dir(run_id), relative)
             if path.stat().st_size > 1024 * 1024:
                 preview_result = (
                     None,
@@ -489,13 +495,6 @@ def build_insights(store, run_id):
                 )
                 return preview_result
             content = path.read_text(encoding="utf-8")
-            # Only use pinned Skill content, and expose tampering as missing evidence.
-            if relative.startswith("skills/"):
-                manifest_path = store.run_dir(run_id) / "manifest.json"
-                manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-                if manifest.get("files", {}).get(relative) != digest(path.read_bytes()):
-                    preview_result = (None, f"{relative} does not match its frozen digest")
-                    return preview_result
             preview_result = (text_of(redact(content)), None)
             return preview_result
         except (OSError, ValueError, FrameworkError):

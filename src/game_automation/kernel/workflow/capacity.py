@@ -27,7 +27,7 @@ async def admit_apk_batch(store, run_id, host, manifest, submission, source_file
                     "request_timeout_seconds": settings["request_timeout_seconds"],
                     "max_apk_bytes": settings["max_apk_bytes"],
                 }
-                validate(run_dir / "contracts", "apk-plan-request", request)
+                validate(host.contracts, "apk-plan-request", request)
                 timeout = settings["request_timeout_seconds"] * 2 + 15
                 plan = await host.call("apk.plan", request, timeout=timeout)
                 budget = plan["budget_bytes"]

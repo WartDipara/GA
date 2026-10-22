@@ -1,6 +1,5 @@
 import json
 import re
-import shutil
 import sys
 import tomllib
 from pathlib import Path
@@ -9,6 +8,8 @@ from game_automation import __version__
 from game_automation.common import FrameworkError, atomic_json, digest, now, redact, skill_prefix
 from game_automation.errors import ErrorCode
 from game_automation.kernel.capability_router import load_plugins
+
+from .resources import read_manifest, resource_root
 
 
 def code_hashes(directory):
@@ -51,8 +52,22 @@ def freeze(store, run_id):
                 raise FrameworkError(
                     ErrorCode.INVALID_SKILL, "Skill resources must stay inside skill directory"
                 )
-        shutil.copytree(source, target / "skills" / name, dirs_exist_ok=True)
-    shutil.copytree(root / "contracts/v1", target / "contracts", dirs_exist_ok=True)
+    resource_roots = {"skills": root / "skills", "contracts": root / "contracts/v1"}
+    files = {}
+    folders = {
+        "skills": [resource_roots["skills"] / name for name in sorted(selected)],
+        "contracts": [resource_roots["contracts"]],
+    }
+    for kind, directories in folders.items():
+        for directory in directories:
+            for file_path in directory.rglob("*"):
+                if file_path.is_symlink() or not file_path.resolve().is_relative_to(
+                    resource_roots[kind].resolve()
+                ):
+                    raise FrameworkError(ErrorCode.INVALID_PATH)
+                if file_path.is_file():
+                    relative = file_path.relative_to(resource_roots[kind]).as_posix()
+                    files[f"{kind}/{relative}"] = digest(file_path.read_bytes())
     plugins = load_plugins(root)
     source_hashes = code_hashes(root / "src/game_automation")
     for plugin in plugins.values():
@@ -69,12 +84,8 @@ def freeze(store, run_id):
         ),
         "plugins": plugins,
         "source_hashes": source_hashes,
-        "files": {
-            file_path.relative_to(target).as_posix(): digest(file_path.read_bytes())
-            for folder in (target / "skills", target / "contracts")
-            for file_path in folder.rglob("*")
-            if file_path.is_file()
-        },
+        "resource_roots": {kind: str(path.resolve()) for kind, path in resource_roots.items()},
+        "files": files,
     }
     atomic_json(target / "manifest.json", manifest)
     snapshot_payload = {
@@ -86,26 +97,9 @@ def freeze(store, run_id):
 
 
 def load(store, run_id):
-    target = store.run_dir(run_id)
-    path = target / "manifest.json"
-    if not path.exists():
-        raise FrameworkError(ErrorCode.SNAPSHOT_MISSING)
-    manifest = json.loads(path.read_text(encoding="utf-8"))
-    snapshots = store.events(run_id, kinds=("run.snapshot",), limit=1)
-    if not snapshots or snapshots[-1]["payload"]["manifest_sha256"] != digest(path.read_bytes()):
-        raise FrameworkError(ErrorCode.SNAPSHOT_CHANGED)
-    for relative, expected in manifest["files"].items():
-        file = target / relative
-        if not file.is_file() or digest(file.read_bytes()) != expected:
-            raise FrameworkError(ErrorCode.SNAPSHOT_CHANGED, f"Frozen resource changed: {relative}")
-    actual = {
-        file_path.relative_to(target).as_posix()
-        for folder in (target / "skills", target / "contracts")
-        for file_path in folder.rglob("*")
-        if file_path.is_file()
-    }
-    if actual != set(manifest["files"]):
-        raise FrameworkError(ErrorCode.SNAPSHOT_CHANGED, "Frozen resource set changed")
+    manifest = read_manifest(store, run_id)
+    resource_root(store, run_id, "skills", manifest=manifest)
+    resource_root(store, run_id, "contracts", manifest=manifest)
     for file, expected in manifest["source_hashes"].items():
         if not Path(file).is_file() or digest(Path(file).read_bytes()) != expected:
             raise FrameworkError(
@@ -127,8 +121,9 @@ def build_input(store, run_id, stage, context, output_schema, *, images=()):
     names = list(dict.fromkeys([config["base"], *config["stages"][stage]]))
     inputs = []
     skill_contents = []
+    skills = resource_root(store, run_id, "skills", manifest=manifest)
     for name in names:
-        skill_path = store.run_dir(run_id) / "skills" / name / "SKILL.md"
+        skill_path = skills / name / "SKILL.md"
         skill_contents.append((name, skill_path.read_text(encoding="utf-8")))
         skill_reference = {
             "type": "skill",

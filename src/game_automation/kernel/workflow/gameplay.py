@@ -128,7 +128,7 @@ class DeviceRuntime:
     async def perform(self, action, observation, *, source="operator"):
         self.recorder.admit()
         self.host.check_cancel()
-        validate(self.store.run_dir(self.run_id) / "contracts", "gameplay-action", action)
+        validate(self.host.contracts, "gameplay-action", action)
         kind = action["type"]
         if kind == "credential":
             if action["credential_field"] is None or action["bounds"] is None:

@@ -107,7 +107,7 @@ def parser():
     resume.add_argument(
         "--new-batch",
         action="store_true",
-        help="Continue the same task with current code and new frozen Skills",
+        help="Continue the same task with current code and pinned shared Skill versions",
     )
     report = commands.add_parser("report", help="Rebuild an offline gameplay report")
     report.add_argument("run_id")
