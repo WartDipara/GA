@@ -82,6 +82,7 @@ async def run_hybrid(runtime, manifest, observation):
                     )
                 identity[field] = value
             progress["identity"] = identity or None
+        runtime.progress.update(decision, observation["observation_id"])
         progress["checkpoint"] = {
             "run_id": runtime.run_id,
             "observation_id": observation["observation_id"],

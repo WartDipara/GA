@@ -35,6 +35,20 @@ each capture/action boundary with headroom for bounded evidence and report gener
 evidence is not removed to continue a task. Compilation is development verification only; actual
 game task evidence is local and must be reported separately.
 
+## Progress and exploration
+
+`--goal explore` uses the same hybrid loop. The planner may propose prerequisite-ordered subgoals
+and concise milestones; the kernel validates references and dependency cycles before committing
+them. The latest 50 path edges are context, while complete action history remains in SQLite events.
+Identity, APK fingerprint, dedicated instance and credential revision scope the checkpoint. A vault
+profile replaced in place cannot silently reuse another account's progress.
+
+Recovery declarations use stable fault categories and a persisted two-round limit. A new batch
+observes the device before resolving pending actions or planning. Unknown clicks are never replayed.
+Real device evidence confirmed normal cached reauthentication, selection of the same small account
+after its list position changed, and restoration of the bound role in gameplay. The later model
+connection interruption retained the pending action and checkpoint for semantic reconciliation.
+
 ## Local scheduling and routines
 
 `perception.analyze` produces accessible candidates, a small local image signature and measured

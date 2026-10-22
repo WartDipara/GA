@@ -71,7 +71,14 @@ def parser():
     play.add_argument(
         "--goal",
         default="capture",
-        choices=["capture", "return-to-game", "activate-game", "routine", "login-and-interact"],
+        choices=[
+            "capture",
+            "return-to-game",
+            "activate-game",
+            "routine",
+            "login-and-interact",
+            "explore",
+        ],
     )
     play.add_argument("--routine", type=Path, help="Guarded JSON routine, at most five steps")
     play.add_argument(
