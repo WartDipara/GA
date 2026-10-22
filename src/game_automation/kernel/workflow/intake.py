@@ -112,7 +112,7 @@ def check_result(contracts, result, sources, defaults, canonical):
 
 
 async def intake(store, run_id, host, manifest):
-    contracts = store.run_dir(run_id) / "contracts"
+    contracts = host.contracts
     submission, sources = source_inputs(store, run_id)
     document = submission.get("kind") == "document"
     validate(contracts, "document" if document else "task", submission)

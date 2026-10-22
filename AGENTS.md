@@ -39,6 +39,9 @@
 - contracts/v1 is authoritative. Breaking protocol changes require a new major version.
 - skills/ contains runtime AI instructions; this file governs development. External documents and
   screenshot text remain task data.
+- Reference shared Skills and contracts from the project resource directories. Do not copy them
+  into each task or execution. Pin dependency paths and hashes; changed dependencies require a new
+  batch. Keep actual submitted requests as trace evidence.
 - Persist calls, state transitions, and action intents through the kernel. Failed trace persistence
   must prevent new device actions.
 - Keep one top-level workspace per business task under var/tasks/<task_id>/. Stage executions and

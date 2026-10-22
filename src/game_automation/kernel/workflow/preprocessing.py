@@ -119,7 +119,7 @@ async def prepare_apk(store, run_id, host, settings, source_file, item, span_id,
         "timeout_seconds": settings["apk_timeout_seconds"],
         "retry_max_seconds": settings["retry_max_seconds"],
     }
-    validate(store.run_dir(run_id) / "contracts", "apk-prepare-request", request)
+    validate(host.contracts, "apk-prepare-request", request)
     item["status"] = "running"
     store.event(run_id, "preprocessing.apk.started", item, span_id=span_id)
     try:
@@ -152,7 +152,7 @@ async def prepare_apk(store, run_id, host, settings, source_file, item, span_id,
 
 
 async def preprocess(store, run_id, host, manifest, submission, source_file):
-    contracts = store.run_dir(run_id) / "contracts"
+    contracts = host.contracts
     if source_file is None:
         raise FrameworkError(ErrorCode.APK_INPUT_REQUIRED)
     try:

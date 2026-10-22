@@ -21,7 +21,7 @@ async def discover_emulators(store, run_id, host, manifest, task):
             "command_timeout_seconds"
         ],
     }
-    validate(run_dir / "contracts", "emulator-discovery-request", request)
+    validate(host.contracts, "emulator-discovery-request", request)
     result = await host.call("emulator.discover", request, timeout=0)
     indices = [instance["index"] for instance in result["instances"]]
     if len(indices) != len(set(indices)):

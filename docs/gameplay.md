@@ -8,7 +8,7 @@
 | Perception | Local frame comparison, accessible candidates and explicit unknown results |
 | ProgressStore | Identity, prerequisite-ordered goals, milestones and durable checkpoints |
 | DecisionRouter | Deterministic selection between a guarded routine and planning |
-| Planner | Structured Codex decisions using frozen Skills and sanitized images |
+| Planner | Structured Codex decisions using pinned shared Skills and sanitized images |
 | RoutineExecutor | One guarded proposal at a time, at most five steps |
 | OutcomeVerifier | Local predicates, followed by semantic review when required |
 | EvidenceRecorder | Existing host tracing, screenshot admission and process-scoped logs |
@@ -58,7 +58,7 @@ uv run game-auto resume <run_id>
 uv run game-auto resume <run_id> --new-batch
 ```
 
-Normal resume preserves frozen code/Skills. Use `--new-batch` after an update: it links a new batch
+Normal resume requires unchanged code and shared Skills. Use `--new-batch` after an update: it links a new batch
 to the same task and restores scoped progress. A credential profile replaced in place cannot silently
 reuse another account's progress. Stable recovery categories have a persisted two-round limit.
 Three repeated state/goal observations enter stall handling.

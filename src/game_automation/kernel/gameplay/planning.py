@@ -56,7 +56,7 @@ class Planner:
             runtime.run_id,
             "battle" if runtime.task["goal"] == "advance-battle" else "exploration",
             context,
-            schema(directory / "contracts", "gameplay-decision"),
+            schema(runtime.host.contracts, "gameplay-decision"),
             images=images,
         )
         params = {
@@ -76,7 +76,7 @@ class Planner:
         )
         result = await runtime.host.call("ai.decide", params, parent_span_id=runtime.step_id)
         decision = result["decision"]
-        validate(directory / "contracts", "gameplay-decision", decision)
+        validate(runtime.host.contracts, "gameplay-decision", decision)
         if decision["observation_id"] != observation["observation_id"]:
             raise FrameworkError(ErrorCode.STALE_OBSERVATION)
         if observation["observation_id"] not in decision["evidence_refs"]:

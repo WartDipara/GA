@@ -6,6 +6,7 @@ import zipfile
 from game_automation.common import FrameworkError, uid, within
 from game_automation.contracts import validate
 from game_automation.errors import ErrorCode
+from game_automation.prompting.resources import resource_root
 
 from .evidence import verify_image
 from .preprocessing import preprocessing_status
@@ -18,13 +19,16 @@ def ready_apk(store, source_run, index):
     if len(items) != 1 or items[0]["status"] != "ready":
         raise FrameworkError(ErrorCode.DEVICE_APK_REQUIRED)
     item = items[0]
-    contract = store.run_dir(source_run) / "contracts/apk-metadata.schema.json"
-    if not contract.is_file() or not within(store.run_dir(source_run), item["apk_ref"]).is_file():
+    if (
+        not (store.run_dir(source_run) / "manifest.json").is_file()
+        or not within(store.run_dir(source_run), item["apk_ref"]).is_file()
+    ):
         raise FrameworkError(
             ErrorCode.DEVICE_APK_REQUIRED,
             "Prepared APK evidence is incomplete; preprocess the source again",
         )
-    validate(store.run_dir(source_run) / "contracts", "apk-metadata", item["metadata"])
+    contracts = resource_root(store, source_run, "contracts")
+    validate(contracts, "apk-metadata", item["metadata"])
     return item
 
 

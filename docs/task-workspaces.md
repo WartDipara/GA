@@ -10,8 +10,6 @@ var/tasks/<task_id>/
   apks/index.json
   executions/<run_id>/
     manifest.json
-    skills/
-    contracts/
     calls/
     artifacts/
     apks/                 # Present for preprocessing; isolated workspace per APK
@@ -21,6 +19,9 @@ var/tasks/<task_id>/
 ```
 
 The APK index references actual execution workspaces; it does not duplicate large downloads.
+Skills and contracts are external dependencies, referenced from the project resource directories.
+The manifest records their roots and SHA-256 hashes; no resource directories are copied into a new
+execution. Original submitted prompts remain in call records as evidence of actual AI input.
 New task IDs include the original subject and a full UUID4. Execution IDs also use UUID4, with
 database uniqueness and exclusive directory creation. No timestamp is included. Existing IDs
 are preserved. Root task naming does not change when package metadata becomes available.
@@ -38,7 +39,7 @@ there is no implicit current task. `preprocess --key` provides submission idempo
 be combined with `--task-id`.
 
 `resume <run_id>` keeps its directory. `resume <run_id> --new-batch` copies the stage input into a
-new execution under the same task and freezes new code/Skills. It never overwrites the previous
+new execution under the same task and pins new code/Skills. It never overwrites the previous
 batch or bypasses action reconciliation. Device reservations remain scoped to the source APK
 workspace; directory grouping does not grant permission to reuse an instance.
 
@@ -80,3 +81,16 @@ bookmarks need the new location from `status`; new executions use only task-scop
 Code changes still require a new batch: migrating directories does not make old code snapshots
 compatible with current code. Removing a task or releasing a device reservation is outside this
 command's scope.
+
+## Shared dependency versions
+
+Changing or deleting a referenced Skill, its resources, or a contract blocks resume with
+`SNAPSHOT_CHANGED`. Restore the pinned dependency version or use `--new-batch` to pin current resources.
+The system does not silently substitute updated instructions. Historical context views show a Skill
+as unavailable if its pinned content can no longer be read; they do not present current text as old
+evidence. Actual call requests remain inspectable when retained.
+
+Older manifests without external resource roots continue to resolve their existing local copies.
+Those original snapshots are neither rewritten nor regenerated automatically. Removing a task folder
+does not delete its SQLite history or device reservation, and missing task files are not restored
+merely by opening the database.
