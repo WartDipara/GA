@@ -138,6 +138,11 @@ uv run game-auto task-status <task_id>
 uv run game-auto migrate-workspaces
 ```
 
+Use `uv run game-auto cleanup --missing` to preview removal of database records whose task folders
+were deleted manually; add `--apply` to delete those records and compact SQLite. `--task-id` selects
+specific tasks, while `--all` selects all task data. Credentials, migration backups and shared
+resources are preserved. See [cleanup](docs/cleanup.md) for scope and interruption recovery.
+
 Use `--task-id <task_id>` with `preprocess`, `emulators` or `observe` to attach those operations to
 an existing task. Without it, a standalone submission creates its own task. Legacy migration groups
 only recorded source relationships, retains execution IDs and raw evidence, and backs up the

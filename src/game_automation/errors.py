@@ -50,6 +50,19 @@ class ErrorCode(StrEnum):
     COMMAND_OUTPUT_LIMIT = ("COMMAND_OUTPUT_LIMIT", "Command output exceeded its byte limit")
     CAPABILITY_DENIED = ("CAPABILITY_DENIED", "Requested capability is not permitted")
     CLOSED = ("CLOSED", "Connection closed")
+    CLEANUP_PENDING = (
+        "CLEANUP_PENDING",
+        "Cleanup is incomplete; run cleanup --apply to finish the recorded deletion",
+    )
+    CLEANUP_DEPENDENCY = (
+        "CLEANUP_DEPENDENCY",
+        "Another task references the selected executions; include that task in cleanup",
+    )
+    CLEANUP_FAILED = (
+        "CLEANUP_FAILED",
+        "Cleanup is incomplete; close other database clients, check free space "
+        "and retry cleanup --apply",
+    )
     CODEX_UNAVAILABLE = ("CODEX_UNAVAILABLE", "Codex executable was not found")
     CODEX_VERSION_MISMATCH = ("CODEX_VERSION_MISMATCH", "Codex version mismatch")
     DEPENDENCY_CYCLE = ("DEPENDENCY_CYCLE", "Capability call cycle or depth limit")

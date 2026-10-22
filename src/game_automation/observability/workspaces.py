@@ -3,10 +3,18 @@
 import html
 from collections import Counter
 
-from game_automation.common import atomic_json
+from game_automation.common import FileLock, atomic_json
 
 
-def task_report(store, task_id):
+def task_report(store, task_id, *, layout_locked=False):
+    if layout_locked:
+        return write_task_report(store, task_id)
+    with FileLock(store.var / "layout.lock"):
+        store.check_cleanup()
+        return write_task_report(store, task_id)
+
+
+def write_task_report(store, task_id):
     from game_automation.kernel.workflow.preprocessing import preprocessing_status
 
     task_id = store.canonical_task_id(task_id)

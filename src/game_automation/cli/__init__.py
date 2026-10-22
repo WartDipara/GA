@@ -101,6 +101,12 @@ def parser():
     )
     task_status.add_argument("task_id")
     commands.add_parser("migrate-workspaces", help="Group legacy execution folders by task")
+    cleanup = commands.add_parser("cleanup", help="Preview or delete task files and SQLite history")
+    selection = cleanup.add_mutually_exclusive_group()
+    selection.add_argument("--task-id", action="append", help="Task to remove; may be repeated")
+    selection.add_argument("--all", action="store_true", help="All tasks, including orphan folders")
+    selection.add_argument("--missing", action="store_true", help="Tasks whose folders are missing")
+    cleanup.add_argument("--apply", action="store_true", help="Permanently apply the deletion")
     resume = commands.add_parser("resume")
     resume.add_argument("run_id")
     resume.add_argument("--input", type=Path, help="Original APK list for preprocessing recovery")
@@ -203,7 +209,7 @@ def main(argv=None):
         root = args.project.resolve()
         if not (root / "config/application.toml").is_file():
             raise FrameworkError(ErrorCode.PROJECT_NOT_FOUND)
-        store = Store(root)
+        store = Store(root, allow_cleanup=args.command == "cleanup")
         if args.command == "credentials":
             username = getpass.getpass("Username (hidden): ")
             password = getpass.getpass("Password (hidden): ")
@@ -332,6 +338,17 @@ def main(argv=None):
             from game_automation.storage.layout import relocate
 
             print_json(relocate(store))
+        elif args.command == "cleanup":
+            from game_automation.storage.cleanup import cleanup
+
+            result = cleanup(
+                store,
+                args.task_id,
+                all_tasks=args.all,
+                missing=args.missing,
+                apply=args.apply,
+            )
+            print_json(result)
         elif args.command == "provide":
             store.supplement(args.run_id, args.text)
             print_json({"saved": True, "run_id": args.run_id})

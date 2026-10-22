@@ -57,6 +57,7 @@ def relocate(store):
     from game_automation.observability.workspaces import task_report
 
     with FileLock(store.var / "execution.lock"), FileLock(store.var / "layout.lock"):
+        store.check_cleanup()
         legacy = store.var / "runs"
         tasks = store.var / "tasks"
         plan = []
@@ -98,7 +99,7 @@ def relocate(store):
             )
         }
         for task_id in task_ids:
-            task_report(store, task_id)
+            task_report(store, task_id, layout_locked=True)
         if legacy.exists() and not any(legacy.iterdir()):
             legacy.rmdir()
         result = {

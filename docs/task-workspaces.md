@@ -80,7 +80,7 @@ bookmarks need the new location from `status`; new executions use only task-scop
 
 Code changes still require a new batch: migrating directories does not make old code snapshots
 compatible with current code. Removing a task or releasing a device reservation is outside this
-command's scope.
+command's scope. Use the separate [cleanup command](cleanup.md) for explicit synchronized deletion.
 
 ## Shared dependency versions
 

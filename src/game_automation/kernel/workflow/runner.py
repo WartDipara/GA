@@ -79,17 +79,20 @@ BLOCKED = {
 
 
 def new_run(store, task_id, mode="game", spec=None):
-    run_id = store.create_run(task_id, mode, spec)
-    try:
-        freeze(store, run_id)
-    except FrameworkError as exc:
-        store.transition(run_id, "blocked", reason=exc.as_dict())
-    task_report(store, store.run(run_id)["task_id"])
+    with ExecutionLock(store.var / "execution.lock"):
+        store.check_cleanup()
+        run_id = store.create_run(task_id, mode, spec)
+        try:
+            freeze(store, run_id)
+        except FrameworkError as exc:
+            store.transition(run_id, "blocked", reason=exc.as_dict())
+        task_report(store, store.run(run_id)["task_id"])
     return run_id
 
 
 async def execute(store, run_id, source_file=None):
     with ExecutionLock(store.var / "execution.lock"):
+        store.check_cleanup()
         run = store.run(run_id)
         if run["status"] in ("succeeded", "failed", "cancelled"):
             raise FrameworkError(ErrorCode.RUN_TERMINAL)
