@@ -22,7 +22,7 @@ def ready_apk(store, source_run, index):
     return item
 
 
-def preparation_task(store, source_run, index, instance_index):
+def preparation_task(store, source_run, index, instance_index, adopt_existing=False):
     if index < 0 or instance_index < 0:
         raise FrameworkError(ErrorCode.DEVICE_SELECTION_REQUIRED)
     item = ready_apk(store, source_run, index)
@@ -33,6 +33,7 @@ def preparation_task(store, source_run, index, instance_index):
         "apk_index": index,
         "instance_index": instance_index,
         "metadata": item["metadata"],
+        "adopt_existing": adopt_existing,
     }
     return task
 
@@ -167,6 +168,13 @@ async def prepare_device(store, run_id, host, manifest, task):
             "verified": True,
         }
         host.record("device.installation.reconciled", reconciled)
+    elif before["installed"] and task.get("adopt_existing"):
+        if before["sha256"] != metadata["sha256"]:
+            raise FrameworkError(ErrorCode.DEVICE_PACKAGE_CONFLICT)
+        host.record(
+            "device.installation.adopted",
+            {"sha256": before["sha256"], "preserved_application_data": True},
+        )
     else:
         if before["installed"]:
             raise FrameworkError(ErrorCode.DEVICE_PACKAGE_CONFLICT)

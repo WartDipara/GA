@@ -90,6 +90,10 @@ intake with source attribution and clarification recovery. The environment plugi
 selects a device, and checks boot completion and installed package paths. Environment results are
 diagnostics, not device-control acceptance. Every resume performs fresh checks; no previous result
 authorizes launch. See [task intake](task-intake.md) and [environment checks](environment.md).
-General Android lifecycle/input control, perception, exploration algorithms, and game coverage
-reports remain unregistered future capabilities. Development verification is compilation only and
-does not establish runtime or game acceptance.
+The gameplay runtime now exposes guarded Android actions, process/task observation and scoped
+logcat. SQLite schema version 3 adds shared gameplay checkpoints. The kernel persists intents before
+granting dispatch; the MuMu activation dependency inherits only the matching launch/return grant.
+An already installed matching APK can be explicitly adopted without reinstalling. Local credentials
+are protected by current-user Windows DPAPI and referenced by profile. See [gameplay](gameplay.md).
+Perception, exploration and game coverage remain separate increments. Development verification is
+compilation only and does not establish runtime or game acceptance.

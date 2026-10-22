@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://game-automation.local/contracts/v1/device-execute-result",
+  "type": "object",
+  "properties": {
+    "status": {
+      "const": "executed"
+    },
+    "requires_verification": {
+      "const": true
+    }
+  },
+  "required": [
+    "status",
+    "requires_verification"
+  ],
+  "additionalProperties": false
+}

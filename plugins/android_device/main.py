@@ -4,12 +4,17 @@ import asyncio
 import tomllib
 from pathlib import Path
 
+from actions import execute
+from capture import capture
 from display import observe
+from logs import collect
 from packages import inspect, install
+from runtime import inspect_runtime
 
 from game_automation.common import FrameworkError
 from game_automation.errors import ErrorCode
 from game_automation.plugin_sdk.commands import Commands
+from game_automation.plugin_sdk.credentials import load_profile, scrub
 from game_automation.plugin_sdk.rpc import serve
 
 MANIFEST = tomllib.loads(Path(__file__).with_name("plugin.toml").read_text(encoding="utf-8"))
@@ -34,7 +39,15 @@ def create_handler(peer):
         if method == "health":
             result = {"ok": True}
             return result
-        handlers = {"device.inspect": inspect, "device.install": install, "device.observe": observe}
+        handlers = {
+            "device.inspect": inspect,
+            "device.install": install,
+            "device.observe": observe,
+            "device.runtime": inspect_runtime,
+            "device.capture": capture,
+            "device.execute": execute,
+            "device.logs": collect,
+        }
         if method != "invoke" or params["capability"] not in handlers:
             raise FrameworkError(ErrorCode.METHOD_NOT_FOUND, method)
         request = params["input"]
@@ -44,6 +57,10 @@ def create_handler(peer):
             peer, request["session"]["command_timeout_seconds"], namespace="android"
         )
         device = Device(peer, commands, session)
+        device.credentials = (
+            load_profile(request["credential_path"]) if request.get("credential_path") else {}
+        )
+        commands.sanitize = lambda text: scrub(text, device.credentials)
         return await handlers[params["capability"]](device, request)
 
     return handler

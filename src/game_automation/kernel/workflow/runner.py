@@ -13,10 +13,15 @@ from game_automation.prompting import freeze, load
 from .device import observe_device, prepare_device
 from .emulators import discover_emulators
 from .environment import check_environment
+from .gameplay import play
 from .intake import intake
 from .preprocessing import preprocess
 
 BLOCKED = {
+    ErrorCode.CREDENTIAL_UNAVAILABLE,
+    ErrorCode.GAMEPLAY_BLOCKED,
+    ErrorCode.STALE_OBSERVATION,
+    ErrorCode.EVIDENCE_BUDGET,
     ErrorCode.DEVICE_APK_REQUIRED,
     ErrorCode.DEVICE_BINDING_CONFLICT,
     ErrorCode.DEVICE_IDENTITY_CHANGED,
@@ -89,6 +94,7 @@ async def execute(store, run_id, source_file=None):
             "emulators",
             "device",
             "observation",
+            "gameplay",
         ):
             raise FrameworkError(ErrorCode.RUN_MODE_REMOVED)
         try:
@@ -122,14 +128,14 @@ async def execute(store, run_id, source_file=None):
                 export_trace(store, run_id)
                 return store.run(run_id)
             manifest = load(store, run_id)
-            if run["mode"] != "device" and store.unknown_actions(run_id):
+            if run["mode"] not in ("device", "gameplay") and store.unknown_actions(run_id):
                 raise FrameworkError(ErrorCode.ACTION_ALREADY_DISPATCHED)
             store.transition(run_id, "running")
             storage = storage_settings(manifest)
             require_disk_space(store.run_dir(run_id), storage["reserve_bytes"])
             host = Host(store, run_id, Router(manifest["plugins"]), manifest)
             task = store.task(run["task_id"])
-            if run["mode"] in ("emulators", "device", "observation"):
+            if run["mode"] in ("emulators", "device", "observation", "gameplay"):
                 timeout = 0
             elif run["mode"] == "preprocessing":
                 timeout = manifest["application"]["preprocessing"]["batch_timeout_seconds"]
@@ -147,6 +153,9 @@ async def execute(store, run_id, source_file=None):
                 elif run["mode"] == "observation":
                     store.transition(run_id, "running", "environment")
                     await observe_device(store, run_id, host, manifest, task)
+                elif run["mode"] == "gameplay":
+                    store.transition(run_id, "running", "exploration")
+                    await play(store, run_id, host, manifest, task)
                 elif run["mode"] == "preprocessing":
                     store.transition(run_id, "running", "preprocessing")
                     await preprocess(store, run_id, host, manifest, task, source_file)
@@ -166,6 +175,7 @@ async def execute(store, run_id, source_file=None):
                 "emulators": "environment",
                 "device": "environment",
                 "observation": "environment",
+                "gameplay": "exploration",
             }
             stage = stages.get(run["mode"], "intake")
             store.transition(run_id, "succeeded", stage)

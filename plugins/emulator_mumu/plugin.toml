@@ -1,9 +1,9 @@
 name = "emulator_mumu"
-version = "0.2.0"
+version = "0.3.0"
 protocol_version = "1.0"
 command = ["{python}", "{plugin}/main.py"]
-capabilities = ["emulator.discover", "emulator.session"]
+capabilities = ["emulator.discover", "emulator.session", "emulator.activate"]
 required_capabilities = []
 optional_capabilities = []
 retry_safe = []
-mutating = []
+mutating = ["emulator.activate"]

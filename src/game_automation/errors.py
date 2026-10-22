@@ -37,6 +37,13 @@ class ErrorCode(StrEnum):
     BUDGET_EXHAUSTED = ("BUDGET_EXHAUSTED", "Run time limit exceeded")
     CALL_FAILED = ("CALL_FAILED", "Call failed")
     CANCELLED = ("CANCELLED", "Cancellation requested")
+    CREDENTIAL_UNAVAILABLE = ("CREDENTIAL_UNAVAILABLE", "Local credential profile is unavailable")
+    GAMEPLAY_BLOCKED = ("GAMEPLAY_BLOCKED", "Game task requires attention; inspect its checkpoint")
+    STALE_OBSERVATION = (
+        "STALE_OBSERVATION",
+        "Observation no longer matches the current device state",
+    )
+    EVIDENCE_BUDGET = ("EVIDENCE_BUDGET", "Evidence budget exhausted; checkpoint saved")
     COMMAND_OUTPUT_LIMIT = ("COMMAND_OUTPUT_LIMIT", "Command output exceeded its byte limit")
     CAPABILITY_DENIED = ("CAPABILITY_DENIED", "Requested capability is not permitted")
     CLOSED = ("CLOSED", "Connection closed")

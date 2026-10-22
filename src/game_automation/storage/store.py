@@ -30,7 +30,7 @@ class Store:
         self.db.execute("PRAGMA synchronous=FULL")
         self.db.execute("PRAGMA foreign_keys=ON")
         version = self.db.execute("PRAGMA user_version").fetchone()[0]
-        if version not in (0, 1, 2):
+        if version not in (0, 1, 2, 3):
             raise FrameworkError(ErrorCode.SCHEMA_VERSION)
         schema_sql = """
             CREATE TABLE IF NOT EXISTS tasks (
@@ -77,7 +77,12 @@ class Store:
                 instance_index INTEGER NOT NULL,
                 run_id TEXT UNIQUE NOT NULL REFERENCES runs(id)
             );
-            PRAGMA user_version=2;
+            CREATE TABLE IF NOT EXISTS gameplay_progress (
+                workspace_key TEXT PRIMARY KEY,
+                run_id TEXT NOT NULL REFERENCES runs(id),
+                data TEXT NOT NULL
+            );
+            PRAGMA user_version=3;
         """
         self.db.executescript(schema_sql)
 
@@ -343,7 +348,9 @@ class Store:
             }
             self._event(run_id, "device.reserved", binding)
 
-    def begin_device_action(self, run_id, instance_id, input_ref, max_actions, span_id):
+    def begin_device_action(
+        self, run_id, instance_id, input_ref, max_actions, span_id, capability="device.install"
+    ):
         with self.db:
             self.db.execute("BEGIN IMMEDIATE")
             binding = self.db.execute(
@@ -351,12 +358,16 @@ class Store:
             ).fetchone()
             task = self.task(self.run(run_id)["task_id"])
             apk_key = f"{task.get('source_run')}:{task.get('apk_index')}"
-            if binding is None or binding[0] != apk_key or task.get("kind") != "device_preparation":
+            if (
+                binding is None
+                or binding[0] != apk_key
+                or task.get("kind") not in ("device_preparation", "gameplay")
+            ):
                 raise FrameworkError(ErrorCode.DEVICE_BINDING_CONFLICT)
             count = self.db.execute(
                 "SELECT COUNT(*) FROM actions WHERE run_id=?", (run_id,)
             ).fetchone()[0]
-            if count >= max_actions:
+            if max_actions is not None and count >= max_actions:
                 raise FrameworkError(ErrorCode.BUDGET_EXHAUSTED)
             pending = self.db.execute(
                 "SELECT 1 FROM actions WHERE json_extract(result,'$.instance_id')=? "
@@ -367,7 +378,7 @@ class Store:
                 raise FrameworkError(ErrorCode.DEVICE_INSTALL_UNKNOWN)
             action_id = uid("action")
             details = {
-                "capability": "device.install",
+                "capability": capability,
                 "input_ref": input_ref,
                 "instance_id": instance_id,
                 "span_id": span_id,
@@ -407,8 +418,10 @@ class Store:
         row = self.db.execute(
             "SELECT a.run_id,a.action_id,a.status,a.result FROM actions a "
             "JOIN device_bindings b ON json_extract(a.result,'$.instance_id')=b.instance_id "
-            "WHERE b.apk_key=? ORDER BY a.rowid DESC LIMIT 1",
-            (apk_key,),
+            "WHERE b.apk_key=? AND (?='gameplay' OR "
+            "json_extract(a.result,'$.capability')='device.install') "
+            "ORDER BY a.rowid DESC LIMIT 1",
+            (apk_key, task.get("kind")),
         ).fetchone()
         if row is None:
             return None
@@ -419,6 +432,32 @@ class Store:
             **json.loads(row["result"]),
         }
         return action
+
+    def progress(self, workspace_key):
+        row = self.db.execute(
+            "SELECT run_id,data FROM gameplay_progress WHERE workspace_key=?", (workspace_key,)
+        ).fetchone()
+        if row is None:
+            return None
+        progress = {"run_id": row[0], "data": json.loads(row[1])}
+        return progress
+
+    def checkpoint(self, run_id, workspace_key, data):
+        try:
+            with self.db:
+                self.db.execute(
+                    "INSERT INTO gameplay_progress VALUES(?,?,?) "
+                    "ON CONFLICT(workspace_key) DO UPDATE SET run_id=excluded.run_id,"
+                    "data=excluded.data",
+                    (workspace_key, run_id, json.dumps(redact(data))),
+                )
+                self._event(
+                    run_id,
+                    "gameplay.checkpoint",
+                    {"workspace_key": workspace_key, "progress": data},
+                )
+        except sqlite3.Error as exc:
+            raise FrameworkError(ErrorCode.TRACE_UNAVAILABLE) from exc
 
     def finish_device_action(self, run_id, action_id, status, result):
         if status not in ("executed", "rejected", "verified"):
