@@ -34,3 +34,19 @@ Evidence admission reserves 4 GiB for the batch and 2 GiB of free disk space. Ad
 each capture/action boundary with headroom for bounded evidence and report generation. Existing
 evidence is not removed to continue a task. Compilation is development verification only; actual
 game task evidence is local and must be reported separately.
+
+## Local scheduling and routines
+
+`perception.analyze` produces accessible candidates, a small local image signature and measured
+frame difference. A canvas without accessible controls remains unknown. Stability only indicates
+limited visual change; it does not establish loading completion or business progress.
+
+`game-auto play --prepared-run <run> --goal routine --routine <file.json>` accepts the
+`gameplay-routine` contract. Each of at most five steps requires a current screen signature plus
+explicit conditions. The routine executor proposes one action, the kernel authorizes it, and the
+outcome verifier checks new observations before advancing. A modal, rotation or changed condition
+returns control for planning. Predicates such as focused package prove that predicate only, never
+successful login or a completed level. A missing result remains unknown and cannot be replayed.
+
+The decision router has no model calls. Local recognition, routing, routine execution and outcome
+verification are independent components; the device adapter has none of their business rules.

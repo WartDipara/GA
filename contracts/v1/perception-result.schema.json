@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://game-automation.local/contracts/v1/perception-result",
+  "type": "object",
+  "properties": {
+    "screen_key": {
+      "type": "string",
+      "maxLength": 2000
+    },
+    "candidates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "resource_id": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "class_name": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "bounds": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "minItems": 4,
+            "maxItems": 4
+          },
+          "clickable": {
+            "type": "boolean"
+          },
+          "sensitive": {
+            "type": "boolean"
+          },
+          "target_ref": {
+            "type": "string",
+            "maxLength": 2000
+          }
+        },
+        "required": [
+          "resource_id",
+          "label",
+          "class_name",
+          "bounds",
+          "clickable",
+          "sensitive",
+          "target_ref"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "difference": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "minimum": 0,
+      "maximum": 1
+    },
+    "stable": {
+      "type": "boolean"
+    },
+    "excluded_regions": {
+      "type": "array",
+      "items": {
+        "type": "array",
+        "items": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "minItems": 4,
+        "maxItems": 4
+      },
+      "maxItems": 30
+    },
+    "recognition": {
+      "enum": [
+        "accessible-controls",
+        "unknown"
+      ]
+    }
+  },
+  "required": [
+    "screen_key",
+    "candidates",
+    "difference",
+    "stable",
+    "excluded_regions",
+    "recognition"
+  ],
+  "additionalProperties": false
+}

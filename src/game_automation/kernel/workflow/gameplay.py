@@ -7,6 +7,7 @@ from game_automation.common import FrameworkError, uid, within
 from game_automation.contracts import validate
 from game_automation.disk import require_disk_space
 from game_automation.errors import ErrorCode
+from game_automation.kernel.gameplay.local import Perception, execute_routine
 from game_automation.plugin_sdk.credentials import load_profile, profile_path
 
 from .device import confirm_session, device_session, inspect_package
@@ -257,6 +258,18 @@ async def play(store, run_id, host, manifest, task):
             "runtime": after["runtime"],
         }
         progress.save()
+    if task["goal"] == "routine":
+        observation = await execute_routine(runtime, observation, task["actions"])
+    elif task["goal"] == "capture":
+        observation, facts = await Perception(runtime).settle(observation)
+        host.record(
+            "gameplay.route",
+            {
+                "route": "plan",
+                "reason": "unknown-state-or-new-goal",
+                "screen_key": facts["screen_key"],
+            },
+        )
     host.artifact(
         "reports/gameplay.json",
         {

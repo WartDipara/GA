@@ -69,8 +69,11 @@ def parser():
     play.add_argument("--prepared-run", required=True)
     play.add_argument("--credentials", default="default", help="Local credential reference")
     play.add_argument(
-        "--goal", default="capture", choices=["capture", "return-to-game", "activate-game"]
+        "--goal",
+        default="capture",
+        choices=["capture", "return-to-game", "activate-game", "routine"],
     )
+    play.add_argument("--routine", type=Path, help="Guarded JSON routine, at most five steps")
     runs = commands.add_parser("runs", help="List recent runs with their task subjects and states")
     runs.add_argument("--limit", type=int, default=20)
     resume = commands.add_parser("resume")
@@ -179,7 +182,21 @@ def main(argv=None):
             save_profile(root, args.profile, username, password)
             print_json({"saved": True, "profile": args.profile})
         elif args.command == "play":
-            task = gameplay_task(store, args.prepared_run, args.credentials, args.goal)
+            routine = None
+            if args.routine:
+                routine = json.loads(args.routine.read_text(encoding="utf-8"))
+                validate(root / "contracts/v1", "gameplay-routine", routine)
+            if (args.goal == "routine") != (routine is not None):
+                raise FrameworkError(
+                    ErrorCode.INVALID_CONTRACT, "Routine input and goal must match"
+                )
+            task = gameplay_task(
+                store,
+                args.prepared_run,
+                args.credentials,
+                args.goal,
+                routine["steps"] if routine else None,
+            )
             task_id = store.submit(task)
             run_id = new_run(store, task_id, "gameplay")
             print_json({"task_id": task_id, "run_id": run_id})
