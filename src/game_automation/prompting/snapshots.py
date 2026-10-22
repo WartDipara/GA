@@ -23,11 +23,27 @@ def code_hashes(directory):
     return source_hashes
 
 
-def freeze(store, run_id):
+def save_manifest(store, run_id, manifest, *, parent_run=None):
+    path = store.run_dir(run_id) / "manifest.json"
+    atomic_json(path, manifest)
+    snapshot_payload = {
+        "manifest_ref": "manifest.json",
+        "manifest_sha256": digest(path.read_bytes()),
+    }
+    if parent_run is not None:
+        snapshot_payload["parent_run"] = parent_run
+    store.event(run_id, "run.snapshot", snapshot_payload)
+
+
+def freeze(store, run_id, *, parent_run=None):
     root = store.root
     target = store.run_dir(run_id)
     if (target / "manifest.json").exists():
         return load(store, run_id)
+    if parent_run is not None:
+        manifest = load(store, parent_run)
+        save_manifest(store, run_id, manifest, parent_run=parent_run)
+        return manifest
     skills_config = tomllib.loads((root / "config/skills.toml").read_text(encoding="utf-8"))
     selected = {skills_config["base"]}
     for names in skills_config["stages"].values():
@@ -87,12 +103,7 @@ def freeze(store, run_id):
         "resource_roots": {kind: str(path.resolve()) for kind, path in resource_roots.items()},
         "files": files,
     }
-    atomic_json(target / "manifest.json", manifest)
-    snapshot_payload = {
-        "manifest_ref": "manifest.json",
-        "manifest_sha256": digest((target / "manifest.json").read_bytes()),
-    }
-    store.event(run_id, "run.snapshot", snapshot_payload)
+    save_manifest(store, run_id, manifest)
     return manifest
 
 

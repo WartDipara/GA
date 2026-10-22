@@ -36,3 +36,6 @@ timeout_seconds = 180
 [gameplay]
 evidence_budget_bytes = 4294967296
 reserve_bytes = 2147483648
+
+[workflow]
+stages = ["preprocess", "environment", "prepare", "launch", "play", "report"]

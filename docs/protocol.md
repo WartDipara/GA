@@ -3,6 +3,11 @@
 Transport: UTF-8 JSON-RPC 2.0 over stdio, one JSON object per line, maximum 8 MiB per message.
 stdout is protocol-only; stderr carries diagnostics. Use artifact references for large payloads.
 
+`workflow.schema.json` defines kernel workflow submissions: ordered APK source hashes, dedicated
+instance assignments, stage composition and gameplay goal. The original APK URL file remains a
+private CLI input. Child executions carry kernel-owned `workflow_run` and `workflow_key` metadata
+in their stored inputs; these fields are not added to plugin business request payloads.
+
 ## Manifest
 
 plugin.toml declares name, version, protocol_version, command, capabilities, required_capabilities,

@@ -8,6 +8,11 @@ def export_compact(store, run_id):
     kinds = (
         "call.started",
         "gameplay.step.started",
+        "workflow.stage.started",
+        "workflow.stage.bound",
+        "workflow.stage.completed",
+        "workflow.stage.failed",
+        "workflow.stage.incomplete",
         "call.completed",
         "call.failed",
         "call.incomplete",

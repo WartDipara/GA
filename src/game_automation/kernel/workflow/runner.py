@@ -20,6 +20,7 @@ from .intake import intake
 from .preprocessing import preprocess
 
 BLOCKED = {
+    ErrorCode.WORKFLOW_BLOCKED,
     ErrorCode.AI_OUTPUT_INVALID,
     ErrorCode.AI_OUTPUT_MISSING,
     ErrorCode.AI_TURN_FAILED,
@@ -80,139 +81,160 @@ BLOCKED = {
 
 def new_run(store, task_id, mode="game", spec=None):
     with ExecutionLock(store.var / "execution.lock"):
-        store.check_cleanup()
-        run_id = store.create_run(task_id, mode, spec)
-        try:
-            freeze(store, run_id)
-        except FrameworkError as exc:
-            store.transition(run_id, "blocked", reason=exc.as_dict())
-        task_report(store, store.run(run_id)["task_id"])
+        return new_run_locked(store, task_id, mode, spec)
+
+
+def new_run_locked(store, task_id, mode="game", spec=None, *, parent_run=None):
+    """Create an execution while the caller owns the workflow lock."""
+    store.check_cleanup()
+    run_id = store.create_run(task_id, mode, spec)
+    try:
+        freeze(store, run_id, parent_run=parent_run)
+    except FrameworkError as exc:
+        store.transition(run_id, "blocked", reason=exc.as_dict())
+    task_report(store, store.run(run_id)["task_id"])
     return run_id
 
 
 async def execute(store, run_id, source_file=None):
     with ExecutionLock(store.var / "execution.lock"):
-        store.check_cleanup()
-        run = store.run(run_id)
-        if run["status"] in ("succeeded", "failed", "cancelled"):
-            raise FrameworkError(ErrorCode.RUN_TERMINAL)
-        if run["mode"] not in (
-            "game",
-            "intake",
-            "preprocessing",
-            "emulators",
-            "device",
-            "observation",
-            "gameplay",
-        ):
-            raise FrameworkError(ErrorCode.RUN_MODE_REMOVED)
-        try:
-            if run["status"] == "running":
-                call_kinds = ("call.started", "call.completed", "call.failed", "call.incomplete")
-                events = store.events(run_id, kinds=call_kinds)
-                closed = {
-                    event["span_id"]
-                    for event in events
-                    if event["kind"] in ("call.completed", "call.failed", "call.incomplete")
-                }
-                for event in events:
-                    if event["kind"] == "call.started" and event["span_id"] not in closed:
-                        incomplete_payload = {
-                            "error": {"code": ErrorCode.PREVIOUS_PROCESS_EXITED},
-                            "result": "unknown",
-                            "attempt": event["payload"]["attempt"],
-                        }
-                        store.event(
-                            run_id,
-                            "call.incomplete",
-                            incomplete_payload,
-                            span_id=event["span_id"],
-                            parent_span_id=event["parent_span_id"],
-                            request_id=event["request_id"],
-                        )
-                store.transition(
-                    run_id, "blocked", reason={"code": ErrorCode.PREVIOUS_PROCESS_EXITED}
-                )
-            if store.run(run_id)["cancel_requested"]:
-                store.transition(run_id, "cancelled")
-                export_trace(store, run_id)
-                return store.run(run_id)
-            manifest = load(store, run_id)
-            if run["mode"] not in ("device", "gameplay") and store.unknown_actions(run_id):
-                raise FrameworkError(ErrorCode.ACTION_ALREADY_DISPATCHED)
-            store.transition(run_id, "running")
-            storage = storage_settings(manifest)
-            require_disk_space(store.run_dir(run_id), storage["reserve_bytes"])
-            host = Host(store, run_id, Router(manifest["plugins"]), manifest)
-            task = store.run_task(run_id)
-            if run["mode"] in ("emulators", "device", "observation", "gameplay"):
-                timeout = 0
-            elif run["mode"] == "preprocessing":
-                timeout = manifest["application"]["preprocessing"]["batch_timeout_seconds"]
-            elif task.get("kind") == "document" or run["mode"] == "intake":
-                timeout = manifest["application"].get("intake", {}).get("timeout_seconds", 300)
-            else:
-                timeout = task["limits"]["timeout_seconds"]
-            async with asyncio.timeout(timeout or None):
-                if run["mode"] == "emulators":
-                    store.transition(run_id, "running", "environment")
-                    await discover_emulators(store, run_id, host, manifest, task)
-                elif run["mode"] == "device":
-                    store.transition(run_id, "running", "environment")
-                    await prepare_device(store, run_id, host, manifest, task)
-                elif run["mode"] == "observation":
-                    store.transition(run_id, "running", "environment")
-                    await observe_device(store, run_id, host, manifest, task)
-                elif run["mode"] == "gameplay":
-                    store.transition(run_id, "running", "exploration")
-                    await play(store, run_id, host, manifest, task)
-                elif run["mode"] == "preprocessing":
-                    store.transition(run_id, "running", "preprocessing")
-                    await preprocess(store, run_id, host, manifest, task, source_file)
-                else:
-                    store.transition(run_id, "running", "intake")
-                    task = await intake(store, run_id, host, manifest)
-                if run["mode"] == "game":
-                    store.transition(run_id, "running", "environment")
-                    await check_environment(store, run_id, host, manifest, task)
-                    store.transition(run_id, "running", "launch")
-                    raise FrameworkError(
-                        ErrorCode.DEVICE_NOT_IMPLEMENTED, "Game launch is not available"
-                    )
-            host.check_cancel()
-            stages = {
-                "preprocessing": "preprocessing",
-                "emulators": "environment",
-                "device": "environment",
-                "observation": "environment",
-                "gameplay": "exploration",
+        if store.run_task(run_id).get("workflow_run"):
+            raise FrameworkError(
+                ErrorCode.WORKFLOW_INVALID, "Resume the owning workflow instead of its child"
+            )
+        return await execute_locked(store, run_id, source_file)
+
+
+async def execute_locked(store, run_id, source_file=None):
+    """Execute under the caller's lock, including scheduler-owned child executions."""
+    store.check_cleanup()
+    run = store.run(run_id)
+    if run["status"] in ("succeeded", "failed", "cancelled"):
+        raise FrameworkError(ErrorCode.RUN_TERMINAL)
+    if run["mode"] not in (
+        "game",
+        "intake",
+        "preprocessing",
+        "emulators",
+        "device",
+        "observation",
+        "gameplay",
+        "workflow",
+    ):
+        raise FrameworkError(ErrorCode.RUN_MODE_REMOVED)
+    try:
+        if run["status"] == "running":
+            call_kinds = ("call.started", "call.completed", "call.failed", "call.incomplete")
+            events = store.events(run_id, kinds=call_kinds)
+            closed = {
+                event["span_id"]
+                for event in events
+                if event["kind"] in ("call.completed", "call.failed", "call.incomplete")
             }
-            stage = stages.get(run["mode"], "intake")
-            store.transition(run_id, "succeeded", stage)
-        except BaseException as exc:
-            if isinstance(exc, (KeyboardInterrupt, asyncio.CancelledError)):
-                if run["mode"] == "preprocessing" and not store.run(run_id)["cancel_requested"]:
-                    error = FrameworkError(ErrorCode.PREPROCESSING_INTERRUPTED)
-                else:
-                    error = FrameworkError(ErrorCode.CANCELLED, "Execution interrupted")
-            elif isinstance(exc, TimeoutError):
-                error = FrameworkError(ErrorCode.BUDGET_EXHAUSTED)
+            for event in events:
+                if event["kind"] == "call.started" and event["span_id"] not in closed:
+                    incomplete_payload = {
+                        "error": {"code": ErrorCode.PREVIOUS_PROCESS_EXITED},
+                        "result": "unknown",
+                        "attempt": event["payload"]["attempt"],
+                    }
+                    store.event(
+                        run_id,
+                        "call.incomplete",
+                        incomplete_payload,
+                        span_id=event["span_id"],
+                        parent_span_id=event["parent_span_id"],
+                        request_id=event["request_id"],
+                    )
+            store.transition(run_id, "blocked", reason={"code": ErrorCode.PREVIOUS_PROCESS_EXITED})
+        if store.run(run_id)["cancel_requested"]:
+            store.transition(run_id, "cancelled")
+            export_trace(store, run_id)
+            return store.run(run_id)
+        manifest = load(store, run_id)
+        if run["mode"] not in ("device", "gameplay") and store.unknown_actions(run_id):
+            raise FrameworkError(ErrorCode.ACTION_ALREADY_DISPATCHED)
+        store.transition(run_id, "running")
+        storage = storage_settings(manifest)
+        require_disk_space(store.run_dir(run_id), storage["reserve_bytes"])
+        host = Host(store, run_id, Router(manifest["plugins"]), manifest)
+        task = store.run_task(run_id)
+        if run["mode"] in ("emulators", "device", "observation", "gameplay", "workflow"):
+            timeout = 0
+        elif run["mode"] == "preprocessing":
+            timeout = manifest["application"]["preprocessing"]["batch_timeout_seconds"]
+        elif task.get("kind") == "document" or run["mode"] == "intake":
+            timeout = manifest["application"].get("intake", {}).get("timeout_seconds", 300)
+        else:
+            timeout = task["limits"]["timeout_seconds"]
+        async with asyncio.timeout(timeout or None):
+            if run["mode"] == "workflow":
+                from .scheduler import schedule
+
+                await schedule(store, run_id, host, task, source_file)
+            elif run["mode"] == "emulators":
+                store.transition(run_id, "running", "environment")
+                await discover_emulators(store, run_id, host, manifest, task)
+            elif run["mode"] == "device":
+                store.transition(run_id, "running", "environment")
+                await prepare_device(store, run_id, host, manifest, task)
+            elif run["mode"] == "observation":
+                store.transition(run_id, "running", "environment")
+                await observe_device(store, run_id, host, manifest, task)
+            elif run["mode"] == "gameplay":
+                store.transition(run_id, "running", "exploration")
+                await play(store, run_id, host, manifest, task)
+            elif run["mode"] == "preprocessing":
+                store.transition(run_id, "running", "preprocessing")
+                await preprocess(store, run_id, host, manifest, task, source_file)
             else:
-                error = (
-                    exc
-                    if isinstance(exc, FrameworkError)
-                    else FrameworkError(ErrorCode.INTERNAL_ERROR, type(exc).__name__)
+                store.transition(run_id, "running", "intake")
+                task = await intake(store, run_id, host, manifest)
+            if run["mode"] == "game":
+                store.transition(run_id, "running", "environment")
+                await check_environment(store, run_id, host, manifest, task)
+                store.transition(run_id, "running", "launch")
+                raise FrameworkError(
+                    ErrorCode.DEVICE_NOT_IMPLEMENTED, "Game launch is not available"
                 )
-            if error.code == ErrorCode.CANCELLED:
-                status = "cancelled"
-            elif error.code in BLOCKED:
-                status = "blocked"
+        host.check_cancel()
+        stages = {
+            "preprocessing": "preprocessing",
+            "emulators": "environment",
+            "device": "environment",
+            "observation": "environment",
+            "gameplay": "exploration",
+        }
+        stage = (
+            store.run(run_id)["stage"]
+            if run["mode"] == "workflow"
+            else stages.get(run["mode"], "intake")
+        )
+        store.transition(run_id, "succeeded", stage)
+    except BaseException as exc:
+        if isinstance(exc, (KeyboardInterrupt, asyncio.CancelledError)):
+            if run["mode"] == "preprocessing" and not store.run(run_id)["cancel_requested"]:
+                error = FrameworkError(ErrorCode.PREPROCESSING_INTERRUPTED)
             else:
-                status = "failed"
-            # Persistence failure must escape, not become a fabricated terminal record.
-            store.transition(run_id, status, reason=error.as_dict())
-        if run["mode"] == "gameplay":
-            gameplay_report(store, run_id)
-        export_trace(store, run_id)
-        task_report(store, store.run(run_id)["task_id"])
-        return store.run(run_id)
+                error = FrameworkError(ErrorCode.CANCELLED, "Execution interrupted")
+        elif isinstance(exc, TimeoutError):
+            error = FrameworkError(ErrorCode.BUDGET_EXHAUSTED)
+        else:
+            error = (
+                exc
+                if isinstance(exc, FrameworkError)
+                else FrameworkError(ErrorCode.INTERNAL_ERROR, type(exc).__name__)
+            )
+        if error.code == ErrorCode.CANCELLED:
+            status = "cancelled"
+        elif error.code in BLOCKED:
+            status = "blocked"
+        else:
+            status = "failed"
+        # Persistence failure must escape, not become a fabricated terminal record.
+        store.transition(run_id, status, reason=error.as_dict())
+    if run["mode"] == "gameplay":
+        gameplay_report(store, run_id)
+    export_trace(store, run_id)
+    task_report(store, store.run(run_id)["task_id"])
+    return store.run(run_id)

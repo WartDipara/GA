@@ -14,6 +14,7 @@ from game_automation.kernel.workflow.gameplay import gameplay_task
 from game_automation.kernel.workflow.intake import intake_status, read_document
 from game_automation.kernel.workflow.preprocessing import preprocessing_status, read_batch
 from game_automation.kernel.workflow.runner import execute, new_run
+from game_automation.kernel.workflow.scheduler import workflow_status, workflow_task
 from game_automation.observability import build_insights
 from game_automation.plugin_sdk.credentials import save_profile
 from game_automation.reporting.trace import export_trace
@@ -46,6 +47,19 @@ def parser():
     ownership = preprocessing.add_mutually_exclusive_group()
     ownership.add_argument("--key", help="Idempotency key for the submitted APK list")
     ownership.add_argument("--task-id", help="Attach preprocessing to an existing task")
+    workflow = commands.add_parser("workflow", help="Run the composed APK workflow in list order")
+    workflow.add_argument("--input", type=Path, required=True, help="Private APK URL JSON file")
+    workflow.add_argument("--instances", type=int, nargs="+", help="One dedicated instance per APK")
+    workflow.add_argument("--credentials", default="default", help="Local credential reference")
+    workflow.add_argument(
+        "--goal",
+        default="login-and-interact",
+        choices=["login-and-interact", "explore", "advance-battle"],
+    )
+    workflow.add_argument("--max-turns", type=int, default=0)
+    workflow.add_argument("--stages", nargs="+", help="Override the configured stage composition")
+    workflow.add_argument("--adopt-existing", action="store_true")
+    workflow.add_argument("--key", help="Idempotency key for submission")
     emulators = commands.add_parser(
         "emulators", help="Discover and inspect existing MuMu instances"
     )
@@ -110,7 +124,7 @@ def parser():
     cleanup.add_argument("--apply", action="store_true", help="Permanently apply the deletion")
     resume = commands.add_parser("resume")
     resume.add_argument("run_id")
-    resume.add_argument("--input", type=Path, help="Original APK list for preprocessing recovery")
+    resume.add_argument("--input", type=Path, help="Original APK list if downloads need recovery")
     resume.add_argument(
         "--new-batch",
         action="store_true",
@@ -177,6 +191,8 @@ def run_details(store, run_id):
         details["apks"] = preprocessing_status(store, run_id)
         storage_events = store.events(run_id, kinds=("preprocessing.storage.checked",), limit=1)
         details["storage"] = storage_events[-1]["payload"] if storage_events else None
+    if details["mode"] == "workflow":
+        details["workflow"] = workflow_status(store, run_id)
     details["unknown_actions"] = store.unknown_actions(run_id)
     details["trace"] = str(store.run_dir(run_id) / "reports/trace.html")
     return details
@@ -189,14 +205,18 @@ def execution_result(store, run_id):
         event["payload"].get("reason")
         for event in store.events(run_id, kinds=("run.state",), limit=1)
     ]
-    reason = reasons[-1] if reasons else None
-    if reason and reason.get("code") in (
+    if details["mode"] == "workflow":
+        child_reasons = [step.get("reason") for step in details["workflow"]["steps"]]
+        reasons.extend(child_reasons)
+    disk_warning_codes = (
         ErrorCode.DISK_SPACE_INSUFFICIENT,
         ErrorCode.DISK_SPACE_UNAVAILABLE,
         ErrorCode.DISK_BUDGET_EXCEEDED,
         ErrorCode.DEVICE_SPACE_INSUFFICIENT,
-    ):
-        print(f"Warning: {reason['message']}", file=sys.stderr)
+    )
+    for reason in reasons:
+        if reason and reason.get("code") in disk_warning_codes:
+            print(f"Warning: {reason['message']}", file=sys.stderr)
     return 0 if details["status"] == "succeeded" else 2
 
 
@@ -290,6 +310,23 @@ def main(argv=None):
             print_json(identifiers)
             asyncio.run(execute(store, run_id))
             return execution_result(store, run_id)
+        elif args.command == "workflow":
+            task = workflow_task(
+                root,
+                args.input,
+                args.instances,
+                args.credentials,
+                args.goal,
+                args.max_turns,
+                args.stages,
+                args.adopt_existing,
+            )
+            task_id = store.submit(task, args.key)
+            run_id = new_run(store, task_id, "workflow", task)
+            identifiers = {"task_id": task_id, "run_id": run_id}
+            print_json(identifiers)
+            asyncio.run(execute(store, run_id, args.input))
+            return execution_result(store, run_id)
         elif args.command == "preprocess":
             submission = read_batch(args.input, root / "contracts/v1")
             task_id = args.task_id or store.submit(submission, args.key)
@@ -307,6 +344,10 @@ def main(argv=None):
             return execution_result(store, run_id)
         elif args.command == "resume":
             run_id = args.run_id
+            if store.run_task(run_id).get("workflow_run"):
+                raise FrameworkError(
+                    ErrorCode.WORKFLOW_INVALID, "Resume the owning workflow instead of its child"
+                )
             if args.new_batch:
                 previous = store.run(run_id)
                 run_id = new_run(

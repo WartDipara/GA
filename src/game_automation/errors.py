@@ -4,6 +4,9 @@ from enum import StrEnum
 class ErrorCode(StrEnum):
     """Stable wire codes with default messages shared by the kernel and plugins."""
 
+    WORKFLOW_INVALID = ("WORKFLOW_INVALID", "Workflow stages or instance assignments are invalid")
+    WORKFLOW_BLOCKED = ("WORKFLOW_BLOCKED", "A workflow stage needs attention before continuing")
+
     AAPT2_TIMEOUT = ("AAPT2_TIMEOUT", "AAPT2 inspection timed out")
     AAPT2_UNAVAILABLE = ("AAPT2_UNAVAILABLE", "Install Android Build Tools or set GAME_AUTO_AAPT2")
     ACTION_ALREADY_DISPATCHED = (

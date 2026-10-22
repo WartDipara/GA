@@ -35,6 +35,7 @@ class Host:
         self.run_id = run_id
         self.router = router
         self.manifest = manifest
+        self.workflow_run = store.run_task(run_id).get("workflow_run")
         self.contracts = resource_root(store, run_id, "contracts", manifest=manifest)
         self.failure = None
 
@@ -60,6 +61,8 @@ class Host:
         if self.failure is not None:
             raise self.failure
         if self.store.run(self.run_id)["cancel_requested"]:
+            raise FrameworkError(ErrorCode.CANCELLED)
+        if self.workflow_run and self.store.run(self.workflow_run)["cancel_requested"]:
             raise FrameworkError(ErrorCode.CANCELLED)
 
     async def call(

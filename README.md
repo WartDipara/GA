@@ -45,6 +45,18 @@ coverage.
 
 ## APK preprocessing
 
+To run the connected pipeline:
+
+```powershell
+uv run game-auto workflow --input var/inputs/apks.json --instances <index> [<index> ...]
+```
+
+It downloads the list, then prepares, launches and plays each APK in list order before producing a
+task report. Assign one distinct existing MuMu instance per APK.
+Change `[workflow].stages` or pass `--stages` to select modules; dependencies are validated before
+execution. See [workflow composition and recovery](docs/workflow.md). This orchestration increment
+has compilation verification only; sequential batch gameplay has not yet been accepted on devices.
+
 Submit a private JSON file containing `{"apkUrls": ["https://example.com/game.apk"]}`:
 
 ```powershell
