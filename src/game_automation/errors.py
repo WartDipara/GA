@@ -25,7 +25,10 @@ class ErrorCode(StrEnum):
     ADB_START_FAILED = ("ADB_START_FAILED", "Cannot start ADB")
     ADB_TIMEOUT = ("ADB_TIMEOUT", "ADB command timed out")
     ADB_UNAVAILABLE = ("ADB_UNAVAILABLE", "ADB executable is unavailable")
-    AI_OUTPUT_INVALID = ("AI_OUTPUT_INVALID", "Final message is not JSON")
+    AI_OUTPUT_INVALID = (
+        "AI_OUTPUT_INVALID",
+        "AI output violates the decision or evidence contract",
+    )
     AI_OUTPUT_MISSING = ("AI_OUTPUT_MISSING", "Completed turn has no final message")
     AI_REQUIRES_INPUT = ("AI_REQUIRES_INPUT", "Codex requested external action or approval")
     AI_TURN_FAILED = ("AI_TURN_FAILED", "AI turn failed")

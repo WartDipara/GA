@@ -40,9 +40,12 @@ uv run game-auto serve-trace <run_id> --interval 5 --port 0
 
 Open the printed loopback URL. The default port is 8767 and the refresh interval is three seconds;
 port zero selects an available port. The viewer follows the run's entire business task, including
-child stage executions created later. It shows execution states and the latest 200 durable events
-across the task, with recorded durations and bounded payload previews. Search and execution filters
-apply to that bounded window; open a stage trace for earlier evidence and full model context.
+child stage executions created later. It shows execution states and the latest 200 operational
+events across the task, with recorded durations and bounded payload previews. Raw protocol messages,
+text deltas and individual device commands remain in the full trace; they do not crowd decisions
+and module results out of the live window. Completed AI items retain their public text and any
+available reasoning summary. Search and execution filters apply to that bounded window; open a
+stage trace for earlier evidence and full model context.
 
 The page provides pause/resume, manual refresh and interval selection. Polls do not overlap. A
 revision check avoids transferring the same events again, and the selected event and filters survive
@@ -56,8 +59,8 @@ and serves only the selected task's trace views and allowed report/evidence type
 manifest files are not served. Detailed trace links open a current snapshot in another tab; the main
 page continues polling. Ctrl+C stops only the viewer, leaving the workflow untouched.
 
-This viewer increment has compilation and JavaScript syntax verification only. Browser refresh and
-concurrent workflow behavior still need acceptance during an explicitly requested real task.
+The page's script integrity hash covers the exact inline script element content. Template formatting
+must not add whitespace inside that element after hashing, or the browser will refuse to run it.
 
 The live workspace uses an execution navigation tree, a searchable event list and a persistent event
 inspector. Status segments count executions, including workflow parents and their children, rather

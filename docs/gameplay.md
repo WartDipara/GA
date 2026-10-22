@@ -17,6 +17,21 @@ The kernel owns device authority and business state. Plugins exchange JSON-RPC d
 read each other's implementations or the business database. Login, exploration and native battle
 share one observation/decision/execution loop. Public reasoning summaries remain optional.
 
+The planner receives sanitized images bounded to 1280 pixels on the long edge and 768 pixels on
+the short edge. Each image declares its coordinate space. Perception targets and the pending
+action are projected into their corresponding image coordinates; proposed points and rectangles
+are validated and converted back to native display pixels before authorization. Original device
+screenshots remain unchanged. Traces retain the submitted image geometry, model coordinates and
+native decision, so a scale or rotation problem can be diagnosed without guessing where a tap went.
+Moving an existing task to this explicit coordinate space invalidates its old stall counter once;
+identity, action outcomes and recovery limits are preserved.
+
+Planning context includes the most recent action's actual execution status and result. A rejected
+action with no dispatch must not be described as completed. Credential actions focus a point inside
+the declared field bounds; values are resolved locally from the credential profile. Masked fields
+do not establish an account mismatch or failed input. Input command completion and authenticated
+game entry remain separate outcomes.
+
 ## Prepare and run
 
 Choose an already-running dedicated MuMu instance from `game-auto emulators`. Its index identifies

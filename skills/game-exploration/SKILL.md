@@ -9,7 +9,12 @@ description:
 
 Prioritize unverified targets within the task scope. Reuse recorded paths and avoid repeated clicks
 without new evidence. Associate each action with the current observation_id and session_id;
-coordinates refer to the current screenshot dimensions. Return reason_summary, evidence_refs,
+coordinates refer to the first planner image's declared image_coordinates width and height.
+These bounded images may be smaller than the native device display. Use planner image pixels for
+every proposed point, target bounds and sensitive rectangle; never use native display dimensions
+for proposed coordinates. The kernel converts them to native device pixels. Previous-image geometry
+and pending action coordinates belong to that previous image, not the current target screen.
+Return reason_summary, evidence_refs,
 expected_outcome, and uncertainties in the supplied schema. If the image is unclear or a decision
 cannot be supported, choose stop and state the missing information rather than guessing a click. Do
 not interpret a suggested click, synthetic result, or disappearing button as business success. The
@@ -27,6 +32,26 @@ record its visible name, and retain that small account, server and role. Enter o
 references into visibly empty identified fields. Never return a username or password. Identify the
 full sensitive field rectangle before credential input. Preserve previously declared sensitive
 rectangles until the sensitive screen has gone. Credentials and account text may be masked.
+The task's credential_profile authorizes the username and password references for empty login
+fields. No visible account match is required before initial credential entry: an empty field cannot
+already display the configured username. After identifying an empty username field, propose a
+credential action with credential_field username; similarly use password for its empty field.
+The kernel resolves the references locally. Never request the plaintext values from the user or
+infer an account mismatch from a blank or masked field. Only actual conflicting identity evidence
+establishes an account mismatch.
+For credential actions, x and y must identify a point inside the input field's bounds; they are
+used to focus that field before typing. Do not use zero for these active coordinates. A masked
+rectangle alone does not mean a field is populated. Consult last_action_execution: rejected with
+dispatched false means no input occurred; executed means the input command completed, not that
+authentication succeeded. Do not replay executed or unknown credential entry. A completed input
+command can be acknowledged without exposing field contents; after both fields have been entered,
+submit the visible login form once and verify the resulting authentication state separately.
+Inspect visible alternative sign-in controls when the current form does not accept the credential
+type. A blocked subgoal is a prior assessment, not an instruction to remain blocked. Reassess it
+against current evidence and execution conditions. When coordinate_mapping_corrected is true,
+earlier no-change clicks used a different mapping and do not establish that a visible control is
+unresponsive under the corrected mapping. A new, justified low-risk attempt may be appropriate.
+Copy observation IDs exactly from task data; never shorten them in evidence_refs or progress updates.
 
 Complete login-and-interact only after reaching actual gameplay and verifying one benign in-game
 interaction such as opening and closing a visible panel. SDK account selection, server selection,

@@ -84,9 +84,12 @@ and prevents later stages from starting.
 
 Keep the original URL file available when downloads require recovery; signed download URLs are
 not stored in the workflow submission. Changing code or shared dependencies requires a new batch.
-`resume --new-batch` creates a fresh execution using the existing submitted composition, rather than
-transferring stage checkpoints. Its APK workspaces are new, so instances reserved by an earlier
-batch remain protected. To change composition, submit a new workflow with the new stage selection.
+`resume --new-batch` creates a fresh workflow execution using the existing submitted composition.
+It links successful child executions from the preceding batch, preserving APK workspaces and
+instance bindings. Unfinished stages get new executions under the current pinned implementation.
+Device stages still reconcile earlier actions against fresh observations; a new batch never grants
+permission to replay an unknown action. Only identical task inputs and stage modes can continue this
+way. Historical failures remain intact. To change composition, submit a new workflow instead.
 
 The scheduler has been compiled, but batch installation and sequential gameplay require a separate,
 explicit real task with the necessary instances. Compilation does not prove device behavior.

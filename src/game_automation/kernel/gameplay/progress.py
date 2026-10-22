@@ -107,7 +107,9 @@ class ProgressStore:
                 raise FrameworkError(ErrorCode.AI_OUTPUT_INVALID, "Subgoal prerequisites are unmet")
         for proposal in decision.get("progress_update", []):
             if observation_id not in proposal["evidence_refs"]:
-                raise FrameworkError(ErrorCode.AI_OUTPUT_INVALID)
+                raise FrameworkError(
+                    ErrorCode.AI_OUTPUT_INVALID, "Progress update must cite the current observation"
+                )
             milestones[proposal["id"]] = {**proposal, "run_id": self.run_id}
         if len(milestones) > 500:
             raise FrameworkError(ErrorCode.GAMEPLAY_BLOCKED, "Milestone scope is full")

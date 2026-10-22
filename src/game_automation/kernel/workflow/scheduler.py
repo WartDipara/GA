@@ -69,6 +69,28 @@ def workflow_status(store, run_id):
     return result
 
 
+def stage_children(store, run_id):
+    children = {}
+    task_id = store.run(run_id)["task_id"]
+    for run in store.task_runs(task_id):
+        inputs = store.run_task(run["run_id"])
+        if inputs.get("workflow_run") == run_id:
+            key = inputs["workflow_key"]
+            if key in children:
+                raise FrameworkError(ErrorCode.WORKFLOW_INVALID, "Duplicate stage execution")
+            children[key] = run["run_id"]
+    for event in store.events(run_id, kinds=("workflow.stage.bound",)):
+        payload = event["payload"]
+        child = payload["child_run"]
+        if store.run(child)["task_id"] != task_id:
+            raise FrameworkError(ErrorCode.WORKFLOW_INVALID, "Stage belongs to another task")
+        key = payload["key"]
+        if key in children and children[key] != child:
+            raise FrameworkError(ErrorCode.WORKFLOW_INVALID, "Stage execution binding changed")
+        children[key] = child
+    return children
+
+
 class Scheduler:
     def __init__(self, store, run_id, host, task, source_file):
         self.store = store
@@ -76,16 +98,20 @@ class Scheduler:
         self.host = host
         self.source_file = source_file
         self.context = WorkflowContext(store, run_id, task)
-        self.children = {}
+        self.children = stage_children(store, run_id)
+        self.previous_children = {}
         self.completed = set()
-        # Discover even an execution created just before a crash in checkpoint persistence.
-        for run in store.task_runs(store.run(run_id)["task_id"]):
-            inputs = store.run_task(run["run_id"])
-            if inputs.get("workflow_run") == run_id:
-                key = inputs["workflow_key"]
-                if key in self.children:
-                    raise FrameworkError(ErrorCode.WORKFLOW_INVALID, "Duplicate stage execution")
-                self.children[key] = run["run_id"]
+        continuations = store.events(run_id, kinds=("run.continued_from",), limit=1)
+        if continuations:
+            previous = continuations[-1]["payload"]["run_id"]
+            old_run = store.run(previous)
+            if (
+                old_run["mode"] != "workflow"
+                or old_run["task_id"] != store.run(run_id)["task_id"]
+                or store.run_task(previous) != task
+            ):
+                raise FrameworkError(ErrorCode.WORKFLOW_INVALID, "Continuation input differs")
+            self.previous_children = stage_children(store, previous)
         for event in store.events(run_id, kinds=("workflow.stage.completed",)):
             self.completed.add(event["payload"]["key"])
         for event in store.events(run_id, kinds=("workflow.stage.started",)):
@@ -128,6 +154,15 @@ class Scheduler:
             if stage.mode is None:
                 stage.inputs(context)
             else:
+                previous = self.previous_children.get(key)
+                if child is None and previous:
+                    old_run = self.store.run(previous)
+                    if old_run["mode"] != stage.mode:
+                        raise FrameworkError(ErrorCode.WORKFLOW_INVALID, "Stage mode changed")
+                    if old_run["status"] == "succeeded":
+                        child = previous
+                        self.children[key] = child
+                        payload["reused_from_previous_batch"] = True
                 if child is None:
                     inputs = stage.inputs(context)
                     inputs["workflow_run"] = self.run_id
@@ -137,6 +172,8 @@ class Scheduler:
                         self.store, task_id, stage.mode, inputs, parent_run=self.run_id
                     )
                     self.children[key] = child
+                    if previous:
+                        self.store.event(child, "run.continued_from", {"run_id": previous})
                 payload["child_run"] = child
                 self.store.event(self.run_id, "workflow.stage.bound", payload, span_id=span)
                 result = self.store.run(child)
