@@ -308,8 +308,7 @@
     "runtime",
     "controls",
     "screenshot",
-    "sensitive_regions",
-    "credential_profile_match"
+    "sensitive_regions"
   ],
   "additionalProperties": false
 }

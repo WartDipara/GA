@@ -25,7 +25,9 @@ class Planner:
                 "credential_profile": runtime.task["credential_profile"],
             },
             "observation_id": observation["observation_id"],
-            "visible_account_matches_credential_profile": observation["credential_profile_match"],
+            "visible_account_matches_credential_profile": observation.get(
+                "credential_profile_match"
+            ),
             "runtime": observation["runtime"],
             "perception": facts,
             "progress": progress,

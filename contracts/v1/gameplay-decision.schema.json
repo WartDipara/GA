@@ -234,6 +234,135 @@
         "additionalProperties": false
       },
       "maxItems": 10
+    },
+    "subgoals": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "requires": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "maxItems": 20
+          },
+          "status": {
+            "enum": [
+              "pending",
+              "active",
+              "verified",
+              "blocked",
+              "unknown"
+            ]
+          },
+          "evidence_refs": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "minItems": 1,
+            "maxItems": 10
+          }
+        },
+        "required": [
+          "id",
+          "description",
+          "requires",
+          "status",
+          "evidence_refs"
+        ],
+        "additionalProperties": false
+      },
+      "maxItems": 20
+    },
+    "progress_update": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "status": {
+            "enum": [
+              "discovered",
+              "attempted",
+              "verified",
+              "blocked",
+              "unknown"
+            ]
+          },
+          "evidence_refs": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "minItems": 1,
+            "maxItems": 10
+          }
+        },
+        "required": [
+          "id",
+          "description",
+          "status",
+          "evidence_refs"
+        ],
+        "additionalProperties": false
+      },
+      "maxItems": 20
+    },
+    "recovery": {
+      "type": "object",
+      "properties": {
+        "fault": {
+          "enum": [
+            "session_expired",
+            "game_process_exit",
+            "navigation_deviation",
+            "stalled_progress",
+            "unexpected_modal"
+          ]
+        },
+        "phase": {
+          "enum": [
+            "begin",
+            "continue",
+            "resolved"
+          ]
+        },
+        "evidence_refs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "minItems": 1,
+          "maxItems": 10
+        }
+      },
+      "required": [
+        "fault",
+        "phase",
+        "evidence_refs"
+      ],
+      "additionalProperties": false
     }
   },
   "required": [

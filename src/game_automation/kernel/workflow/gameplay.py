@@ -10,6 +10,7 @@ from game_automation.disk import require_disk_space
 from game_automation.errors import ErrorCode
 from game_automation.kernel.gameplay.hybrid import run_hybrid
 from game_automation.kernel.gameplay.local import Perception, execute_routine
+from game_automation.kernel.gameplay.progress import ProgressStore
 from game_automation.plugin_sdk.credentials import load_profile, profile_path
 
 from .device import confirm_session, device_session, inspect_package
@@ -64,32 +65,6 @@ class EvidenceRecorder:
         needed = remaining if initial else headroom
         require_disk_space(self.directory, self.settings["reserve_bytes"] + needed)
         return used
-
-
-class ProgressStore:
-    def __init__(self, store, run_id, task):
-        self.store = store
-        self.run_id = run_id
-        self.key = ":".join(
-            (task["instance_id"], task["metadata"]["sha256"], task["credential_profile"])
-        )
-        previous = store.progress(self.key)
-        self.data = (
-            previous["data"]
-            if previous
-            else {
-                "identity": None,
-                "checkpoint": None,
-                "pending": None,
-                "paths": [],
-                "sensitive_regions": [],
-                "recovery_rounds": 0,
-            }
-        )
-        self.previous_run = previous["run_id"] if previous else None
-
-    def save(self):
-        self.store.checkpoint(self.run_id, self.key, self.data)
 
 
 class DeviceRuntime:
@@ -229,7 +204,10 @@ async def play(store, run_id, host, manifest, task):
                 "gameplay.action.reconciled",
                 {"action_id": previous["action_id"], "action_run": previous["run_id"]},
             )
-        elif task["goal"] == "login-and-interact" and previous["capability"] == "device.execute":
+        elif (
+            task["goal"] not in ("capture", "activate-game", "return-to-game", "routine")
+            and previous["capability"] == "device.execute"
+        ):
             pending = progress.data["pending"] or {
                 "observation_id": "interrupted-observation",
                 "action": intent["action"],
