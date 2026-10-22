@@ -1,0 +1,255 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://game-automation.local/contracts/v1/gameplay-decision",
+  "type": "object",
+  "properties": {
+    "observation_id": {
+      "type": "string",
+      "maxLength": 2000
+    },
+    "evidence_refs": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 2000
+      },
+      "minItems": 1
+    },
+    "objective": {
+      "type": "string",
+      "maxLength": 2000
+    },
+    "reason_summary": {
+      "type": "string",
+      "maxLength": 2000
+    },
+    "expected_outcome": {
+      "type": "string",
+      "maxLength": 2000
+    },
+    "uncertainties": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 2000
+      }
+    },
+    "disposition": {
+      "enum": [
+        "action",
+        "wait",
+        "complete",
+        "blocked"
+      ]
+    },
+    "risk": {
+      "enum": [
+        "none",
+        "game_resource",
+        "real_payment",
+        "account_delete",
+        "unknown"
+      ]
+    },
+    "action": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "enum": [
+                "tap",
+                "swipe",
+                "long_press",
+                "back",
+                "wait",
+                "credential",
+                "launch",
+                "return"
+              ]
+            },
+            "x": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "y": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "end_x": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "end_y": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "duration_ms": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 30000
+            },
+            "bounds": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "minItems": 4,
+                  "maxItems": 4
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "credential_field": {
+              "enum": [
+                "username",
+                "password",
+                null
+              ]
+            }
+          },
+          "required": [
+            "type",
+            "x",
+            "y",
+            "end_x",
+            "end_y",
+            "duration_ms",
+            "bounds",
+            "credential_field"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "previous_outcome": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "enum": [
+            "verified",
+            "deviated",
+            "unknown",
+            "not_applicable"
+          ]
+        },
+        "reason": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "evidence_refs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 2000
+          }
+        }
+      },
+      "required": [
+        "status",
+        "reason",
+        "evidence_refs"
+      ],
+      "additionalProperties": false
+    },
+    "identity": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "small_account": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "server": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "role": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "small_account",
+            "server",
+            "role"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "sensitive_regions": {
+      "type": "array",
+      "items": {
+        "type": "array",
+        "items": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "minItems": 4,
+        "maxItems": 4
+      },
+      "maxItems": 30
+    },
+    "local_after": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "enum": [
+              "screen",
+              "control",
+              "focused_package",
+              "alive"
+            ]
+          },
+          "value": {
+            "type": "string",
+            "maxLength": 2000
+          }
+        },
+        "required": [
+          "kind",
+          "value"
+        ],
+        "additionalProperties": false
+      },
+      "maxItems": 10
+    }
+  },
+  "required": [
+    "observation_id",
+    "evidence_refs",
+    "objective",
+    "reason_summary",
+    "expected_outcome",
+    "uncertainties",
+    "disposition",
+    "risk",
+    "action",
+    "previous_outcome",
+    "identity",
+    "sensitive_regions",
+    "local_after"
+  ],
+  "additionalProperties": false
+}

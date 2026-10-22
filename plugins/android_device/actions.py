@@ -37,6 +37,12 @@ async def execute(device, request):
             min(display["width"], x + 33),
             min(display["height"], y + 33),
         ]
+        left, top, right, bottom = bounds
+        if not (
+            0 <= left <= x < right <= display["width"]
+            and 0 <= top <= y < bottom <= display["height"]
+        ):
+            raise FrameworkError(ErrorCode.STALE_OBSERVATION)
         difference = ImageChops.difference(current_image.crop(bounds), reference.crop(bounds))
         if sum(ImageStat.Stat(difference).mean) / (3 * 255) > 0.12:
             raise FrameworkError(ErrorCode.STALE_OBSERVATION)
@@ -52,6 +58,8 @@ async def execute(device, request):
             or not 0 <= action["end_y"] < display["height"]
         ):
             raise FrameworkError(ErrorCode.STALE_OBSERVATION)
+    if not same_runtime(current, await snapshot(device, request["package_name"])):
+        raise FrameworkError(ErrorCode.STALE_OBSERVATION)
     intent = {"instance_id": device.session["instance_id"], "serial": device.session["serial"]}
     acknowledgement = await device.peer.request("host.action", intent)
     if acknowledgement != {"persisted": True}:

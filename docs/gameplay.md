@@ -50,3 +50,23 @@ successful login or a completed level. A missing result remains unknown and cann
 
 The decision router has no model calls. Local recognition, routing, routine execution and outcome
 verification are independent components; the device adapter has none of their business rules.
+
+## Planning and real-task acceptance
+
+`--goal login-and-interact` invokes the hybrid workflow. `--max-turns <n>` provides an optional
+business boundary for one invocation; the default is unlimited. Ordinary transition waiting uses
+local observations. Each semantic turn reviews a pending action and proposes the next step.
+The prompt contains frozen base/stage Skills, the actual context, and sanitized `localImage` items.
+The model cannot execute tools. Unknown outcomes block new input; observed deviations can be
+reconciled without claiming the original expectation succeeded.
+
+Codex 0.163.0 was reviewed using its locally generated App Server schemas for `localImage`, explicit
+Skill inputs, structured output and thread restoration. No synthetic model verification was used.
+Local Windows OCR masks known credential text in canvas-rendered screens before persistence. OCR
+is a best-effort text detector, not a guarantee for arbitrary private content; declared sensitive
+fields are masked geometrically. Missing OCR blocks screenshot processing.
+
+Real task evidence established small-account selection and the server-entry transition. A later
+login-invalid notice reported another-device account use; entering gameplay and the requested
+in-game interaction remain unverified. The runtime preserves that blocker and identity checkpoint.
+`reports/gameplay.json` is a read-only projection of actual calls, waits, actions and outcome events.

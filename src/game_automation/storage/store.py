@@ -460,7 +460,7 @@ class Store:
             raise FrameworkError(ErrorCode.TRACE_UNAVAILABLE) from exc
 
     def finish_device_action(self, run_id, action_id, status, result):
-        if status not in ("executed", "rejected", "verified"):
+        if status not in ("executed", "rejected", "verified", "reconciled"):
             raise FrameworkError(ErrorCode.INVALID_STATE)
         with self.db:
             row = self.db.execute(

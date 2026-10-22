@@ -2,11 +2,13 @@
 
 import asyncio
 import json
+from pathlib import Path
 
 from game_automation.common import FrameworkError, uid, within
 from game_automation.contracts import validate
 from game_automation.disk import require_disk_space
 from game_automation.errors import ErrorCode
+from game_automation.kernel.gameplay.hybrid import run_hybrid
 from game_automation.kernel.gameplay.local import Perception, execute_routine
 from game_automation.plugin_sdk.credentials import load_profile, profile_path
 
@@ -14,7 +16,7 @@ from .device import confirm_session, device_session, inspect_package
 from .evidence import verify_image
 
 
-def gameplay_task(store, prepared_run, credential_profile, goal, actions=None):
+def gameplay_task(store, prepared_run, credential_profile, goal, actions=None, max_turns=0):
     if store.run(prepared_run)["status"] != "succeeded":
         raise FrameworkError(ErrorCode.DEVICE_APK_REQUIRED)
     prepared = [
@@ -39,6 +41,7 @@ def gameplay_task(store, prepared_run, credential_profile, goal, actions=None):
         "credential_profile": credential_profile,
         "goal": goal,
         "actions": actions or [],
+        "max_turns": max_turns,
     }
     return task
 
@@ -128,7 +131,7 @@ class DeviceRuntime:
         self.host.record("gameplay.observation", result)
         return result
 
-    async def perform(self, action, observation):
+    async def perform(self, action, observation, *, source="operator"):
         self.recorder.admit()
         self.host.check_cancel()
         validate(self.store.run_dir(self.run_id) / "contracts", "gameplay-action", action)
@@ -159,6 +162,9 @@ class DeviceRuntime:
             "credential_path": self.credential_path,
         }
         result = await self.host.perform(request)
+        self.host.record(
+            "gameplay.action.origin", {"action_id": result["action_id"], "source": source}
+        )
         self.progress.data["pending"]["action_id"] = result["action_id"]
         self.progress.save()
         return result
@@ -203,27 +209,49 @@ async def play(store, run_id, host, manifest, task):
             and focused is not None
             and focused["package_name"] == task["target"]
         )
+        passive_wait = intent.get("action", {}).get("type") == "wait"
         if previous["status"] == "prepared":
             store.finish_device_action(
                 previous["run_id"], previous["action_id"], "rejected", {"dispatched": False}
             )
-        elif can_reconcile:
+        elif can_reconcile or passive_wait:
             store.finish_device_action(
                 previous["run_id"],
                 previous["action_id"],
-                "verified",
-                {"observation_run": run_id, "observation_id": observation["observation_id"]},
+                "reconciled" if passive_wait else "verified",
+                {
+                    "observation_run": run_id,
+                    "observation_id": observation["observation_id"],
+                    "business_goal_verified": False,
+                },
             )
             host.record(
                 "gameplay.action.reconciled",
                 {"action_id": previous["action_id"], "action_run": previous["run_id"]},
             )
+        elif task["goal"] == "login-and-interact" and previous["capability"] == "device.execute":
+            pending = progress.data["pending"] or {
+                "observation_id": "interrupted-observation",
+                "action": intent["action"],
+                "expected_outcome": "Reconcile interrupted action",
+                "image_ref": Path(intent["observation_path"])
+                .relative_to(store.run_dir(previous["run_id"]))
+                .as_posix(),
+            }
+            pending.update(run_id=previous["run_id"], action_id=previous["action_id"])
+            progress.data["pending"] = pending
         else:
             raise FrameworkError(
                 ErrorCode.ACTION_ALREADY_DISPATCHED,
                 "Fresh observation saved; pending action requires reconciliation",
             )
-    progress.data["pending"] = None
+    if (
+        not previous
+        or previous["status"] not in ("unknown", "executed")
+        or can_reconcile
+        or passive_wait
+    ):
+        progress.data["pending"] = None
     progress.save()
     if task["goal"] in ("return-to-game", "activate-game"):
         action = {
@@ -270,13 +298,5 @@ async def play(store, run_id, host, manifest, task):
                 "screen_key": facts["screen_key"],
             },
         )
-    host.artifact(
-        "reports/gameplay.json",
-        {
-            "goal": task["goal"],
-            "observation_id": observation["observation_id"],
-            "device_actions": int(task["goal"] != "capture"),
-            "ai_calls": 0,
-            "gameplay_verified": False,
-        },
-    )
+    elif task["goal"] not in ("return-to-game", "activate-game"):
+        observation = await run_hybrid(runtime, manifest, observation)

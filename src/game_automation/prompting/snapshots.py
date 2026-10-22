@@ -119,7 +119,7 @@ def load(store, run_id):
     return manifest
 
 
-def build_input(store, run_id, stage, context, output_schema):
+def build_input(store, run_id, stage, context, output_schema, *, images=()):
     manifest = load(store, run_id)
     config = manifest["skills_config"]
     if stage not in config["stages"]:
@@ -148,5 +148,10 @@ def build_input(store, run_id, stage, context, output_schema):
     )
     text_input = {"type": "text", "text": prompt_text}
     inputs.append(text_input)
+    for path in images:
+        image_path = Path(path).resolve()
+        if not image_path.is_file() or not image_path.is_relative_to(store.var / "runs"):
+            raise FrameworkError(ErrorCode.INVALID_SCREENSHOT)
+        inputs.append({"type": "localImage", "path": str(image_path)})
     turn_input = {"input": inputs, "outputSchema": output_schema}
     return turn_input
