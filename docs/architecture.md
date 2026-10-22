@@ -21,6 +21,10 @@ Stages: intake -> environment -> launch -> exploration -> reporting. States: que
 succeeded / blocked / failed / cancelled. Blocked runs may resume. After acquiring the OS execution
 lock, a running status left by a previous process becomes blocked and open spans become incomplete.
 Terminal runs are preserved; reruns receive a new run_id under the same task_id.
+The task is the business submission, not an individual stage. Each run has an immutable execution
+input separate from the original task submission. Preprocessing, preparation and gameplay share
+task ownership through explicit source-run references. Their directories live under
+`var/tasks/<task_id>/executions/<run_id>/`. See [task workspaces](task-workspaces.md).
 
 SQLite WAL with synchronous=FULL stores state and events. Each state transition and its event commit
 together. An OS lock permits one local executor and is released by process exit. Query and

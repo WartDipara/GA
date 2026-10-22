@@ -202,6 +202,14 @@ class ErrorCode(StrEnum):
     SNAPSHOT_MISSING = ("SNAPSHOT_MISSING", "Run has no completed snapshot; create a new run")
     TIMEOUT = ("TIMEOUT", "Operation timed out")
     TRACE_UNAVAILABLE = ("TRACE_UNAVAILABLE", "Cannot persist trace; execution halted")
+    WORKSPACE_CONFLICT = (
+        "WORKSPACE_CONFLICT",
+        "Workspace relocation found conflicting directories; no files were overwritten",
+    )
+    TASK_ID_COLLISION = (
+        "TASK_ID_COLLISION",
+        "Cannot allocate a unique task directory after 10 attempts",
+    )
     UNSUPPORTED_DOCUMENT = ("UNSUPPORTED_DOCUMENT", "Supported documents: UTF-8 .txt and .md")
     UNSUPPORTED_PLATFORM = ("UNSUPPORTED_PLATFORM", "Unsupported platform")
 

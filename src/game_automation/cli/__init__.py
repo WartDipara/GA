@@ -42,14 +42,18 @@ def parser():
     intake.add_argument("task_id")
     preprocessing = commands.add_parser("preprocess", help="Download and inspect a JSON APK list")
     preprocessing.add_argument("--input", type=Path, required=True)
-    preprocessing.add_argument("--key", help="Idempotency key for the submitted APK list")
+    ownership = preprocessing.add_mutually_exclusive_group()
+    ownership.add_argument("--key", help="Idempotency key for the submitted APK list")
+    ownership.add_argument("--task-id", help="Attach preprocessing to an existing task")
     emulators = commands.add_parser(
         "emulators", help="Discover and inspect existing MuMu instances"
     )
     emulators.add_argument("--instance", type=int, help="MuMu instance index")
     emulators.add_argument("--capture", action="store_true", help="Save local device screenshots")
+    emulators.add_argument("--task-id", help="Attach discovery to an existing task")
     observe = commands.add_parser("observe", help="Capture the focused Android display")
     observe.add_argument("--instance", type=int, required=True, help="MuMu instance index")
+    observe.add_argument("--task-id", help="Attach observation to an existing task")
     device = commands.add_parser(
         "prepare-device", help="Install a ready APK in a dedicated instance"
     )
@@ -90,6 +94,13 @@ def parser():
     )
     runs = commands.add_parser("runs", help="List recent runs with their task subjects and states")
     runs.add_argument("--limit", type=int, default=20)
+    tasks = commands.add_parser("tasks", help="List business task workspaces")
+    tasks.add_argument("--limit", type=int, default=20)
+    task_status = commands.add_parser(
+        "task-status", help="Rebuild a task's offline execution index"
+    )
+    task_status.add_argument("task_id")
+    commands.add_parser("migrate-workspaces", help="Group legacy execution folders by task")
     resume = commands.add_parser("resume")
     resume.add_argument("run_id")
     resume.add_argument("--input", type=Path, help="Original APK list for preprocessing recovery")
@@ -135,6 +146,8 @@ def print_json(value):
 
 def run_details(store, run_id):
     details = store.run(run_id)
+    details["task_directory"] = str(store.task_dir(details["task_id"]))
+    details["execution_directory"] = str(store.run_dir(run_id))
     details["intake"] = intake_status(store, run_id)
     environment_events = store.events(run_id, kinds=("environment.checked",), limit=1)
     details["environment"] = environment_events[-1]["payload"] if environment_events else None
@@ -215,8 +228,8 @@ def main(argv=None):
                 routine["steps"] if routine else None,
                 args.max_turns,
             )
-            task_id = store.submit(task)
-            run_id = new_run(store, task_id, "gameplay")
+            task_id = store.run(args.prepared_run)["task_id"]
+            run_id = new_run(store, task_id, "gameplay", task)
             print_json({"task_id": task_id, "run_id": run_id})
             asyncio.run(execute(store, run_id))
             return execution_result(store, run_id)
@@ -239,8 +252,8 @@ def main(argv=None):
                 "instance_index": args.instance,
                 "capture": args.capture,
             }
-            task_id = store.submit(task)
-            run_id = new_run(store, task_id, "emulators")
+            task_id = args.task_id or store.submit(task)
+            run_id = new_run(store, task_id, "emulators", task)
             identifiers = {"task_id": task_id, "run_id": run_id}
             print_json(identifiers)
             asyncio.run(execute(store, run_id))
@@ -260,16 +273,20 @@ def main(argv=None):
                     "instance_index": args.instance,
                 }
                 mode = "observation"
-            task_id = store.submit(task)
-            run_id = new_run(store, task_id, mode)
+            task_id = (
+                store.run(args.from_run)["task_id"]
+                if args.command == "prepare-device"
+                else args.task_id or store.submit(task)
+            )
+            run_id = new_run(store, task_id, mode, task)
             identifiers = {"task_id": task_id, "run_id": run_id}
             print_json(identifiers)
             asyncio.run(execute(store, run_id))
             return execution_result(store, run_id)
         elif args.command == "preprocess":
             submission = read_batch(args.input, root / "contracts/v1")
-            task_id = store.submit(submission, args.key)
-            run_id = new_run(store, task_id, "preprocessing")
+            task_id = args.task_id or store.submit(submission, args.key)
+            run_id = new_run(store, task_id, "preprocessing", submission)
             identifiers = {"task_id": task_id, "run_id": run_id}
             print_json(identifiers)
             asyncio.run(execute(store, run_id, args.input))
@@ -285,7 +302,9 @@ def main(argv=None):
             run_id = args.run_id
             if args.new_batch:
                 previous = store.run(run_id)
-                run_id = new_run(store, previous["task_id"], previous["mode"])
+                run_id = new_run(
+                    store, previous["task_id"], previous["mode"], store.run_task(args.run_id)
+                )
                 store.event(run_id, "run.continued_from", {"run_id": args.run_id})
                 print_json({"run_id": run_id, "continued_from": args.run_id})
             asyncio.run(execute(store, run_id, args.input))
@@ -303,6 +322,16 @@ def main(argv=None):
             print_json(run_details(store, args.run_id))
         elif args.command == "runs":
             print_json(store.list_runs(args.limit))
+        elif args.command == "tasks":
+            print_json(store.list_tasks(args.limit))
+        elif args.command == "task-status":
+            from game_automation.observability.workspaces import task_report
+
+            print_json(task_report(store, args.task_id))
+        elif args.command == "migrate-workspaces":
+            from game_automation.storage.layout import relocate
+
+            print_json(relocate(store))
         elif args.command == "provide":
             store.supplement(args.run_id, args.text)
             print_json({"saved": True, "run_id": args.run_id})

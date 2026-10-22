@@ -10,7 +10,12 @@ class ProgressStore:
         self.store = store
         self.run_id = run_id
         self.key = ":".join(
-            (task["instance_id"], task["metadata"]["sha256"], task["credential_profile"])
+            (
+                store.run(run_id)["task_id"],
+                task["instance_id"],
+                task["metadata"]["sha256"],
+                task["credential_profile"],
+            )
         )
         previous = store.progress(self.key)
         self.data = (

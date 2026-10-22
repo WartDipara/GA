@@ -3,7 +3,6 @@
 import html
 import json
 from collections import Counter
-from pathlib import Path
 
 from game_automation.common import FrameworkError, within
 from game_automation.errors import ErrorCode
@@ -49,7 +48,9 @@ def action_path(store, run_id):
         }
         if request.get("observation_path"):
             item["before_image"] = (
-                Path(request["observation_path"]).relative_to(directory).as_posix()
+                store.artifact_path(run_id, request["observation_path"])
+                .relative_to(directory)
+                .as_posix()
             )
         path.append(item)
     return path
@@ -160,7 +161,7 @@ def gameplay_report(store, run_id):
                 key: event["payload"][key] for key in ("observation_id", "evidence_ref")
             }
         events.append(event)
-    task = store.task(store.run(run_id)["task_id"])
+    task = store.run_task(run_id)
 
     def selected(kind):
         values = [event["payload"] for event in events if event["kind"] == kind]

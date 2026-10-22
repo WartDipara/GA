@@ -9,7 +9,7 @@ from game_automation.errors import ErrorCode
 
 def batch(store, run_id):
     run = store.run(run_id)
-    task = store.task(run["task_id"])
+    task = store.run_task(run_id)
     path = store.run_dir(run_id) / "manifest.json"
     snapshots = store.events(run_id, kinds=("run.snapshot",), limit=1)
     if not snapshots or digest(path.read_bytes()) != snapshots[0]["payload"]["manifest_sha256"]:

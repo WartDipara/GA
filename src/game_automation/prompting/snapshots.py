@@ -148,9 +148,10 @@ def build_input(store, run_id, stage, context, output_schema, *, images=()):
     )
     text_input = {"type": "text", "text": prompt_text}
     inputs.append(text_input)
+    task_directory = store.task_dir(store.run(run_id)["task_id"])
     for path in images:
         image_path = Path(path).resolve()
-        if not image_path.is_file() or not image_path.is_relative_to(store.var / "runs"):
+        if not image_path.is_file() or not image_path.is_relative_to(task_directory):
             raise FrameworkError(ErrorCode.INVALID_SCREENSHOT)
         inputs.append({"type": "localImage", "path": str(image_path)})
     turn_input = {"input": inputs, "outputSchema": output_schema}
