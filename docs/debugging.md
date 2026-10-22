@@ -45,7 +45,7 @@ across the task, with recorded durations and bounded payload previews. Search an
 apply to that bounded window; open a stage trace for earlier evidence and full model context.
 
 The page provides pause/resume, manual refresh and interval selection. Polls do not overlap. A
-revision check avoids transferring the same events again, and expanded events and filters survive
+revision check avoids transferring the same events again, and the selected event and filters survive
 updates. Failed refreshes preserve the previous snapshot and show a retry notice. Removing the task
 or stopping the server does not make the retained browser snapshot current evidence.
 
@@ -58,6 +58,18 @@ page continues polling. Ctrl+C stops only the viewer, leaving the workflow untou
 
 This viewer increment has compilation and JavaScript syntax verification only. Browser refresh and
 concurrent workflow behavior still need acceptance during an explicitly requested real task.
+
+The live workspace uses an execution navigation tree, a searchable event list and a persistent event
+inspector. Status segments count executions, including workflow parents and their children, rather
+than APK coverage. The duration chart ranks at most five timed module-call completions from the
+latest 200-event task window; it is not an all-history ranking or a sum of nested execution times.
+Click a bar to inspect its event. Missing timings stay unavailable. A selected event retained after
+leaving the recent window is explicitly marked as pinned. Dark and light themes are available.
+
+Design references are [Langfuse's nested observations and trace details](
+https://langfuse.com/docs/observability/overview) and [Jaeger's trace UI and theme controls](
+https://www.jaegertracing.io/docs/latest/frontend-ui/). The implementation uses local CSS charts and
+the existing SQLite projection; it does not embed either product or add a visualization service.
 
 1. Read run.state for the stage, status, and blocker.
 2. Find call.failed/call.incomplete and inspect its span, inputs, attempts, and output.

@@ -143,6 +143,7 @@ class Host:
                     validate(self.contracts, contracts[1], result)
                 output_ref = self.artifact(f"calls/{span_id}/output.json", result)
                 completed_payload = {
+                    "capability": capability,
                     "output_ref": output_ref,
                     "duration_ms": round((time.monotonic() - started) * 1000),
                     "attempt": attempt,
@@ -170,6 +171,7 @@ class Host:
                     incomplete = incomplete or action["status"] == "unknown"
                 failure_kind = "call.incomplete" if incomplete else "call.failed"
                 failure_payload = {
+                    "capability": capability,
                     "error": error.as_dict(),
                     "attempt": attempt,
                     "duration_ms": round((time.monotonic() - started) * 1000),

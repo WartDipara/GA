@@ -84,17 +84,6 @@ summary:focus-visible {
 #run-meta {
   color: var(--muted);
 }
-.execution-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-.execution-table th,
-.execution-table td {
-  padding: 10px;
-  text-align: left;
-  border-bottom: 1px solid var(--line);
-  overflow-wrap: anywhere;
-}
 .notice {
   background: #eaf0f8;
   padding: 12px 16px;
