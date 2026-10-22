@@ -1,5 +1,8 @@
 from enum import StrEnum
 
+from game_automation.common import FrameworkError
+from game_automation.errors import ErrorCode
+
 from .conditions import condition_matches
 
 
@@ -12,6 +15,8 @@ class Route(StrEnum):
 
 class RoutineExecutor:
     def __init__(self, steps):
+        if not 1 <= len(steps) <= 5:
+            raise FrameworkError(ErrorCode.INVALID_CONTRACT, "Routines require one to five steps")
         self.steps = steps
         self.index = 0
 
@@ -36,11 +41,16 @@ class RoutineExecutor:
 class DecisionRouter:
     def route(self, observation, perception, routine, *, settling=False):
         if observation["runtime"]["focused_display"] is None:
-            return Route.WAIT, "display-transition"
+            result = Route.WAIT, "display-transition"
+            return result
         if settling and not perception["stable"]:
-            return Route.WAIT, "screen-not-stable"
+            result = Route.WAIT, "screen-not-stable"
+            return result
         if routine and not routine.complete:
             if routine.next_step(observation, perception):
-                return Route.ROUTINE, "verified-preconditions"
-            return Route.PLAN, "routine-precondition-mismatch"
-        return Route.PLAN, "unknown-state-or-new-goal"
+                result = Route.ROUTINE, "verified-preconditions"
+                return result
+            result = Route.PLAN, "routine-precondition-mismatch"
+            return result
+        result = Route.PLAN, "unknown-state-or-new-goal"
+        return result

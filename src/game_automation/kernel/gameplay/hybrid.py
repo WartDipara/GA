@@ -3,7 +3,8 @@
 from game_automation.common import FrameworkError
 from game_automation.errors import ErrorCode
 
-from .local import Perception
+from .knowledge import KnowledgeCache
+from .local import Perception, execute_routine
 from .planning import Planner
 from .routing import DecisionRouter
 
@@ -12,10 +13,12 @@ async def run_hybrid(runtime, manifest, observation):
     perception = Perception(runtime)
     planner = Planner(runtime, manifest)
     router = DecisionRouter()
+    cache = KnowledgeCache(runtime)
     progress = runtime.progress.data
     observation, facts = await perception.settle(observation)
     last_state = None
     repeated = 0
+    cached_steps = 0
     while True:
         runtime.recorder.admit()
         runtime.host.check_cancel()
@@ -25,6 +28,21 @@ async def run_hybrid(runtime, manifest, observation):
                 ErrorCode.BUDGET_EXHAUSTED,
                 "Requested planning-turn boundary reached; resume to continue",
             )
+        if not progress["pending"] and cached_steps < 5:
+            steps = cache.routine(observation, facts)[: 5 - cached_steps]
+            if steps:
+                runtime.host.record("gameplay.cache.hit", {"steps": len(steps)})
+                try:
+                    observation = await execute_routine(runtime, observation, steps)
+                    cached_steps += len(steps)
+                    facts = await perception.analyze(observation)
+                except FrameworkError as exc:
+                    if exc.code not in (ErrorCode.GAMEPLAY_BLOCKED, ErrorCode.STALE_OBSERVATION):
+                        raise
+                    runtime.host.record("gameplay.cache.invalidated", {"reason": exc.code})
+                    cache.entries.clear()
+                    observation, facts = await perception.settle(observation)
+                continue
         route, reason = router.route(observation, facts, None)
         state = (facts["screen_key"], runtime.task["goal"])
         repeated = repeated + 1 if state == last_state else 1
@@ -37,6 +55,7 @@ async def run_hybrid(runtime, manifest, observation):
             )
         runtime.host.record("gameplay.route", {"route": route, "reason": reason})
         decision = await planner.decide(observation, facts, reason)
+        cached_steps = 0
         pending = progress["pending"]
         requested_wait = (
             decision["disposition"] == "wait"
@@ -70,6 +89,8 @@ async def run_hybrid(runtime, manifest, observation):
                 if path["action_id"] == pending["action_id"]:
                     path["status"] = assessment["status"]
                     path["after"] = observation["observation_id"]
+            if assessment["status"] == "verified":
+                cache.learn(pending, observation, facts)
             progress["pending"] = None
         if decision["identity"] is not None:
             identity = progress["identity"] or {}
@@ -144,6 +165,11 @@ async def run_hybrid(runtime, manifest, observation):
         pending["image_ref"] = before["evidence_ref"]
         pending["screen_key"] = facts["screen_key"]
         pending["action_id"] = dispatched["action_id"]
+        pending["risk"] = decision["risk"]
+        pending["cache_scope"] = cache.scope(before)
+        pending["cache_intent"] = cache.intent()
+        pending["image_sha256"] = before["screenshot"]["sha256"]
+        pending["sensitive_regions"] = before["sensitive_regions"]
         progress["paths"].append(
             {
                 "run_id": runtime.run_id,

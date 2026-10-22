@@ -65,6 +65,23 @@ successful login or a completed level. A missing result remains unknown and cann
 The decision router has no model calls. Local recognition, routing, routine execution and outcome
 verification are independent components; the device adapter has none of their business rules.
 
+## Verified flow reuse
+
+The knowledge cache learns only observed, semantically verified low-risk tap/back transitions.
+It excludes sensitive screens and resource-consuming actions. Entries bind the APK, identity,
+Android boot, process lifetime and display layout. A routine requires the exact current sanitized
+image, then checks each newly observed result. At most five cached steps precede another planning
+turn. Ambiguity or mismatch exits the fast path; old coordinates alone never authorize input.
+
+The adapter uses a separate HTTP Responses provider with the existing OpenAI authentication; the
+reserved built-in provider is not overwritten and global Codex settings are not edited. This was
+introduced after real task streams reported WebSocket closure. See the
+[official provider configuration](https://developers.openai.com/siwc/token-sharing-open-source/codex-app-server).
+
+The first real closure restored the same role and verified opening and closing Mail. The final
+continuation used two model calls and one tap; earlier preparation/recovery batches have separate
+records. No cache hit or percentage reduction is claimed without measured reuse.
+
 ## Planning and real-task acceptance
 
 `--goal login-and-interact` invokes the hybrid workflow. `--max-turns <n>` provides an optional

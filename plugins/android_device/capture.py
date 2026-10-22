@@ -27,14 +27,17 @@ async def read_controls(device, display):
         text = result["stdout"]
         start, end = text.find("<?xml"), text.rfind("</hierarchy>")
         if start < 0 or end < 0:
-            return []
+            result = []
+            return result
         root = ET.fromstring(text[start : end + len("</hierarchy>")])
     except FrameworkError as exc:
         if exc.code in (ErrorCode.TRACE_UNAVAILABLE, ErrorCode.CANCELLED, ErrorCode.CLOSED):
             raise
-        return []
+        result = []
+        return result
     except ET.ParseError:
-        return []
+        result = []
+        return result
     controls = []
     for node in root.iter("node"):
         values = node.attrib
@@ -54,7 +57,8 @@ async def read_controls(device, display):
             "sensitive": values.get("password") == "true",
         }
         controls.append(control)
-    return controls[:500]
+    controls = controls[:500]
+    return controls
 
 
 async def capture(device, request):

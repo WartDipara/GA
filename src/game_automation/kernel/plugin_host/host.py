@@ -221,6 +221,9 @@ class Host:
         return result
 
     async def perform(self, params):
+        from game_automation.prompting.snapshots import load
+
+        load(self.store, self.run_id)
         self.check_cancel()
         validate(self.store.run_dir(self.run_id) / "contracts", "device-execute-request", params)
         span_id = uid("span")

@@ -88,6 +88,7 @@ class CodexAdapter:
             "features.apps": False,
             "features.plugins": False,
             "features.memories": False,
+            "features.shell_snapshot": False,
             "features.request_permissions_tool": False,
             "agents.enabled": False,
             "skills.bundled.enabled": False,
@@ -198,6 +199,22 @@ class CodexAdapter:
             await peer.request("initialize", initialize_request)
             await peer.notify("initialized", {})
             configuration = await peer.request("config/read", {"includeLayers": False})
+            config = configuration.get("config", {})
+            provider = config.get("model_provider") or "openai"
+            providers = config.get("model_providers") or {}
+            provider_config = providers.get(provider) or {}
+            if provider == "openai":
+                provider = "game_automation_http"
+                overrides["model_provider"] = provider
+                overrides[f"model_providers.{provider}.name"] = "OpenAI HTTP"
+                overrides[f"model_providers.{provider}.wire_api"] = "responses"
+                overrides[f"model_providers.{provider}.requires_openai_auth"] = True
+            else:
+                overrides[f"model_providers.{provider}.name"] = (
+                    provider_config.get("name") or provider
+                )
+            overrides[f"model_providers.{provider}.supports_websockets"] = False
+            await self.emit("ai.transport", {"transport": "http", "scope": "thread"})
             for name in configuration.get("config", {}).get("mcp_servers") or {}:
                 overrides[f"mcp_servers.{name}.enabled"] = False
             thread_request = {

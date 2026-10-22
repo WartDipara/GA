@@ -42,7 +42,8 @@ class Perception:
             "gameplay.wait",
             {"duration_ms": round((time.monotonic() - started) * 1000), "stable": facts["stable"]},
         )
-        return after, facts
+        result = after, facts
+        return result
 
     async def wait_for_change(self, before, seconds=90):
         started = time.monotonic()
@@ -70,7 +71,8 @@ class Perception:
                 "ai_calls": 0,
             },
         )
-        return after, facts
+        result = after, facts
+        return result
 
 
 async def execute_routine(runtime, observation, steps):

@@ -62,12 +62,22 @@ class ProgressStore:
             self.data["recovery_attempts"] = attempts
             self.store.event(self.run_id, "gameplay.recovery", recovery)
         goals = dict(self.data["goals"])
+        milestones = dict(self.data["milestones"])
         for proposal in decision.get("subgoals", []):
-            existing = goals.get(proposal["id"])
-            if existing and existing["description"] != proposal["description"]:
-                raise FrameworkError(ErrorCode.AI_OUTPUT_INVALID, "Subgoal ID was reused")
-            if proposal["status"] == "verified" and observation_id not in proposal["evidence_refs"]:
-                raise FrameworkError(ErrorCode.AI_OUTPUT_INVALID)
+            known_records = [goals.get(proposal["id"]), milestones.get(proposal["id"])]
+            known_refs = {
+                reference
+                for record in known_records
+                if record and record["status"] == "verified"
+                for reference in record["evidence_refs"]
+            }
+            prior_proof = set(proposal["evidence_refs"]).issubset(known_refs)
+            if (
+                proposal["status"] == "verified"
+                and not prior_proof
+                and observation_id not in proposal["evidence_refs"]
+            ):
+                raise FrameworkError(ErrorCode.AI_OUTPUT_INVALID, "Subgoal proof is missing")
             goals[proposal["id"]] = proposal
         if len(goals) > 100:
             raise FrameworkError(ErrorCode.GAMEPLAY_BLOCKED, "Subgoal queue requires a new scope")
@@ -76,16 +86,20 @@ class ProgressStore:
             pending = list(goal["requires"])
             while pending:
                 dependency = pending.pop()
-                if dependency == goal["id"] or dependency not in goals:
+                if (
+                    dependency == goal["id"]
+                    or dependency not in goals
+                    and dependency not in milestones
+                ):
                     raise FrameworkError(ErrorCode.AI_OUTPUT_INVALID, "Invalid subgoal dependency")
                 if dependency not in visited:
-                    pending.extend(goals[dependency]["requires"])
+                    pending.extend(goals.get(dependency, {}).get("requires", []))
                     visited.add(dependency)
             if goal["status"] == "active" and any(
-                goals[key]["status"] != "verified" for key in goal["requires"]
+                (goals.get(key) or milestones[key])["status"] != "verified"
+                for key in goal["requires"]
             ):
                 raise FrameworkError(ErrorCode.AI_OUTPUT_INVALID, "Subgoal prerequisites are unmet")
-        milestones = dict(self.data["milestones"])
         for proposal in decision.get("progress_update", []):
             if observation_id not in proposal["evidence_refs"]:
                 raise FrameworkError(ErrorCode.AI_OUTPUT_INVALID)
