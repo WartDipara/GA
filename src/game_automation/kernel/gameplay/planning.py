@@ -14,6 +14,7 @@ class Planner:
 
     async def decide(self, observation, facts, reason):
         runtime = self.runtime
+        runtime.begin_step(reason)
         directory = runtime.store.run_dir(runtime.run_id)
         workspace = directory / "ai-workspace"
         workspace.mkdir(exist_ok=True)
@@ -30,7 +31,7 @@ class Planner:
             ),
             "runtime": observation["runtime"],
             "perception": facts,
-            "progress": progress,
+            "progress": {key: value for key, value in progress.items() if key != "learned_steps"},
             "planning_reason": reason,
             "image_order": [observation["observation_id"]],
             "available_actions": [
@@ -73,13 +74,13 @@ class Planner:
                 "thread_reused": thread is not None,
             },
         )
-        result = await runtime.host.call("ai.decide", params)
+        result = await runtime.host.call("ai.decide", params, parent_span_id=runtime.step_id)
         decision = result["decision"]
         validate(directory / "contracts", "gameplay-decision", decision)
         if decision["observation_id"] != observation["observation_id"]:
             raise FrameworkError(ErrorCode.STALE_OBSERVATION)
         if observation["observation_id"] not in decision["evidence_refs"]:
             raise FrameworkError(ErrorCode.AI_OUTPUT_INVALID)
-        runtime.host.record("gameplay.decision", decision)
+        runtime.host.record("gameplay.decision", decision, span_id=runtime.step_id)
         self.turns += 1
         return decision

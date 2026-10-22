@@ -46,6 +46,8 @@ async def run_hybrid(runtime, manifest, observation):
                     observation, facts = await perception.settle(observation)
                 continue
         route, reason = router.route(observation, facts, None)
+        if progress.get("semantic_stall", {}).get("count", 0) >= 3:
+            reason = "stalled-semantic-state-and-goal"
         state = (facts["screen_key"], runtime.task["goal"])
         repeated = repeated + 1 if state == last_state else 1
         last_state = state
@@ -57,6 +59,29 @@ async def run_hybrid(runtime, manifest, observation):
             )
         runtime.host.record("gameplay.route", {"route": route, "reason": reason})
         decision = await planner.decide(observation, facts, reason)
+        state_key = decision.get("state_key")
+        if state_key:
+            previous_stall = progress.get("semantic_stall", {})
+            same_state = (
+                previous_stall.get("state_key") == state_key
+                and previous_stall.get("objective") == decision["objective"]
+            )
+            count = previous_stall.get("count", 0) + 1 if same_state else 1
+            if decision.get("progress_observed"):
+                count = 1
+            progress["semantic_stall"] = {
+                "state_key": state_key,
+                "objective": decision["objective"],
+                "count": count,
+            }
+            if count >= 3:
+                runtime.host.record("gameplay.stall", progress["semantic_stall"])
+            if count >= 5:
+                runtime.progress.save()
+                raise FrameworkError(
+                    ErrorCode.GAMEPLAY_BLOCKED,
+                    "Semantic state stalled after two recovery opportunities",
+                )
         cached_steps = 0
         pending = progress["pending"]
         requested_wait = (
@@ -79,6 +104,7 @@ async def run_hybrid(runtime, manifest, observation):
                 )
             outcome = {
                 "source": "model-semantic-review",
+                "observation_run": runtime.run_id,
                 "observation_id": observation["observation_id"],
                 **assessment,
             }
@@ -139,6 +165,13 @@ async def run_hybrid(runtime, manifest, observation):
                 raise FrameworkError(
                     ErrorCode.GAMEPLAY_BLOCKED,
                     "Completion requires a bound identity and verified interaction",
+                )
+            if runtime.task["goal"] == "login-and-interact" and not all(
+                progress["identity"].get(key) for key in ("small_account", "server", "role")
+            ):
+                raise FrameworkError(
+                    ErrorCode.GAMEPLAY_BLOCKED,
+                    "Login completion requires the full observed identity",
                 )
             runtime.host.record(
                 "gameplay.goal.completed",

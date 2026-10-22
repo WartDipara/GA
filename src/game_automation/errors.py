@@ -43,7 +43,10 @@ class ErrorCode(StrEnum):
         "STALE_OBSERVATION",
         "Observation no longer matches the current device state",
     )
-    EVIDENCE_BUDGET = ("EVIDENCE_BUDGET", "Evidence budget exhausted; checkpoint saved")
+    EVIDENCE_BUDGET = (
+        "EVIDENCE_BUDGET",
+        "Evidence budget exhausted; last durable checkpoint retained",
+    )
     COMMAND_OUTPUT_LIMIT = ("COMMAND_OUTPUT_LIMIT", "Command output exceeded its byte limit")
     CAPABILITY_DENIED = ("CAPABILITY_DENIED", "Requested capability is not permitted")
     CLOSED = ("CLOSED", "Connection closed")

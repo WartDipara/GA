@@ -93,6 +93,16 @@ def parser():
     resume = commands.add_parser("resume")
     resume.add_argument("run_id")
     resume.add_argument("--input", type=Path, help="Original APK list for preprocessing recovery")
+    resume.add_argument(
+        "--new-batch",
+        action="store_true",
+        help="Continue the same task with current code and new frozen Skills",
+    )
+    report = commands.add_parser("report", help="Rebuild an offline gameplay report")
+    report.add_argument("run_id")
+    compare = commands.add_parser("compare-games", help="Compare cross-game acceptance evidence")
+    compare.add_argument("first_run")
+    compare.add_argument("second_run")
     for name in ("status", "cancel"):
         commands.add_parser(name).add_argument("run_id")
     provide = commands.add_parser(
@@ -126,16 +136,14 @@ def print_json(value):
 def run_details(store, run_id):
     details = store.run(run_id)
     details["intake"] = intake_status(store, run_id)
-    environment_events = [
-        event for event in store.events(run_id) if event["kind"] == "environment.checked"
-    ]
+    environment_events = store.events(run_id, kinds=("environment.checked",), limit=1)
     details["environment"] = environment_events[-1]["payload"] if environment_events else None
     for mode, kind, key in (
         ("device", "device.prepared", "device"),
         ("observation", "device.observed", "observation"),
     ):
         if details["mode"] == mode:
-            matching = [event["payload"] for event in store.events(run_id) if event["kind"] == kind]
+            matching = [event["payload"] for event in store.events(run_id, kinds=(kind,), limit=1)]
             details[key] = matching[-1] if matching else None
     if details["mode"] == "device":
         action = store.latest_device_action(run_id)
@@ -143,17 +151,11 @@ def run_details(store, run_id):
             {key: action[key] for key in ("run_id", "action_id", "status")} if action else None
         )
     if details["mode"] == "emulators":
-        discoveries = [
-            event for event in store.events(run_id) if event["kind"] == "emulators.discovered"
-        ]
+        discoveries = store.events(run_id, kinds=("emulators.discovered",), limit=1)
         details["emulators"] = discoveries[-1]["payload"] if discoveries else None
     if details["mode"] == "preprocessing":
         details["apks"] = preprocessing_status(store, run_id)
-        storage_events = [
-            event
-            for event in store.events(run_id)
-            if event["kind"] == "preprocessing.storage.checked"
-        ]
+        storage_events = store.events(run_id, kinds=("preprocessing.storage.checked",), limit=1)
         details["storage"] = storage_events[-1]["payload"] if storage_events else None
     details["unknown_actions"] = store.unknown_actions(run_id)
     details["trace"] = str(store.run_dir(run_id) / "reports/trace.html")
@@ -165,8 +167,7 @@ def execution_result(store, run_id):
     print_json(details)
     reasons = [
         event["payload"].get("reason")
-        for event in store.events(run_id)
-        if event["kind"] == "run.state"
+        for event in store.events(run_id, kinds=("run.state",), limit=1)
     ]
     reason = reasons[-1] if reasons else None
     if reason and reason.get("code") in (
@@ -281,8 +282,23 @@ def main(argv=None):
             asyncio.run(execute(store, run_id))
             return execution_result(store, run_id)
         elif args.command == "resume":
-            asyncio.run(execute(store, args.run_id, args.input))
-            return execution_result(store, args.run_id)
+            run_id = args.run_id
+            if args.new_batch:
+                previous = store.run(run_id)
+                run_id = new_run(store, previous["task_id"], previous["mode"])
+                store.event(run_id, "run.continued_from", {"run_id": args.run_id})
+                print_json({"run_id": run_id, "continued_from": args.run_id})
+            asyncio.run(execute(store, run_id, args.input))
+            return execution_result(store, run_id)
+        elif args.command == "report":
+            from game_automation.observability.gameplay import gameplay_report
+
+            gameplay_report(store, args.run_id)
+            print_json({"report": str(store.run_dir(args.run_id) / "reports/gameplay.html")})
+        elif args.command == "compare-games":
+            from game_automation.observability.migration import compare_games
+
+            print_json(compare_games(store, args.first_run, args.second_run))
         elif args.command == "status":
             print_json(run_details(store, args.run_id))
         elif args.command == "runs":
@@ -324,7 +340,7 @@ def main(argv=None):
         elif args.command == "trace":
             after = 0
             while True:
-                for event in store.events(args.run_id, after):
+                for event in store.iter_events(args.run_id, after):
                     print(json.dumps(event, ensure_ascii=False), flush=True)
                     after = event["seq"]
                 state = store.run(args.run_id)["status"]

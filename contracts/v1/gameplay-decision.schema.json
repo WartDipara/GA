@@ -329,6 +329,13 @@
       },
       "maxItems": 20
     },
+    "state_key": {
+      "type": "string",
+      "maxLength": 2000
+    },
+    "progress_observed": {
+      "type": "boolean"
+    },
     "recovery": {
       "type": "object",
       "properties": {

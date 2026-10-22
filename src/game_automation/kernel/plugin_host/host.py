@@ -220,7 +220,7 @@ class Host:
         self.store.finish_device_action(self.run_id, action_id, status, result)
         return result
 
-    async def perform(self, params):
+    async def perform(self, params, *, parent_span_id=None):
         from game_automation.prompting.snapshots import load
 
         load(self.store, self.run_id)
@@ -238,7 +238,12 @@ class Host:
         )
         try:
             result = await self.call(
-                "device.execute", params, timeout=0, _action_id=action_id, span_id=span_id
+                "device.execute",
+                params,
+                timeout=0,
+                _action_id=action_id,
+                span_id=span_id,
+                parent_span_id=parent_span_id,
             )
             if self.store.latest_device_action(self.run_id)["status"] != "unknown":
                 raise FrameworkError(ErrorCode.CAPABILITY_DENIED)

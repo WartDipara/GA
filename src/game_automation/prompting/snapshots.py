@@ -91,7 +91,7 @@ def load(store, run_id):
     if not path.exists():
         raise FrameworkError(ErrorCode.SNAPSHOT_MISSING)
     manifest = json.loads(path.read_text(encoding="utf-8"))
-    snapshots = [event for event in store.events(run_id) if event["kind"] == "run.snapshot"]
+    snapshots = store.events(run_id, kinds=("run.snapshot",), limit=1)
     if not snapshots or snapshots[-1]["payload"]["manifest_sha256"] != digest(path.read_bytes()):
         raise FrameworkError(ErrorCode.SNAPSHOT_CHANGED)
     for relative, expected in manifest["files"].items():

@@ -142,5 +142,5 @@ def within(root: Path, relative: str) -> Path:
 def atomic_json(path: Path, value):
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary_path = path.with_name(path.name + ".tmp")
-    temporary_path.write_text(json_text(value), encoding="utf-8")
+    temporary_path.write_text(json_text(value), encoding="utf-8", newline="\n")
     temporary_path.replace(path)

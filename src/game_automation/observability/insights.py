@@ -502,4 +502,8 @@ def build_insights(store, run_id):
             preview_result = (None, f"{relative} cannot be read")
             return preview_result
 
-    return project(store.events(run_id), store.run(run_id), read_text)
+    limited = store.event_bytes(run_id) > 16 * 1024**2
+    events = store.events(run_id, limit=2000 if limited else None)
+    insights = project(events, store.run(run_id), read_text)
+    insights["visibility"]["event_window"] = "latest_2000_events" if limited else "complete"
+    return insights

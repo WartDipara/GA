@@ -7,8 +7,9 @@ APK preprocessing, task intake, Android environment checks, MuMu discovery and s
 APK preparation, focused-display observations, independent process plugins, frozen runtime Skills,
 Codex integration, and offline trace inspection are implemented. The gameplay runtime adds explicit
 installed-APK adoption, protected credential references, guarded actions, checkpoints and scoped
-logcat. A real task verified adoption and foreground return; autonomous gameplay and coverage
-remain separate acceptance gates. See [gameplay](docs/gameplay.md).
+logcat, local guarded routines and hybrid Codex planning. Real tasks verified same-role restoration
+and a benign in-game panel path. Native battle and runtime flow reuse have separate settlement,
+efficiency and cross-game acceptance gates. See [gameplay](docs/gameplay.md).
 
 ## Setup
 
@@ -98,6 +99,22 @@ creation, cleanup, input control, and application launch are not part of these c
 [device preparation](docs/device-preparation.md) for ownership, recovery, and acceptance limits.
 
 ## Trace inspection
+
+For gameplay, initialize a protected credential reference and use a prepared device workspace:
+
+```powershell
+uv run game-auto credentials default
+uv run game-auto play --prepared-run <device_run> --goal login-and-interact
+uv run game-auto play --prepared-run <device_run> --goal explore
+uv run game-auto play --prepared-run <device_run> --goal advance-battle
+uv run game-auto resume <run_id> --new-batch
+uv run game-auto report <run_id>
+uv run game-auto compare-games <first_run> <second_run>
+```
+
+Use `--adopt-existing` during preparation to preserve a matching installed game's data. Gameplay has
+no default overall limit; optional `--max-turns` bounds one invocation. Unknown outcomes require
+observation/reconciliation. `--new-batch` retains task identity while freezing updated code/Skills.
 
 ```powershell
 uv run game-auto trace <run_id> --follow

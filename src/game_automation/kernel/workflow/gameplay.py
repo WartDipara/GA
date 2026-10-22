@@ -4,7 +4,7 @@ import asyncio
 import json
 from pathlib import Path
 
-from game_automation.common import FrameworkError, uid, within
+from game_automation.common import FrameworkError, digest, uid, within
 from game_automation.contracts import validate
 from game_automation.disk import require_disk_space
 from game_automation.errors import ErrorCode
@@ -57,6 +57,7 @@ class EvidenceRecorder:
 
     def admit(self, *, initial=False):
         used = sum(path.stat().st_size for path in self.directory.rglob("*") if path.is_file())
+        used += 2 * self.store.event_bytes(self.run_id)
         # Reserve enough for one bounded observation, protocol records, and an offline report.
         headroom = 128 * 1024**2
         remaining = self.settings["evidence_budget_bytes"] - used
@@ -76,7 +77,24 @@ class DeviceRuntime:
         self.session = session
         self.recorder = recorder
         self.progress = progress
-        self.credential_path = str(profile_path(store.root, task["credential_profile"]))
+        self.step_id = None
+        profile = profile_path(store.root, task["credential_profile"])
+        frozen = store.run_dir(run_id) / "credentials" / profile.name
+        data = frozen.read_bytes() if frozen.exists() else profile.read_bytes()
+        if digest(data) != progress.data["credential_revision"]:
+            raise FrameworkError(ErrorCode.CREDENTIAL_UNAVAILABLE)
+        frozen.parent.mkdir(parents=True, exist_ok=True)
+        if not frozen.exists():
+            frozen.write_bytes(data)
+        self.credential_path = str(frozen)
+
+    def begin_step(self, reason):
+        self.step_id = uid("span")
+        self.host.record(
+            "gameplay.step.started",
+            {"capability": "gameplay.step", "reason": reason},
+            span_id=self.step_id,
+        )
 
     async def observe(self):
         for attempt in range(3):
@@ -98,12 +116,14 @@ class DeviceRuntime:
             "sensitive_regions": self.progress.data["sensitive_regions"],
             "credential_path": self.credential_path,
         }
-        result = await self.host.call("device.capture", request, timeout=0)
+        result = await self.host.call(
+            "device.capture", request, timeout=0, parent_span_id=self.step_id
+        )
         confirm_session(self.session, result["session"])
         verify_image(self.store.run_dir(self.run_id), workspace_ref, result["screenshot"])
         result["observation_id"] = uid("obs")
         result["evidence_ref"] = f"{workspace_ref}/screen.png"
-        self.host.record("gameplay.observation", result)
+        self.host.record("gameplay.observation", result, span_id=self.step_id)
         return result
 
     async def perform(self, action, observation, *, source="operator"):
@@ -124,6 +144,7 @@ class DeviceRuntime:
             "action": action,
             "run_id": self.run_id,
             "image_ref": observation["evidence_ref"],
+            "step_id": self.step_id,
         }
         self.progress.save()
         request = {
@@ -138,7 +159,7 @@ class DeviceRuntime:
             "credential_path": self.credential_path,
         }
         try:
-            result = await self.host.perform(request)
+            result = await self.host.perform(request, parent_span_id=self.step_id)
         finally:
             if not self.host.failure and not self.store.run(self.run_id)["cancel_requested"]:
                 log_request = {
@@ -146,7 +167,9 @@ class DeviceRuntime:
                     "package_name": self.task["target"],
                     "credential_path": self.credential_path,
                 }
-                logs = await self.host.call("device.logs", log_request, timeout=0)
+                logs = await self.host.call(
+                    "device.logs", log_request, timeout=0, parent_span_id=self.step_id
+                )
                 self.host.record("gameplay.logs", logs)
         self.host.record(
             "gameplay.action.origin", {"action_id": result["action_id"], "source": source}
@@ -284,6 +307,8 @@ async def play(store, run_id, host, manifest, task):
             verified = (
                 verified
                 and before_main is not None
+                and after_main is not None
+                and observation["runtime"]["boot_id"] == after["runtime"]["boot_id"]
                 and all(
                     before_main[key] == after_main[key] for key in ("pid", "uid", "start_ticks")
                 )
