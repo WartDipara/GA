@@ -24,14 +24,19 @@ measurements. The implementation here is independent and adapted to our availabl
 Persisted events + frozen artifacts -> deterministic Python projection -> CLI / context.json /
 self-contained HTML.
 
+`src/game_automation/observability.py` owns the context projection. The trace exporter is
+`reporting/trace.py`; its shared resources are `reporting/web/trace.template.html`,
+`reporting/web/dashboard.css` and `reporting/web/dashboard.js`. These are maintained source assets;
+the generated report remains under the execution's `reports/trace.html`.
+
 The viewer does not change authoritative events, start plugins, or call a model. It can inspect an
-old run even if live skills or current implementation changed. Missing or tampered frozen skill
-files remain explicitly unavailable.
+old run even if current implementation changed. Missing or changed pinned Skill dependencies remain
+explicitly unavailable; current text is not substituted for historical evidence.
 
 ## What is visible
 
 - Application instructions recorded in thread creation/resume requests.
-- Explicitly submitted skills from the run's frozen copies.
+- Explicitly submitted Skills from verified shared dependencies or retained legacy snapshots.
 - Submitted task text, output schema, and attachment references.
 - Public assistant messages, reasoning summaries when supplied, and tool items.
 - Module failures, action records, verification events, and run state changes.

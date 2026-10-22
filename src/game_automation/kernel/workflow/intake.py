@@ -6,7 +6,7 @@ from pathlib import Path
 from game_automation.common import FrameworkError, digest, json_text, redact
 from game_automation.contracts import schema, validate
 from game_automation.errors import ErrorCode
-from game_automation.prompting import build_input
+from game_automation.prompting.snapshots import build_input
 
 MAX_DOCUMENT_BYTES = 200_000
 

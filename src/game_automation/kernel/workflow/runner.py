@@ -1,16 +1,16 @@
 import asyncio
 
+from game_automation.common import FileLock as ExecutionLock
 from game_automation.common import FrameworkError
 from game_automation.disk import require_disk_space
 from game_automation.errors import ErrorCode
 from game_automation.kernel.capability_router import Router
 from game_automation.kernel.plugin_host import Host
-from game_automation.kernel.policy import ExecutionLock
-from game_automation.kernel.policy.storage import storage_settings
-from game_automation.observability import export_trace
-from game_automation.observability.gameplay import gameplay_report
-from game_automation.observability.workspaces import task_report
-from game_automation.prompting import freeze, load
+from game_automation.kernel.storage_policy import storage_settings
+from game_automation.prompting.snapshots import freeze, load
+from game_automation.reporting.gameplay import gameplay_report
+from game_automation.reporting.task_index import task_report
+from game_automation.reporting.trace import export_trace
 
 from .device import observe_device, prepare_device
 from .emulators import discover_emulators
