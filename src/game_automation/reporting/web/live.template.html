@@ -1,55 +1,127 @@
 <!doctype html>
 <html lang="en-US">
   <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta http-equiv="Content-Security-Policy"
-      content="default-src 'none'; style-src 'unsafe-inline'; script-src 'sha256-${script_hash}'; connect-src 'self'; base-uri 'none'; form-action 'none'">
-    <title>Live task trace</title>
-    <style>${style}</style>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; style-src 'unsafe-inline'; script-src 'sha256-${script_hash}'; connect-src 'self'; base-uri 'none'; form-action 'none'"
+    />
+    <title>Trace workspace - Game Automation</title>
+    <style>
+      ${style}
+    </style>
   </head>
   <body>
-    <main id="live-view" data-interval="${interval}">
-      <header>
-        <div class="eyebrow">GAME AUTOMATION | LIVE TASK TRACE</div>
-        <h1 id="task-title">Loading task</h1>
-        <p>Read-only polling of committed records. No model or device operations.</p>
-      </header>
-      <section class="panel">
-        <noscript>JavaScript is required for periodic refresh. Use export-trace for offline records.</noscript>
-        <div class="toolbar">
-          <label>Refresh interval
+    <div class="app-shell" id="live-view" data-interval="${interval}">
+      <aside class="sidebar">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true">G</span> Game Automation
+        </div>
+        <div class="workspace-label">OBSERVABILITY <span class="local-badge">LOCAL</span></div>
+        <button class="all-executions active" id="all-executions" type="button">
+          <span>All executions</span><span id="execution-count">0</span>
+        </button>
+        <div class="sidebar-heading">EXECUTION TREE</div>
+        <nav id="execution-tree" aria-label="Execution tree"></nav>
+        <div class="sidebar-footer"><span class="connection-dot"></span> Local evidence store</div>
+      </aside>
+      <main>
+        <header class="topbar">
+          <div class="breadcrumbs">
+            Workspace <span>/</span> Tasks <span>/</span> Trace explorer
+          </div>
+          <div class="live-controls">
+            <span class="live-indicator" id="live-indicator">Polling</span>
             <select id="refresh-interval" aria-label="Refresh interval"></select>
-          </label>
-          <button id="pause-refresh" type="button">Pause</button>
-          <button id="refresh-now" type="button">Refresh now</button>
+            <button id="pause-refresh" type="button">Pause</button>
+            <button id="refresh-now" type="button">Refresh</button>
+            <button id="theme-toggle" type="button" aria-label="Switch color theme">Light</button>
+          </div>
+        </header>
+        <div class="workspace-body">
+          <section class="task-heading">
+            <div>
+              <p class="eyebrow">TASK OVERVIEW</p>
+              <h1 id="task-title">Connecting to task</h1>
+              <p class="task-reference" id="task-reference"></p>
+            </div>
+            <div class="refresh-summary">
+              <span class="connection-dot"></span>
+              <span id="refresh-state" role="status" aria-live="polite">Waiting for records</span>
+            </div>
+          </section>
+          <p id="refresh-error" class="error-notice" role="alert" hidden></p>
+          <noscript
+            >JavaScript is required for this workspace. Use export-trace for offline
+            records.</noscript
+          >
+          <section class="metrics" id="live-metrics" aria-label="Task overview"></section>
+          <section class="analysis-grid">
+            <article class="panel">
+              <div class="panel-heading">
+                <h2>Execution status</h2>
+                <span class="section-tag">TASK</span>
+              </div>
+              <div id="status-breakdown" class="status-breakdown"></div>
+            </article>
+            <article class="panel">
+              <div class="panel-heading">
+                <h2>Slowest module calls</h2>
+                <span class="section-tag">RECENT WINDOW</span>
+              </div>
+              <div id="duration-chart" class="duration-chart"></div>
+            </article>
+          </section>
+          <section class="trace-layout">
+            <article class="panel trace-panel">
+              <div class="panel-heading">
+                <h2>Execution events <span id="event-count" class="count-badge">0</span></h2>
+                <span class="section-tag">LATEST 200</span>
+              </div>
+              <div class="event-toolbar">
+                <input
+                  id="live-search"
+                  type="search"
+                  placeholder="Search events, modules or errors"
+                  aria-label="Search events"
+                />
+                <select id="event-category" aria-label="Event category">
+                  <option value="all">All events</option>
+                  <option value="workflow">Workflow</option>
+                  <option value="module">Module calls</option>
+                  <option value="ai">AI planning</option>
+                  <option value="device">Device actions</option>
+                  <option value="issues">Issues</option>
+                </select>
+              </div>
+              <div class="event-columns"><span>Event / operation</span><span>Duration</span></div>
+              <div id="live-events" class="event-list" aria-label="Recorded events"></div>
+              <div class="panel-footnote" id="window-note">
+                Committed evidence only - Newest first
+              </div>
+            </article>
+            <aside class="panel inspector" aria-label="Event details">
+              <div class="panel-heading">
+                <h2>Event inspector</h2>
+                <span class="section-tag" id="inspector-sequence">SELECT EVENT</span>
+              </div>
+              <div id="event-inspector">
+                <p class="empty-state">
+                  Select an event to inspect its operation, duration and evidence.
+                </p>
+              </div>
+            </aside>
+          </section>
+          <footer>
+            Read-only task view
+            <span>Durations are recorded values. Unknown does not mean zero.</span>
+          </footer>
         </div>
-        <p id="refresh-state" role="status" aria-live="polite">Waiting for records</p>
-        <p id="refresh-error" class="notice" hidden></p>
-      </section>
-      <section class="metrics" id="live-metrics" aria-label="Task overview"></section>
-      <section class="panel">
-        <h2>Executions</h2>
-        <p>Trace links open a detailed snapshot in another tab. This page keeps polling.</p>
-        <div class="browser">
-          <table class="execution-table">
-            <thead><tr><th>Stage</th><th>Status</th><th>Current phase</th><th>Trace</th></tr></thead>
-            <tbody id="executions"></tbody>
-          </table>
-        </div>
-      </section>
-      <section class="panel">
-        <h2>Task timeline</h2>
-        <div class="toolbar">
-          <select id="run-filter" aria-label="Execution filter"></select>
-          <input id="live-search" placeholder="Search events" aria-label="Search events">
-        </div>
-        <p class="muted">Latest 200 committed events across this task, newest first.
-          Previews are bounded; detailed traces retain full records.
-          Unavailable duration does not mean zero.</p>
-        <div id="live-events"></div>
-      </section>
-    </main>
-    <script>${script}</script>
+      </main>
+    </div>
+    <script>
+      ${script}
+    </script>
   </body>
 </html>

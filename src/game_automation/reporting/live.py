@@ -26,6 +26,8 @@ def task_snapshot(store, task_id):
         execution["trace_url"] = trace_url(task_id, execution["run_id"])
         inputs = store.run_task(execution["run_id"])
         execution["label"] = inputs.get("workflow_key", execution["mode"])
+        execution["parent_run"] = inputs.get("workflow_run")
+        execution["apk_name"] = inputs.get("metadata", {}).get("apkName")
     rows = store.db.execute(
         "SELECT e.seq,e.data FROM events e JOIN runs r ON r.id=e.run_id "
         "WHERE r.task_id=? ORDER BY e.seq DESC LIMIT 200",
@@ -40,12 +42,23 @@ def task_snapshot(store, task_id):
             "seq": row["seq"],
             "run_id": event["run_id"],
             "kind": event["kind"],
+            "span_id": event["span_id"],
+            "parent_span_id": event["parent_span_id"],
+            "label": payload.get("capability") or payload.get("stage") or event["kind"],
             "duration_ms": payload.get("duration_ms"),
             "detail": detail[:4000],
             "truncated": len(detail) > 4000,
         }
         events.append(preview)
-    snapshot = {"task_id": task_id, "executions": executions, "events": events}
+    source_ids = store.task(task_id).get("source_ids", [])
+    source_count = len(source_ids)
+    apk_label = "APK" if source_count == 1 else "APKs"
+    snapshot = {
+        "task_id": task_id,
+        "title": f"{source_count} {apk_label}" if source_ids else "Game testing task",
+        "executions": executions,
+        "events": events,
+    }
     return snapshot
 
 
@@ -58,7 +71,7 @@ def viewer_document(interval):
         interval=interval,
         script_hash=script_hash,
         script=script,
-        style=(assets / "dashboard.css").read_text(encoding="utf-8"),
+        style=(assets / "live.css").read_text(encoding="utf-8"),
     )
     return document
 
