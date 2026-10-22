@@ -31,6 +31,34 @@ uv run game-auto inspect <run_id> --span <span_id>
 uv run game-auto export-trace <run_id> --format html
 ```
 
+For a periodically refreshed task view, run this in a separate terminal while work continues:
+
+```powershell
+uv run game-auto serve-trace <run_id>
+uv run game-auto serve-trace <run_id> --interval 5 --port 0
+```
+
+Open the printed loopback URL. The default port is 8767 and the refresh interval is three seconds;
+port zero selects an available port. The viewer follows the run's entire business task, including
+child stage executions created later. It shows execution states and the latest 200 durable events
+across the task, with recorded durations and bounded payload previews. Search and execution filters
+apply to that bounded window; open a stage trace for earlier evidence and full model context.
+
+The page provides pause/resume, manual refresh and interval selection. Polls do not overlap. A
+revision check avoids transferring the same events again, and expanded events and filters survive
+updates. Failed refreshes preserve the previous snapshot and show a retry notice. Removing the task
+or stopping the server does not make the retained browser snapshot current evidence.
+
+The service uses independent SQLite connections with `mode=ro` and `query_only`, and a consistent
+read transaction per request. It neither holds the workflow execution lock nor migrates the database
+or writes report files. It binds only to `127.0.0.1`, exposes no action endpoints or directory listing,
+and serves only the selected task's trace views and allowed report/evidence types. Credential and
+manifest files are not served. Detailed trace links open a current snapshot in another tab; the main
+page continues polling. Ctrl+C stops only the viewer, leaving the workflow untouched.
+
+This viewer increment has compilation and JavaScript syntax verification only. Browser refresh and
+concurrent workflow behavior still need acceptance during an explicitly requested real task.
+
 1. Read run.state for the stage, status, and blocker.
 2. Find call.failed/call.incomplete and inspect its span, inputs, attempts, and output.
 3. For AI calls, inspect provider.wire for actual turn/start inputs, explicit skill paths,
@@ -71,6 +99,6 @@ Process or disk failures may leave an action without a result. unknown/incomplet
 evidence, not a result to fill in. Failed trace persistence prevents new actions even when a final
 error cannot be saved.
 
-The HTML's embedded local script only browses saved data; CSP blocks external code, network access,
-and form submission. Opening or exporting it never starts a plugin, invokes AI, or operates a
-device.
+Exported HTML only browses saved data; its CSP blocks external code, network access and form
+submission. The local live viewer additionally permits same-origin polling. Neither view starts a
+plugin, invokes AI or operates a device.

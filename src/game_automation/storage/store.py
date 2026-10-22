@@ -22,6 +22,23 @@ def run_subject(task):
 class Store:
     """Only the kernel owns this database. Events and state commit together."""
 
+    @classmethod
+    def open_readonly(cls, root: Path):
+        store = cls.__new__(cls)
+        store.root = root.resolve()
+        store.var = store.root / "var"
+        store.cleanup_journal = store.var / "cleanup/pending.json"
+        store.check_cleanup()
+        database_uri = (store.var / "state.sqlite").as_uri() + "?mode=ro"
+        store.db = sqlite3.connect(database_uri, uri=True, timeout=2)
+        store.db.row_factory = sqlite3.Row
+        try:
+            store.db.execute("PRAGMA query_only=ON")
+        except sqlite3.Error:
+            store.db.close()
+            raise
+        return store
+
     def __init__(self, root: Path, *, allow_cleanup=False):
         self.root = root.resolve()
         self.var = self.root / "var"

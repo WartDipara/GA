@@ -158,6 +158,14 @@ def parser():
     export = commands.add_parser("export-trace")
     export.add_argument("run_id")
     export.add_argument("--format", choices=["html"], default="html")
+    viewer = commands.add_parser("serve-trace", help="Poll task traces in a local read-only viewer")
+    viewer.add_argument("run_id")
+    viewer.add_argument(
+        "--port", type=int, default=8767, help="Loopback port; zero selects a free port"
+    )
+    viewer.add_argument(
+        "--interval", type=int, default=3, help="Polling interval, 1 through 60 seconds"
+    )
     return cli
 
 
@@ -230,6 +238,11 @@ def main(argv=None):
         root = args.project.resolve()
         if not (root / "config/application.toml").is_file():
             raise FrameworkError(ErrorCode.PROJECT_NOT_FOUND)
+        if args.command == "serve-trace":
+            from game_automation.reporting.live import serve_trace
+
+            serve_trace(root, args.run_id, port=args.port, interval=args.interval)
+            return 0
         store = Store(root, allow_cleanup=args.command == "cleanup")
         if args.command == "credentials":
             username = getpass.getpass("Username (hidden): ")
