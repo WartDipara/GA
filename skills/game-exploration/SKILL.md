@@ -67,3 +67,8 @@ subsequent steps and resolved only when current evidence resolves the fault. A n
 not a new recovery round. Kernel limits persist across batches. local_after screen values must be
 actual perception screen_key hashes and control values must be supplied target_ref values. Semantic
 descriptions belong in expected_outcome; leave local_after empty when no local predicate is known.
+
+Provide state_key as a stable functional state label, ignoring animations and changing loading tips.
+Set progress_observed only for evidence of meaningful movement toward the objective, such as a
+verified transition, skill change or battle progress. Animation, elapsed waiting and a repeated
+click are not progress. Repeated unchanged state/goal labels enter kernel stall handling.

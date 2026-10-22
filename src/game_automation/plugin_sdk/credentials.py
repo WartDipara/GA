@@ -67,7 +67,9 @@ def load_profile(path):
         if envelope["protection"] != "windows-current-user-dpapi":
             raise ValueError
         values = json.loads(protect(base64.b64decode(envelope["ciphertext"]), decrypt=True))
-        if set(values) != {"username", "password"} or not all(values.values()):
+        if set(values) != {"username", "password"} or not all(
+            isinstance(value, str) and value and "\x00" not in value for value in values.values()
+        ):
             raise ValueError
         return values
     except (OSError, ValueError, KeyError, TypeError) as exc:

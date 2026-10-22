@@ -1,117 +1,122 @@
-# Hybrid gameplay workflow
+# Hybrid gameplay
 
-Development follows independent increments. A working device adapter does not establish game
-coverage. Every proposed action must pass kernel authorization and produce subsequent evidence.
+## Module boundaries
 
-## Runtime foundation
+| Component | Boundary |
+| --- | --- |
+| DeviceRuntime | Bound process/task/display observations and kernel-authorized input |
+| Perception | Local frame comparison, accessible candidates and explicit unknown results |
+| ProgressStore | Identity, prerequisite-ordered goals, milestones and durable checkpoints |
+| DecisionRouter | Deterministic selection between a guarded routine and planning |
+| Planner | Structured Codex decisions using frozen Skills and sanitized images |
+| RoutineExecutor | One guarded proposal at a time, at most five steps |
+| OutcomeVerifier | Local predicates, followed by semantic review when required |
+| EvidenceRecorder | Existing host tracing, screenshot admission and process-scoped logs |
 
-Use `game-auto prepare-device --from-run <run> --apk-index <index> --instance <index>` to prepare
-an APK. Add `--adopt-existing` to bind an already installed APK only when its complete fingerprint
-matches. Adoption preserves application data and cached login; it never records a fictitious install.
+The kernel owns device authority and business state. Plugins exchange JSON-RPC data and never
+read each other's implementations or the business database. Login, exploration and native battle
+share one observation/decision/execution loop. Public reasoning summaries remain optional.
 
-Use `game-auto credentials default` to enter the username and password at hidden prompts. Only a
-current-user Windows DPAPI ciphertext is stored under the ignored `var/secrets` directory. The
-runtime passes a profile reference, never plaintext, over RPC. Secure input travels over the owned
-ADB process's stdin; command output is suppressed. Known credentials are removed from text and
-accessible password controls are masked before image persistence. Additional regions must be
-identified before typing into a custom-rendered input field.
+## Prepare and run
 
-`game-auto play --prepared-run <run> --goal capture` binds the same dedicated instance, verifies
-the installed fingerprint, captures process/task/display evidence and package-process logcat, and
-saves a checkpoint. `--goal return-to-game` authorizes a foreground return only while the target
-process is alive, then verifies the focused package using new evidence.
+Choose an already-running dedicated MuMu instance from `game-auto emulators`. Its index identifies
+a simulator, not a game character. Discovery prints its name and index. The provider resolves the
+advertised ADB endpoint and verifies stable identity; the kernel never guesses a port.
 
-Action intents are durable before dispatch. A transport error after dispatch leaves an unknown
-outcome. Observation, not retry, is the first recovery operation. The adapter compares boot ID,
-process start ticks, focused display, rotation and a fresh target-region image before input.
+```powershell
+uv run game-auto prepare-device --from-run <apk_run> --apk-index 0 --instance <index>
+uv run game-auto credentials default
+uv run game-auto play --prepared-run <device_run> --goal login-and-interact
+uv run game-auto play --prepared-run <device_run> --goal explore
+uv run game-auto play --prepared-run <device_run> --goal advance-battle
+```
 
-Logcat windows are bounded, identify their source process lifetime, and cover exact target-package
-process names. Isolated WebView renderers and system crashes are not silently attributed to the
-game. Empty windows are valid; unavailable windows are explicit. Existing tracing records all calls,
-inputs, results and verification events; there is no separate business-log implementation.
+Add `--adopt-existing` to preparation only for an already installed matching APK. Full SHA-256
+must match; application data and cached login are preserved. No fictitious install is recorded.
+Credentials are entered at hidden prompts and encrypted for the current Windows user with DPAPI.
+Only the profile reference reaches the model and trace. Credential input uses an owned ADB process's
+stdin, suppresses output, and currently supports ASCII values without whitespace.
 
-Evidence admission reserves 4 GiB for the batch and 2 GiB of free disk space. Admission repeats at
-each capture/action boundary with headroom for bounded evidence and report generation. Existing
-evidence is not removed to continue a task. Compilation is development verification only; actual
-game task evidence is local and must be reported separately.
+`capture` and `return-to-game` are explicit observation/foreground goals. `activate-game` permits a
+controlled start after confirmed process exit. Returning verifies the original process lifetime;
+a replacement process cannot silently count as a successful foreground return. Emulator creation
+and automatic restart are outside this release.
 
-## Progress and exploration
+## Guards, progress and recovery
 
-`--goal explore` uses the same hybrid loop. The planner may propose prerequisite-ordered subgoals
-and concise milestones; the kernel validates references and dependency cycles before committing
-them. The latest 50 path edges are context, while complete action history remains in SQLite events.
-Identity, APK fingerprint, dedicated instance and credential revision scope the checkpoint. A vault
-profile replaced in place cannot silently reuse another account's progress.
+Actions bind an APK workspace, instance, boot, process lifetime, focused display, rotation and current
+target region. Every intent is durable before dispatch authorization. Fresh target comparison
+rejects obsolete proposals. A transport error after dispatch remains uncertain.
 
-Recovery declarations use stable fault categories and a persisted two-round limit. A new batch
-observes the device before resolving pending actions or planning. Unknown clicks are never replayed.
-Real device evidence confirmed normal cached reauthentication, selection of the same small account
-after its list position changed, and restoration of the bound role in gameplay. The later model
-connection interruption retained the pending action and checkpoint for semantic reconciliation.
+Resume observes the device first. Recognition caches, server progress and execution history remain
+separate data. Unknown resource-consuming actions are never replayed. Observed deviations may be
+reconciled without claiming the expectation succeeded. The original small account, server and role
+remain bound across batches; identity changes require attention.
 
-## Local scheduling and routines
+```powershell
+uv run game-auto resume <run_id>
+uv run game-auto resume <run_id> --new-batch
+```
 
-`perception.analyze` produces accessible candidates, a small local image signature and measured
-frame difference. A canvas without accessible controls remains unknown. Stability only indicates
-limited visual change; it does not establish loading completion or business progress.
+Normal resume preserves frozen code/Skills. Use `--new-batch` after an update: it links a new batch
+to the same task and restores scoped progress. A credential profile replaced in place cannot silently
+reuse another account's progress. Stable recovery categories have a persisted two-round limit.
+Three repeated state/goal observations enter stall handling.
 
-`game-auto play --prepared-run <run> --goal routine --routine <file.json>` accepts the
-`gameplay-routine` contract. Each of at most five steps requires a current screen signature plus
-explicit conditions. The routine executor proposes one action, the kernel authorizes it, and the
-outcome verifier checks new observations before advancing. A modal, rotation or changed condition
-returns control for planning. Predicates such as focused package prove that predicate only, never
-successful login or a completed level. A missing result remains unknown and cannot be replayed.
+There is no default overall duration or planning-turn limit. Individual commands/model requests
+are bounded. Optional `--max-turns <n>` bounds one invocation; its last planning round does not
+dispatch another input requiring a further verification round.
 
-The decision router has no model calls. Local recognition, routing, routine execution and outcome
-verification are independent components; the device adapter has none of their business rules.
+## Local execution and native battle
 
-## Verified flow reuse
+Perception returns frame differences and accessible targets. Canvas semantics remain unknown when
+local evidence cannot identify them. Stability does not establish loading completion. Known
+transition and battle waiting use local observations without per-frame model calls.
 
-The knowledge cache learns only observed, semantically verified low-risk tap/back transitions.
-It excludes sensitive screens and resource-consuming actions. Entries bind the APK, identity,
-Android boot, process lifetime and display layout. A routine requires the exact current sanitized
-image, then checks each newly observed result. At most five cached steps precede another planning
-turn. Ambiguity or mismatch exits the fast path; old coordinates alone never authorize input.
+`--goal routine --routine <file.json>` accepts `gameplay-routine`: at most five steps, each with a
+screen guard and explicit before/after predicates. Learned routines additionally require exact
+sanitized image matching and bind APK, identity, process and layout. Only observed, verified,
+low-risk tap/back transitions are learned. Sensitive screens and resource consumption are excluded.
+Mismatch exits the fast path. No game-specific coordinates or scripts exist in the public core.
 
-The adapter uses a separate HTTP Responses provider with the existing OpenAI authentication; the
-reserved built-in provider is not overwritten and global Codex settings are not edited. This was
-introduced after real task streams reported WebSocket closure. See the
+Native battle prefers existing automatic combat/navigation. Advancement requires an observed
+victory settlement and a subsequent changed stage marker. Skill selection, waiting and disappearing
+enemies do not establish a cleared level. Real payment, external recharge and account deletion are
+prohibited; in-game resources are permitted within the task.
+
+## Evidence and reports
+
+Known credentials are removed by local Windows OCR before screenshot persistence. Identified input
+fields and declared sensitive regions are masked geometrically. OCR is a best-effort detector, not
+a guarantee for arbitrary private content. Unavailable privacy processing blocks capture.
+Screenshots remain local except sanitized images explicitly submitted to the selected model.
+
+Evidence defaults to 4 GiB plus a 2 GiB free-space reserve. Admission includes artifacts and a
+conservative allowance for SQLite events/indexes. Exhaustion retains the last durable checkpoint
+and blocks new actions. Logcat windows use verified package PIDs and monotonic process start times.
+Unsupported formats, changed lifetimes and isolated renderers are explicit limitations. Emulator
+and system processes are not mixed into the game stream.
+Windows are bounded snapshots, not a claim of complete continuous log capture.
+
+```powershell
+uv run game-auto report <run_id>
+uv run game-auto export-trace <run_id> --format html
+uv run game-auto compare-games <first_run> <second_run>
+```
+
+Gameplay JSON/HTML show decisions, action paths, before/after evidence, outcome sources, AI calls,
+deterministic steps, waiting, correction and cache statistics. Rebuilding them never contacts devices
+or models. Large traces use bounded HTML previews; complete events remain in SQLite and `trace`
+streams them. Large context views identify their limited event window. The existing context
+projection remains inspired by dsh-context.
+
+Cross-game comparison checks different package identities, frozen runtime sources and actual goal
+completion. Equal code hashes alone do not establish acceptance. Same-role restoration and a panel
+path have real evidence. Native combat/skill selection have real evidence; verified stage advancement,
+cache efficiency and second-game acceptance remain separate gates.
+
+The pinned Codex adapter uses App Server stdio and an isolated HTTP Responses provider with existing
+OpenAI authentication, leaving global settings unchanged. See the
 [official provider configuration](https://developers.openai.com/siwc/token-sharing-open-source/codex-app-server).
-
-The first real closure restored the same role and verified opening and closing Mail. The final
-continuation used two model calls and one tap; earlier preparation/recovery batches have separate
-records. No cache hit or percentage reduction is claimed without measured reuse.
-
-## Planning and real-task acceptance
-
-`--goal login-and-interact` invokes the hybrid workflow. `--max-turns <n>` provides an optional
-business boundary for one invocation; the default is unlimited. Ordinary transition waiting uses
-local observations. Each semantic turn reviews a pending action and proposes the next step.
-The prompt contains frozen base/stage Skills, the actual context, and sanitized `localImage` items.
-The model cannot execute tools. Unknown outcomes block new input; observed deviations can be
-reconciled without claiming the original expectation succeeded.
-
-Codex 0.163.0 was reviewed using its locally generated App Server schemas for `localImage`, explicit
-Skill inputs, structured output and thread restoration. No synthetic model verification was used.
-Local Windows OCR masks known credential text in canvas-rendered screens before persistence. OCR
-is a best-effort text detector, not a guarantee for arbitrary private content; declared sensitive
-fields are masked geometrically. Missing OCR blocks screenshot processing.
-
-Real task evidence verified same-role restoration and opening/closing an in-game panel. Failed and
-blocked batches remain separate evidence. `reports/gameplay.json` is a read-only projection of
-actual calls, waits, actions and outcome events.
-
-## Native battle goal
-
-`--goal advance-battle` uses the shared observation, planning, execution and trace components.
-Battle Skills load only for that goal. Native automatic combat is observed explicitly; ordinary
-combat waiting stays local. Advancement requires an attributed victory settlement followed by a
-different observed stage marker. A defeat or unknown result cannot establish progression.
-
-The bounded real task entered battle and handled game-provided skill choices, reaching its planning
-boundary before settlement. No cleared stage is claimed. Identity, battle state and an unverified
-action remain available for fresh observation and reconciliation.
-
-Log windows are collected after actions, filter PID records by monotonic process start time, and
-mark unsupported timestamp formats or changed lifetimes unavailable. Real collection confirmed
-available lifetime-scoped windows without including emulator processes.
+Development verification uses compilation/syntax checking only. No mock, smoke or synthetic
+inference tests are used. Bounded real game tasks retain separate acceptance evidence.

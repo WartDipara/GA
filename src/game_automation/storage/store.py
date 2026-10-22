@@ -239,16 +239,43 @@ class Store:
                 (status, stage or run["stage"], now(), run_id),
             )
 
-    def events(self, run_id, after=0, span=None):
+    def iter_events(self, run_id, after=0, span=None, *, kinds=None, limit=None):
         self.run(run_id)
         sql = "SELECT seq,data FROM events WHERE run_id=? AND seq>?"
         args = [run_id, after]
         if span:
             sql += " AND span_id=?"
             args.append(span)
-        rows = self.db.execute(sql + " ORDER BY seq", args).fetchall()
-        events = [{"seq": row[0], **json.loads(row[1])} for row in rows]
+        if kinds:
+            sql += " AND kind IN (" + ",".join("?" for _ in kinds) + ")"
+            args.extend(kinds)
+        sql += " ORDER BY seq DESC" if limit else " ORDER BY seq"
+        if limit:
+            sql += " LIMIT ?"
+            args.append(limit)
+        for row in self.db.execute(sql, args):
+            event = {"seq": row[0], **json.loads(row[1])}
+            yield event
+
+    def events(self, run_id, after=0, span=None, *, kinds=None, limit=None):
+        events = list(self.iter_events(run_id, after, span, kinds=kinds, limit=limit))
+        if limit:
+            events.reverse()
         return events
+
+    def event_bytes(self, run_id):
+        row = self.db.execute(
+            "SELECT COALESCE(SUM(LENGTH(CAST(data AS BLOB))),0) FROM events WHERE run_id=?",
+            (run_id,),
+        ).fetchone()
+        return row[0]
+
+    def action_records(self, run_id):
+        rows = self.db.execute(
+            "SELECT action_id,status,result FROM actions WHERE run_id=? ORDER BY rowid", (run_id,)
+        )
+        actions = [{"action_id": row[0], "status": row[1], **json.loads(row[2])} for row in rows]
+        return actions
 
     def artifact(self, run_id, relative, value):
         path = within(self.run_dir(run_id), relative)

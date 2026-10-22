@@ -18,6 +18,12 @@ def ready_apk(store, source_run, index):
     if len(items) != 1 or items[0]["status"] != "ready":
         raise FrameworkError(ErrorCode.DEVICE_APK_REQUIRED)
     item = items[0]
+    contract = store.run_dir(source_run) / "contracts/apk-metadata.schema.json"
+    if not contract.is_file() or not within(store.run_dir(source_run), item["apk_ref"]).is_file():
+        raise FrameworkError(
+            ErrorCode.DEVICE_APK_REQUIRED,
+            "Prepared APK evidence is incomplete; preprocess the source again",
+        )
     validate(store.run_dir(source_run) / "contracts", "apk-metadata", item["metadata"])
     return item
 
@@ -41,7 +47,7 @@ def preparation_task(store, source_run, index, instance_index, adopt_existing=Fa
 async def device_session(store, run_id, host, manifest, task):
     previous = [
         event["payload"]
-        for event in store.events(run_id)
+        for event in store.events(run_id, kinds=("device.session.bound",))
         if event["kind"] == "device.session.bound"
     ]
     if previous:

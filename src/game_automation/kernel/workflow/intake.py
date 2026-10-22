@@ -195,9 +195,6 @@ async def intake(store, run_id, host, manifest):
 
 
 def intake_status(store, run_id):
-    events = [
-        event
-        for event in store.events(run_id)
-        if event["kind"] in ("intake.accepted", "intake.needs_input", "intake.rejected")
-    ]
+    kinds = ("intake.accepted", "intake.needs_input", "intake.rejected")
+    events = store.events(run_id, kinds=kinds, limit=1)
     return events[-1]["payload"] if events else None

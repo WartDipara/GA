@@ -28,11 +28,11 @@ cancellation commands may run concurrently. Plugins never receive database conne
 
 ## Action uncertainty
 
-The kernel currently authorizes only `device.install` through its installation dispatcher. It
+The kernel authorizes `device.install` and `device.execute` through separate dispatchers. Each
 requires an APK-to-instance reservation, persists intent, and commits uncertain status before
 acknowledging the plugin's dispatch request. Direct or nested installation calls lack that grant and
-are denied. Other mutating capabilities remain unavailable. Future coordinate actions must reference
-a fresh observation and session and stay within bounds. Post-action evidence verifies outcomes; an
+are denied. MuMu activation inherits only a matching authorized launch/return action. Coordinate
+actions reference fresh observations and stay within bounds. Post-action evidence verifies outcomes; an
 ADB success response alone does not.
 
 Existing action records remain readable. Device preparation may resume read-only inspection of an
@@ -66,14 +66,14 @@ before business validation. Provider rules do not leak into other modules.
 MuMu is the initial emulator provider. The `emulator_mumu` plugin resolves its local tools and
 instance endpoints, queries Android readiness, and captures local screenshots on request. The kernel
 validates evidence and records discovery in the `emulators` run mode. Provider-specific paths and
-management commands stay inside the adapter. Lifecycle management and automated input remain
-separate, unavailable capabilities. See [MuMu discovery](emulators.md).
+management commands stay inside the adapter. Guarded application activation is available through
+the kernel; emulator restart/creation remain outside this release. See [MuMu discovery](emulators.md).
 
 The independent `android_device` plugin requests `emulator.session` through the host, without
 importing adapter code. It inspects packages and Android capacity, installs a bound APK, and reads
 the focused logical display with capture-time consistency checks. Shared bounded command transport
 and PNG parsing live in the SDK. The kernel alone owns reservations, action states, and evidence
-validation. SQLite schema version 2 adds the reservation table without discarding earlier state. See
+validation. SQLite schema version 2 added the reservation table without discarding earlier state. See
 [device preparation](device-preparation.md). Installation workflow acceptance is pending.
 
 APK preprocessing is a separate run mode that accepts URL-list digests and uses apk.plan to estimate
@@ -95,5 +95,6 @@ logcat. SQLite schema version 3 adds shared gameplay checkpoints. The kernel per
 granting dispatch; the MuMu activation dependency inherits only the matching launch/return grant.
 An already installed matching APK can be explicitly adopted without reinstalling. Local credentials
 are protected by current-user Windows DPAPI and referenced by profile. See [gameplay](gameplay.md).
-Perception, exploration and game coverage remain separate increments. Development verification is
-compilation only and does not establish runtime or game acceptance.
+Local perception, routines, planning, scoped progress and native battle goals are independent
+components. Coverage remains limited to actual evidence. Compilation does not establish runtime or
+game acceptance.

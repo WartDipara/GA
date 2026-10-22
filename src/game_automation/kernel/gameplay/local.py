@@ -80,6 +80,7 @@ class Perception:
 
 
 async def execute_routine(runtime, observation, steps):
+    runtime.begin_step("guarded-routine")
     perception = Perception(runtime)
     routine = RoutineExecutor(steps)
     router = DecisionRouter()

@@ -103,7 +103,8 @@ async def execute(store, run_id, source_file=None):
             raise FrameworkError(ErrorCode.RUN_MODE_REMOVED)
         try:
             if run["status"] == "running":
-                events = store.events(run_id)
+                call_kinds = ("call.started", "call.completed", "call.failed", "call.incomplete")
+                events = store.events(run_id, kinds=call_kinds)
                 closed = {
                     event["span_id"]
                     for event in events

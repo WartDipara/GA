@@ -11,8 +11,13 @@ from game_automation.observability.insights import build_insights
 
 def export_trace(store, run_id):
     """Offline context dashboard and raw evidence viewer; no network or device calls."""
+    if store.event_bytes(run_id) > 16 * 1024**2:
+        from game_automation.observability.compact import export_compact
+
+        return export_compact(store, run_id)
     events = store.events(run_id)
-    spans = {event["span_id"]: event for event in events if event["kind"] == "call.started"}
+    start_kinds = ("call.started", "gameplay.step.started")
+    spans = {event["span_id"]: event for event in events if event["kind"] in start_kinds}
     children = {}
     for span, event in spans.items():
         parent = event["parent_span_id"]
