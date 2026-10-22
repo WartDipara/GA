@@ -58,6 +58,11 @@
 - Store test credentials only in the current Windows user's DPAPI-encrypted local vault. Never
   include plaintext credentials in arguments, prompts, traces, screenshots, or tracked files.
   Keep runtime data under var/. Only sanitized task screenshots may be sent to the selected model.
+- Keep var/ root limited to state.sqlite, its SQLite sidecars and the two coordination lock files.
+  Put caller inputs in var/inputs/, caches in var/cache/, local tools in var/tools/ and ad hoc
+  development outputs/scripts in var/tmp/. Append development command and Git output to the single
+  var/logs/development.log; do not create per-stage log files. Legacy logs belong in var/logs/legacy/.
+  Business events remain authoritative in SQLite and are not duplicated into another log framework.
 - Development verification remains compilation only. Explicitly requested, bounded real game tasks
   are business executions with recorded evidence, not mock, smoke, or synthetic inference tests.
 - Pin Codex and keep provider details inside its adapter. Review protocol changes before an upgrade;

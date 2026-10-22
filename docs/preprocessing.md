@@ -6,7 +6,7 @@ change is compilation only; live download and APK-tool behavior remain unverifie
 
 ## Input and commands
 
-Put a private UTF-8 JSON file under local `var/`:
+Put a private UTF-8 JSON file under local `var/inputs/`:
 
 ```json
 {
@@ -20,11 +20,11 @@ whitespace are rejected. The input file is limited to 4 MiB. No HTTP server or m
 involved.
 
 ```powershell
-uv run game-auto preprocess --input var/apks.json
+uv run game-auto preprocess --input var/inputs/apks.json
 uv run game-auto runs --limit 20
 uv run game-auto status <run_id>
 uv run game-auto trace <run_id> --follow
-uv run game-auto resume <run_id> --input var/apks.json
+uv run game-auto resume <run_id> --input var/inputs/apks.json
 ```
 
 Keep the input file private and available for recovery. The framework stores ordered URL digests,
