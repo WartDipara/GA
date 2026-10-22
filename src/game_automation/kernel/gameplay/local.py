@@ -44,6 +44,34 @@ class Perception:
         )
         return after, facts
 
+    async def wait_for_change(self, before, seconds=90):
+        started = time.monotonic()
+        deadline = started + seconds
+        original_runtime = before["runtime"]
+        while True:
+            self.runtime.host.check_cancel()
+            await asyncio.sleep(2)
+            after = await self.runtime.observe()
+            facts = await self.analyze(after, before)
+            changed = (
+                after["runtime"]["focused_display"] != original_runtime["focused_display"]
+                or after["runtime"]["alive"] != original_runtime["alive"]
+                or facts["difference"] is not None
+                and facts["difference"] >= 0.08
+            )
+            if changed or time.monotonic() >= deadline:
+                break
+        self.runtime.host.record(
+            "gameplay.wait",
+            {
+                "duration_ms": round((time.monotonic() - started) * 1000),
+                "reason": "known-transition",
+                "changed": changed,
+                "ai_calls": 0,
+            },
+        )
+        return after, facts
+
 
 async def execute_routine(runtime, observation, steps):
     perception = Perception(runtime)
@@ -59,7 +87,7 @@ async def execute_routine(runtime, observation, steps):
                 ErrorCode.GAMEPLAY_BLOCKED, "Routine conditions changed; planning is required"
             )
         step = routine.next_step(observation, facts)
-        dispatched = await runtime.perform(step["action"], observation)
+        dispatched = await runtime.perform(step["action"], observation, source="routine")
         after, facts = await perception.settle(observation)
         result = verifier.verify(step["after"], observation, after, facts)
         runtime.host.record("gameplay.outcome", result)

@@ -12,7 +12,7 @@ remain separate acceptance gates. See [gameplay](docs/gameplay.md).
 
 ## Setup
 
-Use Python 3.12, uv, and Codex CLI 0.162.1. Run commands from the repository root, or pass
+Use Python 3.12, uv, and Codex CLI 0.163.0. Run commands from the repository root, or pass
 `--project <project_root>`. Make the pinned Codex executable available on PATH; keep
 machine-specific executable paths out of committed configuration.
 

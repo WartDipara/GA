@@ -32,10 +32,16 @@ def strict_schema(schema):
         result["additionalProperties"] = False
     if "items" in result:
         result["items"] = strict_schema(result["items"])
+    for key in ("anyOf", "oneOf", "allOf"):
+        if key in result:
+            result[key] = [strict_schema(child) for child in result[key]]
     return result
 
 
 def restore_optional(value, schema):
+    for candidate in schema.get("anyOf", []):
+        if isinstance(value, dict) and candidate.get("type") == "object":
+            return restore_optional(value, candidate)
     if isinstance(value, dict):
         properties = schema.get("properties", {})
         required = schema.get("required", [])

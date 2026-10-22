@@ -6,8 +6,9 @@ from pathlib import Path
 from PIL import Image, ImageDraw
 from runtime import same_runtime, snapshot
 
-from game_automation.common import FrameworkError
+from game_automation.common import FrameworkError, digest
 from game_automation.errors import ErrorCode
+from game_automation.plugin_sdk.privacy import credential_regions
 
 
 def masked_image(data, rectangles):
@@ -64,26 +65,41 @@ async def capture(device, request):
     controls = await read_controls(device, display)
     rectangles = list(request["sensitive_regions"])
     rectangles.extend(
-        item["bounds"] for item in controls if item["sensitive"] or "[REDACTED]" in item["label"]
+        item["bounds"]
+        for item in controls
+        if item["sensitive"]
+        or "[REDACTED]" in item["label"]
+        or item["class_name"].endswith("EditText")
     )
     workspace = Path(request["workspace"]).resolve()
 
-    def transform(data):
-        return masked_image(data, rectangles)
-
-    image = await device.run(
-        "exec-out", "screencap", "-p", screenshot=workspace / "screen.png", transform=transform
-    )
+    captured = await device.run("exec-out", "screencap", "-p", raw=True)
+    recognized, matched_username = await credential_regions(captured["data"], device.credentials)
+    rectangles.extend(recognized)
+    sanitized = masked_image(captured["data"], rectangles)
+    with Image.open(io.BytesIO(sanitized)) as dimensions:
+        image = {
+            "image": {
+                "file_name": "screen.png",
+                "size_bytes": len(sanitized),
+                "sha256": digest(sanitized),
+                "width": dimensions.width,
+                "height": dimensions.height,
+            }
+        }
     after = await snapshot(device, request["package_name"])
     if not same_runtime(before, after):
         raise FrameworkError(ErrorCode.DEVICE_OBSERVATION_UNSTABLE)
     if (image["image"]["width"], image["image"]["height"]) != (display["width"], display["height"]):
         raise FrameworkError(ErrorCode.INVALID_SCREENSHOT)
+    workspace.mkdir(parents=True, exist_ok=True)
+    (workspace / "screen.png").write_bytes(sanitized)
     result = {
         "session": device.session,
         "runtime": after,
         "controls": controls,
         "screenshot": image["image"],
         "sensitive_regions": rectangles,
+        "credential_profile_match": matched_username,
     }
     return result

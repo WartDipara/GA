@@ -8,6 +8,7 @@ from game_automation.kernel.plugin_host import Host
 from game_automation.kernel.policy import ExecutionLock
 from game_automation.kernel.policy.storage import storage_settings
 from game_automation.observability import export_trace
+from game_automation.observability.gameplay import gameplay_report
 from game_automation.prompting import freeze, load
 
 from .device import observe_device, prepare_device
@@ -201,5 +202,7 @@ async def execute(store, run_id, source_file=None):
                 status = "failed"
             # Persistence failure must escape, not become a fabricated terminal record.
             store.transition(run_id, status, reason=error.as_dict())
+        if run["mode"] == "gameplay":
+            gameplay_report(store, run_id)
         export_trace(store, run_id)
         return store.run(run_id)

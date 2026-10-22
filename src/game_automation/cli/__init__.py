@@ -71,9 +71,15 @@ def parser():
     play.add_argument(
         "--goal",
         default="capture",
-        choices=["capture", "return-to-game", "activate-game", "routine"],
+        choices=["capture", "return-to-game", "activate-game", "routine", "login-and-interact"],
     )
     play.add_argument("--routine", type=Path, help="Guarded JSON routine, at most five steps")
+    play.add_argument(
+        "--max-turns",
+        type=int,
+        default=0,
+        help="Optional planning-turn boundary per invocation; zero means unlimited",
+    )
     runs = commands.add_parser("runs", help="List recent runs with their task subjects and states")
     runs.add_argument("--limit", type=int, default=20)
     resume = commands.add_parser("resume")
@@ -182,6 +188,8 @@ def main(argv=None):
             save_profile(root, args.profile, username, password)
             print_json({"saved": True, "profile": args.profile})
         elif args.command == "play":
+            if args.max_turns < 0:
+                raise FrameworkError(ErrorCode.INVALID_CONTRACT)
             routine = None
             if args.routine:
                 routine = json.loads(args.routine.read_text(encoding="utf-8"))
@@ -196,6 +204,7 @@ def main(argv=None):
                 args.credentials,
                 args.goal,
                 routine["steps"] if routine else None,
+                args.max_turns,
             )
             task_id = store.submit(task)
             run_id = new_run(store, task_id, "gameplay")
