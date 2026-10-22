@@ -32,6 +32,8 @@ def gameplay_report(store, run_id):
         "cache_invalidations": selected("gameplay.cache.invalidated"),
         "verified_business_goals": selected("gameplay.goal.completed"),
         "outcomes": selected("gameplay.outcome"),
+        "battle_progress": selected("gameplay.battle.observed"),
+        "stage_advances": selected("gameplay.battle.advanced"),
         "usage": selected("ai.usage") or None,
         "checkpoint": (selected("gameplay.checkpoint") or [None])[-1],
         "observations": [

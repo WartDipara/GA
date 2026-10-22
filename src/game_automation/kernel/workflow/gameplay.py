@@ -137,7 +137,17 @@ class DeviceRuntime:
             ),
             "credential_path": self.credential_path,
         }
-        result = await self.host.perform(request)
+        try:
+            result = await self.host.perform(request)
+        finally:
+            if not self.host.failure and not self.store.run(self.run_id)["cancel_requested"]:
+                log_request = {
+                    "session": self.session,
+                    "package_name": self.task["target"],
+                    "credential_path": self.credential_path,
+                }
+                logs = await self.host.call("device.logs", log_request, timeout=0)
+                self.host.record("gameplay.logs", logs)
         self.host.record(
             "gameplay.action.origin", {"action_id": result["action_id"], "source": source}
         )
@@ -189,6 +199,16 @@ async def play(store, run_id, host, manifest, task):
             and focused is not None
             and focused["package_name"] == task["target"]
         )
+        if can_reconcile and intent.get("action", {}).get("type") == "return":
+            before_main = intent["runtime"]["main_process"]
+            after_main = observation["runtime"]["main_process"]
+            can_reconcile = (
+                intent["runtime"]["boot_id"] == observation["runtime"]["boot_id"]
+                and before_main is not None
+                and all(
+                    before_main[key] == after_main[key] for key in ("pid", "uid", "start_ticks")
+                )
+            )
         passive_wait = intent.get("action", {}).get("type") == "wait"
         if previous["status"] == "prepared":
             store.finish_device_action(
@@ -258,6 +278,17 @@ async def play(store, run_id, host, manifest, task):
             and focused["package_name"] == task["target"]
         )
         result = {"observation_id": after["observation_id"], "verified": verified}
+        if action["type"] == "return":
+            before_main = observation["runtime"]["main_process"]
+            after_main = after["runtime"]["main_process"]
+            verified = (
+                verified
+                and before_main is not None
+                and all(
+                    before_main[key] == after_main[key] for key in ("pid", "uid", "start_ticks")
+                )
+            )
+            result["verified"] = verified
         host.record("gameplay.outcome", result)
         if not verified:
             raise FrameworkError(ErrorCode.GAMEPLAY_BLOCKED)

@@ -364,6 +364,53 @@
         "evidence_refs"
       ],
       "additionalProperties": false
+    },
+    "battle_progress": {
+      "type": "object",
+      "properties": {
+        "phase": {
+          "enum": [
+            "preparing",
+            "active",
+            "settlement",
+            "cleared",
+            "blocked",
+            "unknown"
+          ]
+        },
+        "stage": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "native_auto_observed": {
+          "type": "boolean"
+        },
+        "evidence_refs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "minItems": 1,
+          "maxItems": 10
+        },
+        "settlement_result": {
+          "enum": [
+            "victory",
+            "defeat",
+            "unknown"
+          ]
+        }
+      },
+      "required": [
+        "phase",
+        "stage",
+        "native_auto_observed",
+        "evidence_refs"
+      ],
+      "additionalProperties": false
     }
   },
   "required": [

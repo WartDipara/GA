@@ -375,7 +375,12 @@ class Store:
                 (instance_id,),
             ).fetchone()
             if pending:
-                raise FrameworkError(ErrorCode.DEVICE_INSTALL_UNKNOWN)
+                code = (
+                    ErrorCode.DEVICE_INSTALL_UNKNOWN
+                    if capability == "device.install"
+                    else ErrorCode.ACTION_ALREADY_DISPATCHED
+                )
+                raise FrameworkError(code)
             action_id = uid("action")
             details = {
                 "capability": capability,

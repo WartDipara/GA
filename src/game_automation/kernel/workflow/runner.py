@@ -19,6 +19,9 @@ from .intake import intake
 from .preprocessing import preprocess
 
 BLOCKED = {
+    ErrorCode.AI_OUTPUT_INVALID,
+    ErrorCode.AI_OUTPUT_MISSING,
+    ErrorCode.AI_TURN_FAILED,
     ErrorCode.CREDENTIAL_UNAVAILABLE,
     ErrorCode.GAMEPLAY_BLOCKED,
     ErrorCode.STALE_OBSERVATION,
