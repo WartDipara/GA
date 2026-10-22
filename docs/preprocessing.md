@@ -180,10 +180,13 @@ requiring its installation directory.
 | `versionName`, `versionCode` | Values reported by AAPT2, or null when absent                           |
 | `sizeBytes`, `sha256`        | Downloaded file size and content identity                               |
 
-Each workspace is `var/runs/<run_id>/apks/apk_<index>/`, containing `application.apk`,
+Each workspace is `var/tasks/<task_id>/executions/<run_id>/apks/apk_<index>/`, containing
+`application.apk`,
 `download.json`, `metadata.json`, and `work/tmp/`. A process handles one APK; work and temporary
 directories are separate for every item. This is filesystem and process isolation, not an OS sandbox
 or an isolated Android device. Remote filenames and package names never choose local paths.
+The task's `apks/index.json` points to these workspaces. Device preparation and gameplay inherit
+the preprocessing task; they do not create another business task or copy its APK.
 
 An OS-owned `workspace.lock` covers the complete item operation. A second worker cannot rewrite the
 same workspace while an earlier process still owns it, including during recovery after an

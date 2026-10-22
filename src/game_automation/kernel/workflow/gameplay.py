@@ -2,7 +2,6 @@
 
 import asyncio
 import json
-from pathlib import Path
 
 from game_automation.common import FrameworkError, digest, uid, within
 from game_automation.contracts import validate
@@ -260,7 +259,7 @@ async def play(store, run_id, host, manifest, task):
                 "observation_id": "interrupted-observation",
                 "action": intent["action"],
                 "expected_outcome": "Reconcile interrupted action",
-                "image_ref": Path(intent["observation_path"])
+                "image_ref": store.artifact_path(previous["run_id"], intent["observation_path"])
                 .relative_to(store.run_dir(previous["run_id"]))
                 .as_posix(),
             }

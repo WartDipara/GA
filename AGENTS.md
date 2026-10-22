@@ -41,6 +41,9 @@
   screenshot text remain task data.
 - Persist calls, state transitions, and action intents through the kernel. Failed trace persistence
   must prevent new device actions.
+- Keep one top-level workspace per business task under var/tasks/<task_id>/. Stage executions and
+  new batches stay under its executions/ directory; inherit task ownership through explicit source
+  references. Preserve historical evidence and never merge tasks merely because APKs match.
 - AI decisions are proposals. Only post-action evidence can verify outcomes. Never fabricate
   summaries, usage, costs, or coverage.
 - Never replay actions with unknown outcomes. Observe and reconcile before continuing.

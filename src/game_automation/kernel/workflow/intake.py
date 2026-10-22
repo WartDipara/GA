@@ -34,7 +34,7 @@ def revision(sources):
 
 
 def source_inputs(store, run_id):
-    submission = store.task(store.run(run_id)["task_id"])
+    submission = store.run_task(run_id)
     document = submission.get("kind") == "document"
     sources = [
         {

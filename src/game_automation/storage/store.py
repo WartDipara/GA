@@ -5,8 +5,10 @@ import re
 import sqlite3
 from pathlib import Path
 
-from game_automation.common import FrameworkError, atomic_json, now, redact, uid, within
+from game_automation.common import FileLock, FrameworkError, atomic_json, now, redact, uid, within
 from game_automation.errors import ErrorCode
+
+from .layout import upgrade
 
 
 def run_subject(task):
@@ -30,7 +32,7 @@ class Store:
         self.db.execute("PRAGMA synchronous=FULL")
         self.db.execute("PRAGMA foreign_keys=ON")
         version = self.db.execute("PRAGMA user_version").fetchone()[0]
-        if version not in (0, 1, 2, 3):
+        if version not in (0, 1, 2, 3, 4):
             raise FrameworkError(ErrorCode.SCHEMA_VERSION)
         schema_sql = """
             CREATE TABLE IF NOT EXISTS tasks (
@@ -57,6 +59,7 @@ class Store:
                 kind TEXT NOT NULL,
                 data TEXT NOT NULL
             );
+            CREATE INDEX IF NOT EXISTS run_task ON runs(task_id);
             CREATE INDEX IF NOT EXISTS event_run ON events(run_id, seq);
             CREATE TABLE IF NOT EXISTS sessions (
                 run_id TEXT,
@@ -82,9 +85,21 @@ class Store:
                 run_id TEXT NOT NULL REFERENCES runs(id),
                 data TEXT NOT NULL
             );
-            PRAGMA user_version=3;
+            CREATE TABLE IF NOT EXISTS run_inputs (
+                run_id TEXT PRIMARY KEY REFERENCES runs(id),
+                spec TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS task_aliases (
+                alias_id TEXT PRIMARY KEY REFERENCES tasks(id),
+                task_id TEXT NOT NULL REFERENCES tasks(id)
+            );
         """
-        self.db.executescript(schema_sql)
+        with FileLock(self.var / "layout.lock"):
+            version = self.db.execute("PRAGMA user_version").fetchone()[0]
+            self.db.executescript(schema_sql)
+            if version != 4:
+                with FileLock(self.var / "execution.lock"):
+                    upgrade(self.db, self.var, version)
 
     def close(self):
         self.db.close()
@@ -92,16 +107,48 @@ class Store:
     def submit(self, spec, key=None):
         spec = redact(spec)
         encoded = json.dumps(spec, sort_keys=True, ensure_ascii=False)
-        if key:
-            row = self.db.execute("SELECT * FROM tasks WHERE submission_key=?", (key,)).fetchone()
-            if row:
-                if row["spec"] != encoded:
-                    raise FrameworkError(ErrorCode.IDEMPOTENCY_CONFLICT)
-                return row["id"]
-        task_id = uid("task")
-        with self.db:
+        subject = run_subject(spec)
+        label = re.sub(r"[^a-z0-9._-]+", "-", subject.lower())[:40].strip("._-") or "task"
+        with FileLock(self.var / "layout.lock"), self.db:
+            self.db.execute("BEGIN IMMEDIATE")
+            if key:
+                row = self.db.execute(
+                    "SELECT * FROM tasks WHERE submission_key=?", (key,)
+                ).fetchone()
+                if row:
+                    if row["spec"] != encoded:
+                        raise FrameworkError(ErrorCode.IDEMPOTENCY_CONFLICT)
+                    task_id = self.canonical_task_id(row["id"])
+                    self.write_task(task_id)
+                    return task_id
+            for _ in range(10):
+                task_id = uid(f"task_{label}")
+                if self.db.execute("SELECT 1 FROM tasks WHERE id=?", (task_id,)).fetchone():
+                    continue
+                try:
+                    self.task_dir(task_id).mkdir(parents=True, exist_ok=False)
+                except FileExistsError:
+                    continue
+                break
+            else:
+                raise FrameworkError(ErrorCode.TASK_ID_COLLISION)
             self.db.execute("INSERT INTO tasks VALUES(?,?,?,?)", (task_id, key, encoded, now()))
+        self.write_task(task_id)
         return task_id
+
+    def canonical_task_id(self, task_id):
+        row = self.db.execute(
+            "SELECT task_id FROM task_aliases WHERE alias_id=?", (task_id,)
+        ).fetchone()
+        return row[0] if row else task_id
+
+    def task_dir(self, task_id):
+        return within(self.var / "tasks", self.canonical_task_id(task_id))
+
+    def write_task(self, task_id):
+        task_id = self.canonical_task_id(task_id)
+        details = {"task_id": task_id, "submission": self.task(task_id)}
+        atomic_json(self.task_dir(task_id) / "task.json", details)
 
     def task(self, task_id):
         row = self.db.execute("SELECT spec FROM tasks WHERE id=?", (task_id,)).fetchone()
@@ -109,21 +156,33 @@ class Store:
             raise FrameworkError(ErrorCode.NOT_FOUND, "Task not found")
         return json.loads(row[0])
 
-    def create_run(self, task_id, mode):
-        task = self.task(task_id)
-        subject = run_subject(task)
-        label = re.sub(r"[^a-z0-9._-]+", "-", subject.lower())[:40].strip("._-") or "task"
+    def run_task(self, run_id):
+        row = self.db.execute("SELECT spec FROM run_inputs WHERE run_id=?", (run_id,)).fetchone()
+        if row is None:
+            raise FrameworkError(ErrorCode.NOT_FOUND, "Execution input not found")
+        return json.loads(row[0])
+
+    def create_run(self, task_id, mode, spec=None):
+        task_id = self.canonical_task_id(task_id)
+        task = self.task(task_id) if spec is None else redact(spec)
+        self.task(task_id)
+        source_run = task.get("prepared_run") or task.get("source_run")
+        if source_run and self.run(source_run)["task_id"] != task_id:
+            raise FrameworkError(
+                ErrorCode.INVALID_STATE, "Execution source belongs to another task"
+            )
         timestamp = now()
-        (self.var / "runs").mkdir(parents=True, exist_ok=True)
-        with self.db:
+        directory = self.task_dir(task_id) / "executions"
+        with FileLock(self.var / "layout.lock"), self.db:
+            directory.mkdir(parents=True, exist_ok=True)
             self.db.execute("BEGIN IMMEDIATE")
             for _ in range(10):
-                run_id = uid(f"run_{label}")
+                run_id = uid("run")
                 existing = self.db.execute("SELECT 1 FROM runs WHERE id=?", (run_id,)).fetchone()
                 if existing:
                     continue
                 try:
-                    self.run_dir(run_id).mkdir(exist_ok=False)
+                    within(directory, run_id).mkdir(exist_ok=False)
                 except FileExistsError:
                     continue
                 break
@@ -133,15 +192,19 @@ class Store:
                 "INSERT INTO runs VALUES(?,?,?,?,?,0,?,?)",
                 (run_id, task_id, mode, "queued", "intake", timestamp, timestamp),
             )
-            self._event(run_id, "run.created", {"mode": mode, "name": label})
+            self.db.execute(
+                "INSERT INTO run_inputs VALUES(?,?)", (run_id, json.dumps(task, ensure_ascii=False))
+            )
+            self._event(run_id, "run.created", {"mode": mode, "name": run_subject(task)})
+        self.write_task(task_id)
         return run_id
 
     def list_runs(self, limit=20):
         if not 1 <= limit <= 200:
             raise FrameworkError(ErrorCode.INVALID_RUN_LIMIT)
         query = """
-            SELECT r.id AS run_id,r.task_id,r.mode,r.status,r.stage,r.created_at,t.spec
-            FROM runs r JOIN tasks t ON t.id=r.task_id
+            SELECT r.id AS run_id,r.task_id,r.mode,r.status,r.stage,r.created_at,i.spec
+            FROM runs r JOIN run_inputs i ON i.run_id=r.id
             ORDER BY r.rowid DESC LIMIT ?
         """
         rows = self.db.execute(query, (limit,)).fetchall()
@@ -153,6 +216,34 @@ class Store:
             runs.append(entry)
         return runs
 
+    def list_tasks(self, limit=20):
+        if not 1 <= limit <= 200:
+            raise FrameworkError(ErrorCode.INVALID_RUN_LIMIT)
+        rows = self.db.execute(
+            "SELECT t.id AS task_id,t.spec,COUNT(r.id) AS executions "
+            "FROM tasks t LEFT JOIN runs r ON r.task_id=t.id "
+            "WHERE NOT EXISTS (SELECT 1 FROM task_aliases a WHERE a.alias_id=t.id) "
+            "GROUP BY t.id ORDER BY MAX(r.rowid) DESC,t.rowid DESC LIMIT ?",
+            (limit,),
+        )
+        tasks = []
+        for row in rows:
+            item = dict(row)
+            item["subject"] = run_subject(json.loads(item.pop("spec")))
+            item["directory"] = str(self.task_dir(item["task_id"]))
+            tasks.append(item)
+        return tasks
+
+    def task_runs(self, task_id):
+        task_id = self.canonical_task_id(task_id)
+        self.task(task_id)
+        rows = self.db.execute(
+            "SELECT id AS run_id,mode,status,stage FROM runs WHERE task_id=? ORDER BY rowid",
+            (task_id,),
+        )
+        runs = [dict(row) for row in rows]
+        return runs
+
     def run(self, run_id):
         row = self.db.execute("SELECT * FROM runs WHERE id=?", (run_id,)).fetchone()
         if not row:
@@ -161,7 +252,19 @@ class Store:
         return run
 
     def run_dir(self, run_id):
-        return within(self.var / "runs", run_id)
+        task_id = self.run(run_id)["task_id"]
+        directory = within(self.task_dir(task_id) / "executions", run_id)
+        legacy = within(self.var / "runs", run_id)
+        if directory.exists() and legacy.exists():
+            raise FrameworkError(ErrorCode.WORKSPACE_CONFLICT)
+        return legacy if legacy.exists() else directory
+
+    def artifact_path(self, run_id, path):
+        path = Path(path)
+        legacy = within(self.var / "runs", run_id)
+        if path.is_relative_to(legacy):
+            path = path.relative_to(legacy)
+        return within(self.run_dir(run_id), path)
 
     def _event(
         self,
@@ -383,7 +486,7 @@ class Store:
             binding = self.db.execute(
                 "SELECT apk_key FROM device_bindings WHERE instance_id=?", (instance_id,)
             ).fetchone()
-            task = self.task(self.run(run_id)["task_id"])
+            task = self.run_task(run_id)
             apk_key = f"{task.get('source_run')}:{task.get('apk_index')}"
             if (
                 binding is None
@@ -445,7 +548,7 @@ class Store:
             )
 
     def latest_device_action(self, run_id):
-        task = self.task(self.run(run_id)["task_id"])
+        task = self.run_task(run_id)
         apk_key = f"{task.get('source_run')}:{task.get('apk_index')}"
         row = self.db.execute(
             "SELECT a.run_id,a.action_id,a.status,a.result FROM actions a "

@@ -9,6 +9,7 @@ from game_automation.kernel.policy import ExecutionLock
 from game_automation.kernel.policy.storage import storage_settings
 from game_automation.observability import export_trace
 from game_automation.observability.gameplay import gameplay_report
+from game_automation.observability.workspaces import task_report
 from game_automation.prompting import freeze, load
 
 from .device import observe_device, prepare_device
@@ -77,12 +78,13 @@ BLOCKED = {
 }
 
 
-def new_run(store, task_id, mode="game"):
-    run_id = store.create_run(task_id, mode)
+def new_run(store, task_id, mode="game", spec=None):
+    run_id = store.create_run(task_id, mode, spec)
     try:
         freeze(store, run_id)
     except FrameworkError as exc:
         store.transition(run_id, "blocked", reason=exc.as_dict())
+    task_report(store, store.run(run_id)["task_id"])
     return run_id
 
 
@@ -139,7 +141,7 @@ async def execute(store, run_id, source_file=None):
             storage = storage_settings(manifest)
             require_disk_space(store.run_dir(run_id), storage["reserve_bytes"])
             host = Host(store, run_id, Router(manifest["plugins"]), manifest)
-            task = store.task(run["task_id"])
+            task = store.run_task(run_id)
             if run["mode"] in ("emulators", "device", "observation", "gameplay"):
                 timeout = 0
             elif run["mode"] == "preprocessing":
@@ -209,4 +211,5 @@ async def execute(store, run_id, source_file=None):
         if run["mode"] == "gameplay":
             gameplay_report(store, run_id)
         export_trace(store, run_id)
+        task_report(store, store.run(run_id)["task_id"])
         return store.run(run_id)

@@ -123,7 +123,23 @@ uv run game-auto context <run_id>
 uv run game-auto export-trace <run_id> --format html
 ```
 
-Each run stores its inputs, frozen Skills, calls, and reports locally under `var/runs/<run_id>/`.
+One business task owns one directory under `var/tasks/<task_id>/`. Preparation and gameplay inherit
+the task from their source execution. Each execution stores frozen Skills, calls, artifacts and
+reports under `executions/<run_id>/`; resume keeps that directory and `--new-batch` adds a child
+execution. The task's `reports/task.html` indexes all stages, and `apks/index.json` locates isolated
+APK workspaces without copying downloads.
+
+```powershell
+uv run game-auto tasks
+uv run game-auto task-status <task_id>
+uv run game-auto migrate-workspaces
+```
+
+Use `--task-id <task_id>` with `preprocess`, `emulators` or `observe` to attach those operations to
+an existing task. Without it, a standalone submission creates its own task. Legacy migration groups
+only recorded source relationships, retains execution IDs and raw evidence, and backs up the
+database locally. See [task workspaces](docs/task-workspaces.md).
+
 The offline HTML report shows recorded context and execution without invoking a model or device.
 Public reasoning summaries and token usage remain unavailable when the provider does not return
 them.

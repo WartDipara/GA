@@ -9,11 +9,11 @@ uv run game-auto runs --limit 20
 Each entry includes its ID, task subject, mode, status, stage, and creation time. Both historical
 UUID IDs and new readable IDs appear in the list.
 
-APK batches use `run_<count>-apks_<execution_id>`, such as
-`run_3-apks_6e57a22c87834f148609dc70dc91ab26`. The suffix is a fresh full UUID4 in 32-character
-hexadecimal form for each execution. It is independent of the submission task_id, so repeated runs
-of one task receive different directories. Other run types use their target package or document
-filename stem as the subject. There is no timestamp, mode prefix, custom name, or sequence suffix.
+Use `game-auto tasks` to locate a business task, then `game-auto task-status <task_id>` to rebuild
+its stage index. Task folders live under `var/tasks/<task_id>/`; every execution is a child under
+`executions/<run_id>/`. New task IDs contain the initial APK count, target or document stem plus a
+full UUID4. New execution IDs use `run_<uuid4>`. Historical IDs stay unchanged after migration.
+There is no timestamp or sequence suffix. Different tasks with the same APK remain separate.
 
 Allocation checks existing database IDs under an immediate write transaction and creates the
 directory exclusively before recording the run. A collision with a database entry or existing
