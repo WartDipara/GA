@@ -12,7 +12,7 @@ from .layout import upgrade
 
 
 def run_subject(task):
-    if task.get("kind") == "apk_batch":
+    if task.get("kind") in ("apk_batch", "apk_workflow"):
         return f"{len(task['source_ids'])}-apks"
     if task.get("kind") == "document":
         return Path(task["filename"]).stem

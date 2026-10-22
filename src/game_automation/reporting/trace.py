@@ -16,7 +16,7 @@ def export_trace(store, run_id):
 
         return export_compact(store, run_id)
     events = store.events(run_id)
-    start_kinds = ("call.started", "gameplay.step.started")
+    start_kinds = ("call.started", "gameplay.step.started", "workflow.stage.started")
     spans = {event["span_id"]: event for event in events if event["kind"] in start_kinds}
     children = {}
     for span, event in spans.items():
@@ -29,6 +29,14 @@ def export_trace(store, run_id):
         payload = event["payload"]
         content = html.escape(json.dumps(payload, ensure_ascii=False, indent=2))
         artifacts = []
+        child_run = payload.get("child_run")
+        if (
+            event["kind"].startswith("workflow.stage.")
+            and child_run
+            and store.run(child_run)["task_id"] == store.run(run_id)["task_id"]
+        ):
+            child_link = html.escape(f"../../{child_run}/reports/trace.html", quote=True)
+            artifacts.append(f'<p><a href="{child_link}">Open stage trace</a></p>')
         for key in ("input_ref", "output_ref", "evidence_ref", "context_ref"):
             relative = payload.get(key)
             if isinstance(relative, str):

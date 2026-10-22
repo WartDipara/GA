@@ -159,7 +159,8 @@ async def preprocess(store, run_id, host, manifest, submission, source_file):
         current = read_batch(source_file, contracts)
     except (OSError, ValueError, FrameworkError) as exc:
         raise FrameworkError(ErrorCode.APK_INPUT_REQUIRED) from exc
-    if current != submission:
+    submitted_batch = {key: submission.get(key) for key in current}
+    if current != submitted_batch:
         raise FrameworkError(
             ErrorCode.APK_SOURCE_CHANGED,
             "APK list differs from this batch; use the original list or create a new batch",
