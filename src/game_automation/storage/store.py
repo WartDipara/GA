@@ -22,10 +22,13 @@ def run_subject(task):
 class Store:
     """Only the kernel owns this database. Events and state commit together."""
 
-    def __init__(self, root: Path):
+    def __init__(self, root: Path, *, allow_cleanup=False):
         self.root = root.resolve()
         self.var = self.root / "var"
         self.var.mkdir(parents=True, exist_ok=True)
+        self.cleanup_journal = self.var / "cleanup/pending.json"
+        if not allow_cleanup:
+            self.check_cleanup()
         self.db = sqlite3.connect(self.var / "state.sqlite")
         self.db.row_factory = sqlite3.Row
         self.db.execute("PRAGMA journal_mode=WAL")
@@ -95,6 +98,8 @@ class Store:
             );
         """
         with FileLock(self.var / "layout.lock"):
+            if not allow_cleanup:
+                self.check_cleanup()
             version = self.db.execute("PRAGMA user_version").fetchone()[0]
             self.db.executescript(schema_sql)
             if version != 4:
@@ -104,12 +109,17 @@ class Store:
     def close(self):
         self.db.close()
 
+    def check_cleanup(self):
+        if self.cleanup_journal.exists():
+            raise FrameworkError(ErrorCode.CLEANUP_PENDING)
+
     def submit(self, spec, key=None):
         spec = redact(spec)
         encoded = json.dumps(spec, sort_keys=True, ensure_ascii=False)
         subject = run_subject(spec)
         label = re.sub(r"[^a-z0-9._-]+", "-", subject.lower())[:40].strip("._-") or "task"
         with FileLock(self.var / "layout.lock"), self.db:
+            self.check_cleanup()
             self.db.execute("BEGIN IMMEDIATE")
             if key:
                 row = self.db.execute(
@@ -133,7 +143,7 @@ class Store:
             else:
                 raise FrameworkError(ErrorCode.TASK_ID_COLLISION)
             self.db.execute("INSERT INTO tasks VALUES(?,?,?,?)", (task_id, key, encoded, now()))
-        self.write_task(task_id)
+            self.write_task(task_id)
         return task_id
 
     def canonical_task_id(self, task_id):
@@ -174,6 +184,7 @@ class Store:
         timestamp = now()
         directory = self.task_dir(task_id) / "executions"
         with FileLock(self.var / "layout.lock"), self.db:
+            self.check_cleanup()
             directory.mkdir(parents=True, exist_ok=True)
             self.db.execute("BEGIN IMMEDIATE")
             for _ in range(10):
@@ -196,7 +207,7 @@ class Store:
                 "INSERT INTO run_inputs VALUES(?,?)", (run_id, json.dumps(task, ensure_ascii=False))
             )
             self._event(run_id, "run.created", {"mode": mode, "name": run_subject(task)})
-        self.write_task(task_id)
+            self.write_task(task_id)
         return run_id
 
     def list_runs(self, limit=20):
