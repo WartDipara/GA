@@ -202,6 +202,8 @@ async def run_hybrid(runtime, manifest, observation):
         before = observation
         try:
             dispatched = await runtime.perform(action, observation, source="planner")
+            progress["planner_coordinate_action_dispatched"] = True
+            planner.mapping_untried = False
         except FrameworkError as exc:
             if exc.code != ErrorCode.STALE_OBSERVATION:
                 raise

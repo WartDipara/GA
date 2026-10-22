@@ -30,7 +30,11 @@ def task_snapshot(store, task_id):
         execution["apk_name"] = inputs.get("metadata", {}).get("apkName")
     rows = store.db.execute(
         "SELECT e.seq,e.data FROM events e JOIN runs r ON r.id=e.run_id "
-        "WHERE r.task_id=? ORDER BY e.seq DESC LIMIT 200",
+        "WHERE r.task_id=? "
+        "AND e.kind NOT IN ('rpc.in','rpc.out','provider.wire','ai.progress',"
+        "'ai.reasoning_summary') "
+        "AND e.kind NOT LIKE 'plugin.%.command.%' "
+        "ORDER BY e.seq DESC LIMIT 200",
         (task_id,),
     )
     events = []
@@ -65,12 +69,13 @@ def task_snapshot(store, task_id):
 def viewer_document(interval):
     assets = Path(__file__).parent / "web"
     script = (assets / "live.js").read_text(encoding="utf-8")
+    script_element = f"<script>{script}</script>"
     script_hash = b64encode(hashlib.sha256(script.encode()).digest()).decode("ascii")
     template = Template((assets / "live.template.html").read_text(encoding="utf-8"))
     document = template.substitute(
         interval=interval,
         script_hash=script_hash,
-        script=script,
+        script_element=script_element,
         style=(assets / "live.css").read_text(encoding="utf-8"),
     )
     return document

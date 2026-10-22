@@ -275,7 +275,9 @@ class CodexAdapter:
                     json.loads(list(messages.values())[-1]), params["turn"]["outputSchema"]
                 )
             except ValueError as exc:
-                raise FrameworkError(ErrorCode.AI_OUTPUT_INVALID) from exc
+                raise FrameworkError(
+                    ErrorCode.AI_OUTPUT_INVALID, "Final message is not valid JSON"
+                ) from exc
             await self.emit("ai.summary_availability", {"available": bool(summaries)})
             decision_result = {
                 "decision": decision,
