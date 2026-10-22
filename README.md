@@ -48,10 +48,10 @@ coverage.
 Submit a private JSON file containing `{"apkUrls": ["https://example.com/game.apk"]}`:
 
 ```powershell
-uv run game-auto preprocess --input var/apks.json
+uv run game-auto preprocess --input var/inputs/apks.json
 uv run game-auto runs --limit 20
 uv run game-auto status <run_id>
-uv run game-auto resume <run_id> --input var/apks.json
+uv run game-auto resume <run_id> --input var/inputs/apks.json
 ```
 
 Five APK workers process the list concurrently; additional entries wait in FIFO order. Each APK
@@ -165,6 +165,7 @@ them.
 | `var/`                 | Private local runtime data, excluded from Git            |
 
 See [source layout](docs/project-layout.md) for module ownership, report assets and package rules.
+See [runtime data](docs/runtime-data.md) for inputs, logs, temporary files and persistent state.
 
 ## Development
 
@@ -179,7 +180,7 @@ push destinations.
 Verification is compilation only. Do not add or run mock or smoke tests.
 
 ```powershell
-$env:PYTHONPYCACHEPREFIX = Join-Path (Get-Location) "var/bytecode"
+$env:PYTHONPYCACHEPREFIX = Join-Path (Get-Location) "var/cache/bytecode"
 uv run python -m compileall -q src plugins
 node --check src/game_automation/reporting/web/dashboard.js
 ```

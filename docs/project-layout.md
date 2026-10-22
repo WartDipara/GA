@@ -71,3 +71,5 @@ v1 filenames, avoiding a directory-only protocol change. Configuration bindings 
 Code relocation changes pinned source hashes. Existing executions still need `--new-batch` after an
 implementation update. This organization change does not rewrite task records, credentials or old
 evidence. See [task workspaces](task-workspaces.md) and [cleanup](cleanup.md) for local runtime data.
+The [runtime data layout](runtime-data.md) separates shared operational logs, inputs, caches and
+temporary developer output from persistent task state.

@@ -34,7 +34,8 @@ junctions are rejected. `--all` includes unregistered children in those two loca
 never uninstalls games, changes emulator data or performs a device action.
 
 Credentials in `var/secrets/`, migration backups, shared Skills/contracts, other local inputs,
-development files and logs elsewhere in `var/` are preserved. Migration backups can retain deleted
+development files under `var/tmp/`, inputs under `var/inputs/`, and logs under `var/logs/` are
+preserved. Migration backups can retain deleted
 historical data and continue occupying space; this command does not erase them.
 
 ## Interruption and ownership
