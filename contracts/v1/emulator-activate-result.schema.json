@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://game-automation.local/contracts/v1/emulator-activate-result",
+  "type": "object",
+  "properties": {
+    "activated": {
+      "const": true
+    }
+  },
+  "required": [
+    "activated"
+  ],
+  "additionalProperties": false
+}

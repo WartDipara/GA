@@ -32,7 +32,13 @@ async def inspect(device, request):
     rows = [line.split() for line in disk["stdout"].splitlines() if line.strip()]
     try:
         row = rows[-1]
-        if len(row) != 6 or not row[3].isdigit() or not row[4].endswith("%") or row[-1] != "/data":
+        # A bind mount may report another mountpoint on the queried /data filesystem.
+        if (
+            len(row) != 6
+            or not row[3].isdigit()
+            or not row[4].endswith("%")
+            or not row[-1].startswith("/")
+        ):
             raise ValueError
         available = int(row[3]) * 1024
     except (IndexError, ValueError) as exc:

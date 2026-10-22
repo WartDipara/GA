@@ -5,9 +5,10 @@ decisions, actions, and evidence behind them.
 
 APK preprocessing, task intake, Android environment checks, MuMu discovery and screenshots, bound
 APK preparation, focused-display observations, independent process plugins, frozen runtime Skills,
-Codex integration, and offline trace inspection are implemented. Installation and observation
-workflow acceptance remains pending. General input control, game launch, visual recognition,
-exploration, and game coverage reporting remain planned capabilities.
+Codex integration, and offline trace inspection are implemented. The gameplay runtime adds explicit
+installed-APK adoption, protected credential references, guarded actions, checkpoints and scoped
+logcat. A real task verified adoption and foreground return; autonomous gameplay and coverage
+remain separate acceptance gates. See [gameplay](docs/gameplay.md).
 
 ## Setup
 

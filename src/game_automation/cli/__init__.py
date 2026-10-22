@@ -1,5 +1,6 @@
 import argparse
 import asyncio
+import getpass
 import json
 import sys
 import time
@@ -10,9 +11,11 @@ from game_automation.contracts import validate
 from game_automation.errors import ErrorCode
 from game_automation.kernel.workflow import execute, new_run
 from game_automation.kernel.workflow.device import preparation_task
+from game_automation.kernel.workflow.gameplay import gameplay_task
 from game_automation.kernel.workflow.intake import intake_status, read_document
 from game_automation.kernel.workflow.preprocessing import preprocessing_status, read_batch
 from game_automation.observability import build_insights, export_trace
+from game_automation.plugin_sdk.credentials import save_profile
 from game_automation.storage import Store
 
 
@@ -53,6 +56,21 @@ def parser():
     device.add_argument("--from-run", required=True, help="Preprocessing run ID")
     device.add_argument("--apk-index", type=int, required=True, help="Zero-based APK list index")
     device.add_argument("--instance", type=int, required=True, help="Dedicated MuMu instance index")
+    device.add_argument(
+        "--adopt-existing",
+        action="store_true",
+        help="Bind an installed matching APK without reinstalling",
+    )
+    credentials = commands.add_parser(
+        "credentials", help="Save credentials in the local DPAPI vault"
+    )
+    credentials.add_argument("profile", help="Local credential reference")
+    play = commands.add_parser("play", help="Execute a gameplay task in a prepared workspace")
+    play.add_argument("--prepared-run", required=True)
+    play.add_argument("--credentials", default="default", help="Local credential reference")
+    play.add_argument(
+        "--goal", default="capture", choices=["capture", "return-to-game", "activate-game"]
+    )
     runs = commands.add_parser("runs", help="List recent runs with their task subjects and states")
     runs.add_argument("--limit", type=int, default=20)
     resume = commands.add_parser("resume")
@@ -155,7 +173,19 @@ def main(argv=None):
         if not (root / "config/application.toml").is_file():
             raise FrameworkError(ErrorCode.PROJECT_NOT_FOUND)
         store = Store(root)
-        if args.command == "submit":
+        if args.command == "credentials":
+            username = getpass.getpass("Username (hidden): ")
+            password = getpass.getpass("Password (hidden): ")
+            save_profile(root, args.profile, username, password)
+            print_json({"saved": True, "profile": args.profile})
+        elif args.command == "play":
+            task = gameplay_task(store, args.prepared_run, args.credentials, args.goal)
+            task_id = store.submit(task)
+            run_id = new_run(store, task_id, "gameplay")
+            print_json({"task_id": task_id, "run_id": run_id})
+            asyncio.run(execute(store, run_id))
+            return execution_result(store, run_id)
+        elif args.command == "submit":
             task = (
                 read_document(args.document)
                 if args.document
@@ -184,7 +214,9 @@ def main(argv=None):
             if args.instance < 0:
                 raise FrameworkError(ErrorCode.DEVICE_SELECTION_REQUIRED)
             if args.command == "prepare-device":
-                task = preparation_task(store, args.from_run, args.apk_index, args.instance)
+                task = preparation_task(
+                    store, args.from_run, args.apk_index, args.instance, args.adopt_existing
+                )
                 mode = "device"
             else:
                 task = {

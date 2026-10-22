@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://game-automation.local/contracts/v1/device-logs-result",
+  "type": "object",
+  "properties": {
+    "boot_id": {
+      "type": "string",
+      "maxLength": 2000
+    },
+    "windows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "process": {
+            "type": "object",
+            "properties": {
+              "pid": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "uid": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "name": {
+                "type": "string",
+                "maxLength": 2000
+              },
+              "state": {
+                "type": "string",
+                "maxLength": 2000
+              },
+              "start_ticks": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "pid",
+              "uid",
+              "name",
+              "state",
+              "start_ticks"
+            ],
+            "additionalProperties": false
+          },
+          "text": {
+            "type": "string"
+          },
+          "available": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "process",
+          "text",
+          "available"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "lifetime_stable": {
+      "type": "boolean"
+    },
+    "scope": {
+      "type": "string",
+      "maxLength": 2000
+    }
+  },
+  "required": [
+    "boot_id",
+    "windows",
+    "lifetime_stable",
+    "scope"
+  ],
+  "additionalProperties": false
+}

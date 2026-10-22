@@ -44,8 +44,11 @@
 - AI decisions are proposals. Only post-action evidence can verify outcomes. Never fabricate
   summaries, usage, costs, or coverage.
 - Never replay actions with unknown outcomes. Observe and reconcile before continuing.
-- Do not store passwords or tokens. Keep local runtime data under var/ and out of Git. Do not upload
-  screenshots automatically.
+- Store test credentials only in the current Windows user's DPAPI-encrypted local vault. Never
+  include plaintext credentials in arguments, prompts, traces, screenshots, or tracked files.
+  Keep runtime data under var/. Only sanitized task screenshots may be sent to the selected model.
+- Development verification remains compilation only. Explicitly requested, bounded real game tasks
+  are business executions with recorded evidence, not mock, smoke, or synthetic inference tests.
 - Pin Codex and keep provider details inside its adapter. Review protocol changes before an upgrade;
   do not make inference calls just to verify a code change.
 - Keep publication settings in local Git configuration. Publish to the configured push destinations

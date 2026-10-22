@@ -21,6 +21,7 @@ class Commands:
         self.peer = peer
         self.timeout = timeout
         self.namespace = namespace
+        self.sanitize = lambda text: text
 
     async def event(self, kind, payload):
         request = {"kind": f"plugin.{self.namespace}.{kind}", "payload": payload}
@@ -28,7 +29,17 @@ class Commands:
         if result != {"persisted": True}:
             raise FrameworkError(ErrorCode.TRACE_UNAVAILABLE)
 
-    async def run(self, command, *, screenshot=None, allow_failure=False):
+    async def run(
+        self,
+        command,
+        *,
+        screenshot=None,
+        allow_failure=False,
+        stdin=None,
+        transform=None,
+        sensitive=False,
+        raw=False,
+    ):
         command_id = uid("cmd")
         details = {"command_id": command_id, "arguments": command}
         await self.event("command.started", details)
@@ -39,7 +50,11 @@ class Commands:
         try:
             async with asyncio.timeout(self.timeout):
                 process = await spawn(command)
-                limit = 16 * 1024 * 1024 if screenshot else 1024 * 1024
+                if stdin is not None:
+                    process.stdin.write(stdin)
+                    await process.stdin.drain()
+                    process.stdin.close()
+                limit = 16 * 1024 * 1024 if screenshot or raw else 1024 * 1024
                 readers = [
                     asyncio.create_task(read_limited(process.stdout, limit)),
                     asyncio.create_task(read_limited(process.stderr, 65536)),
@@ -47,8 +62,13 @@ class Commands:
                 stdout, stderr = await asyncio.gather(*readers)
                 await process.wait()
             result["exit_code"] = process.returncode
-            result["stderr"] = stderr.decode("utf-8", errors="replace")
+            result["stderr"] = self.sanitize(stderr.decode("utf-8", errors="replace"))
+            if sensitive:
+                stdout = b""
+                result["stderr"] = "[Sensitive command output suppressed]"
             if screenshot and process.returncode == 0:
+                if transform:
+                    stdout = transform(stdout)
                 width, height = png_dimensions(stdout[:24])
                 screenshot.parent.mkdir(parents=True, exist_ok=True)
                 screenshot.write_bytes(stdout)
@@ -59,12 +79,14 @@ class Commands:
                     "width": width,
                     "height": height,
                 }
-            else:
-                result["stdout"] = stdout.decode("utf-8", errors="replace")
+            elif not raw:
+                result["stdout"] = self.sanitize(stdout.decode("utf-8", errors="replace"))
             result["duration_ms"] = round((time.monotonic() - started) * 1000)
             if process.returncode != 0 and not allow_failure:
                 raise FrameworkError(ErrorCode.LOCAL_COMMAND_FAILED)
             await self.event("command.completed", result)
+            if raw:
+                result["data"] = stdout
             return result
         except BaseException as exc:
             if isinstance(exc, TimeoutError):

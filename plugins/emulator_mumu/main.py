@@ -151,6 +151,31 @@ async def session(peer, request):
     return result
 
 
+async def activate(peer, request):
+    await session(peer, request["session"])
+    commands = Commands(peer, request["session"]["command_timeout_seconds"], namespace="mumu")
+    tools = await resolve_tools(commands, request["session"])
+    command = [
+        tools["manager"],
+        "control",
+        "-v",
+        str(request["session"]["instance_index"]),
+        "app",
+        "launch",
+        "-pkg",
+        request["package_name"],
+    ]
+    output = await commands.run(command)
+    try:
+        outcome = json.loads(output["stdout"])
+        if outcome["errcode"] != 0:
+            raise ValueError
+    except (ValueError, KeyError, TypeError) as exc:
+        raise FrameworkError(ErrorCode.LOCAL_COMMAND_FAILED) from exc
+    result = {"activated": True}
+    return result
+
+
 def create_handler(peer):
     async def handler(method, params):
         if method == "initialize":
@@ -159,7 +184,11 @@ def create_handler(peer):
         if method == "health":
             result = {"ok": True}
             return result
-        handlers = {"emulator.discover": discover, "emulator.session": session}
+        handlers = {
+            "emulator.discover": discover,
+            "emulator.session": session,
+            "emulator.activate": activate,
+        }
         if method != "invoke" or params["capability"] not in handlers:
             raise FrameworkError(ErrorCode.METHOD_NOT_FOUND, method)
         return await handlers[params["capability"]](peer, params["input"])

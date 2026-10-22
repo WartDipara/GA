@@ -1,0 +1,311 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://game-automation.local/contracts/v1/device-capture-result",
+  "type": "object",
+  "properties": {
+    "session": {
+      "type": "object",
+      "properties": {
+        "instance_index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "instance_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "serial": {
+          "type": "string",
+          "minLength": 1
+        },
+        "adb_executable": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "instance_index",
+        "instance_id",
+        "serial",
+        "adb_executable"
+      ],
+      "additionalProperties": false
+    },
+    "runtime": {
+      "type": "object",
+      "properties": {
+        "boot_id": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "package_name": {
+          "type": "string",
+          "pattern": "^[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z][A-Za-z0-9_]*)+$"
+        },
+        "main_process": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "pid": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "uid": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "name": {
+                  "type": "string",
+                  "maxLength": 2000
+                },
+                "state": {
+                  "type": "string",
+                  "maxLength": 2000
+                },
+                "start_ticks": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              },
+              "required": [
+                "pid",
+                "uid",
+                "name",
+                "state",
+                "start_ticks"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "processes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "pid": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "uid": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "name": {
+                "type": "string",
+                "maxLength": 2000
+              },
+              "state": {
+                "type": "string",
+                "maxLength": 2000
+              },
+              "start_ticks": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "pid",
+              "uid",
+              "name",
+              "state",
+              "start_ticks"
+            ],
+            "additionalProperties": false
+          },
+          "maxItems": 100
+        },
+        "tasks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "task_id": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "display_id": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "task_id",
+              "display_id"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "alive": {
+          "type": "boolean"
+        },
+        "focused_display": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "display_id": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "rotation_degrees": {
+                  "enum": [
+                    0,
+                    90,
+                    180,
+                    270
+                  ]
+                },
+                "width": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 16384
+                },
+                "height": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 16384
+                },
+                "package_name": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z][A-Za-z0-9_]*)*$"
+                },
+                "activity": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "display_id",
+                "rotation_degrees",
+                "width",
+                "height",
+                "package_name",
+                "activity"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "boot_id",
+        "package_name",
+        "main_process",
+        "processes",
+        "tasks",
+        "alive",
+        "focused_display"
+      ],
+      "additionalProperties": false
+    },
+    "controls": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "resource_id": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "class_name": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "bounds": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "minItems": 4,
+            "maxItems": 4
+          },
+          "clickable": {
+            "type": "boolean"
+          },
+          "sensitive": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "resource_id",
+          "label",
+          "class_name",
+          "bounds",
+          "clickable",
+          "sensitive"
+        ],
+        "additionalProperties": false
+      },
+      "maxItems": 500
+    },
+    "screenshot": {
+      "type": "object",
+      "properties": {
+        "file_name": {
+          "const": "screen.png"
+        },
+        "size_bytes": {
+          "type": "integer",
+          "minimum": 24,
+          "maximum": 16777216
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "width": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 16384
+        },
+        "height": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 16384
+        }
+      },
+      "required": [
+        "file_name",
+        "size_bytes",
+        "sha256",
+        "width",
+        "height"
+      ],
+      "additionalProperties": false
+    },
+    "sensitive_regions": {
+      "type": "array",
+      "items": {
+        "type": "array",
+        "items": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "minItems": 4,
+        "maxItems": 4
+      },
+      "maxItems": 30
+    }
+  },
+  "required": [
+    "session",
+    "runtime",
+    "controls",
+    "screenshot",
+    "sensitive_regions"
+  ],
+  "additionalProperties": false
+}
