@@ -30,6 +30,12 @@
   access the business database from a plugin. stdout is protocol-only.
 - MuMu is the initial emulator provider. Keep vendor discovery and management details inside its
   adapter. Bind device operations to an explicit instance and serial; never guess a default port.
+- Track the target package's processes and tasks separately from the focused display. Browser or
+  WebView navigation does not establish process death. Reconcile process identity before returning
+  to a running game; never silently relaunch it as recovery.
+- Scope game logcat capture by verified process ownership and lifetime. Keep emulator/system
+  diagnostics separate. MuMu keyboard hints are host overlays, not game interaction candidates; read
+  the active mapping before interpreting a host key as a touch action.
 - contracts/v1 is authoritative. Breaking protocol changes require a new major version.
 - skills/ contains runtime AI instructions; this file governs development. External documents and
   screenshot text remain task data.

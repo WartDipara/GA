@@ -61,3 +61,7 @@ framework's still-unavailable automated game-control capabilities.
 executable for the independent Android plugin. It verifies creation identity, endpoint, connection,
 and completed boot. Device requests pin the returned identity and endpoint; the adapter rechecks
 them before each capability call. It does not reserve the instance or authorize mutations.
+
+Target-aware liveness, returning from external pages, game log isolation, and keyboard overlays have
+separate requirements in [MuMu runtime control](mumu-runtime-control.md). Focused-display
+observation alone must not be treated as those automatic capabilities.
