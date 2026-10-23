@@ -27,8 +27,24 @@ constraints; a different APK cannot claim the same instance, and the same worksp
 another instance. Reservations persist across failures, cancellation, and successful preparation. A
 new execution batch for the same workspace may reuse its reservation and reconcile earlier actions,
 including after a runtime upgrade. Earlier actions and failures remain in their original run. A
-different preprocessing workspace requires its own instance, even for an identical APK. Automatic
-release, rebinding, instance creation, and cleanup are deferred.
+different preprocessing workspace cannot claim an occupied instance, even for an identical APK.
+Automatic release, rebinding and instance creation remain unavailable.
+
+For explicitly reusing a dedicated instance after its prior execution has stopped, preview and
+release the original reservation through the kernel:
+
+```powershell
+uv run game-auto release-device <reservation_run_id>
+uv run game-auto release-device <reservation_run_id> --apply
+```
+
+The command requires exclusive execution ownership and rejects active runs or plugin calls. It
+only removes the reservation: it does not operate Android, remove application data, delete task
+history, or mark unresolved actions successful. Its preview and committed event list unresolved
+actions, which remain owned by their original APK workspace. A new workspace cannot reconcile or
+replay those actions. Returning to the original workspace still requires observing and reconciling
+its pending actions. The release and report request commit together; report-only repair remains
+available. Subsequent preparation must resolve the real instance and verify the installed APK.
 
 The adapter derives instance identity from the resolved manager location, instance index, and MuMu's
 creation timestamp. Session requests pin that identity and the advertised ADB endpoint. Each Android

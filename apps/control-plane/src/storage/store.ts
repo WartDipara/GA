@@ -217,7 +217,7 @@ export class Store {
     const task = this.input(runId);
     const apkKey = `${String(task['source_run'])}:${String(task['apk_index'])}`;
     const row = this.database.one(
-      "SELECT a.run_id,a.action_id,a.status,a.result FROM actions a JOIN device_bindings b ON json_extract(a.result,'$.instance_id')=b.instance_id WHERE b.apk_key=? AND (?='gameplay' OR json_extract(a.result,'$.capability')='device.install') ORDER BY a.rowid DESC LIMIT 1",
+      "SELECT a.run_id,a.action_id,a.status,a.result FROM actions a JOIN device_bindings b ON json_extract(a.result,'$.instance_id')=b.instance_id JOIN run_inputs i ON i.run_id=a.run_id WHERE b.apk_key=? AND json_extract(i.spec,'$.source_run')||':'||json_extract(i.spec,'$.apk_index')=b.apk_key AND (?='gameplay' OR json_extract(a.result,'$.capability')='device.install') ORDER BY a.rowid DESC LIMIT 1",
       apkKey,
       optionalText(task['kind']),
     );
@@ -411,6 +411,37 @@ export class Store {
     });
   }
 
+  private releaseDevice(runId: string, apply: boolean): Fields {
+    this.checkCleanup();
+    if (this.database.one("SELECT 1 FROM runs WHERE status='running' LIMIT 1"))
+      throw new FrameworkError(ErrorCode.RUN_BUSY);
+    const binding = this.database.one('SELECT * FROM device_bindings WHERE run_id=?', runId);
+    if (!binding) throw new FrameworkError(ErrorCode.NOT_FOUND, 'Reservation not found');
+    const unresolved = this.database.all(
+      "SELECT a.run_id,a.action_id,a.status FROM actions a JOIN run_inputs i ON i.run_id=a.run_id WHERE json_extract(a.result,'$.instance_id')=? AND json_extract(i.spec,'$.source_run')||':'||json_extract(i.spec,'$.apk_index')=? AND a.status IN ('prepared','unknown','executed')",
+      text(binding['instance_id']),
+      text(binding['apk_key']),
+    );
+    const result = {
+      reservation: binding,
+      released: apply,
+      unresolved_actions: unresolved,
+      application_data_changed: false,
+      historical_outcomes_changed: false,
+    };
+    if (apply) {
+      this.event(runId, 'device.reservation.released', result);
+      this.database.execute('DELETE FROM device_bindings WHERE run_id=?', runId);
+      const state = this.events(runId, { kinds: ['run.state'], limit: 1 }).at(-1);
+      this.event(runId, 'report.requested', {
+        request_id: uid('report'),
+        state_event_id: state?.event_id ?? null,
+        business_status: this.run(runId)['status'],
+      });
+    }
+    return result;
+  }
+
   private beginAction(runId: string, params: Fields): string {
     const run = this.run(runId);
     if (run['status'] !== 'running') throw new FrameworkError(ErrorCode.INVALID_STATE);
@@ -435,8 +466,9 @@ export class Store {
     if (params['max_actions'] != null && count >= integer(params['max_actions']))
       throw new FrameworkError(ErrorCode.BUDGET_EXHAUSTED);
     const pending = this.database.one(
-      "SELECT 1 FROM actions WHERE json_extract(result,'$.instance_id')=? AND status IN ('prepared','unknown','executed')",
+      "SELECT 1 FROM actions a JOIN run_inputs i ON i.run_id=a.run_id WHERE json_extract(a.result,'$.instance_id')=? AND json_extract(i.spec,'$.source_run')||':'||json_extract(i.spec,'$.apk_index')=? AND a.status IN ('prepared','unknown','executed')",
       instance,
+      apkKey,
     );
     if (pending)
       throw new FrameworkError(
@@ -638,6 +670,8 @@ export class Store {
         case 'reserve_device':
           this.reserve(runId, params);
           break;
+        case 'release_device':
+          return this.releaseDevice(runId, params['apply'] === true);
         case 'begin_device_action':
           return this.beginAction(runId, params);
         case 'dispatch_device_action':

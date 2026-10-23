@@ -574,6 +574,35 @@
         "input"
       ],
       "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "release_device"
+        },
+        "input": {
+          "type": "object",
+          "properties": {
+            "run_id": {
+              "type": "string"
+            },
+            "apply": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "run_id",
+            "apply"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "method",
+        "input"
+      ],
+      "additionalProperties": false
     }
   ],
   "$id": "https://game-automation.local/contracts/v1/kernel-command"
