@@ -9,6 +9,7 @@ from game_automation.common import FileLock, FrameworkError, atomic_json, now, r
 from game_automation.errors import ErrorCode
 
 from .layout import upgrade
+from .usage import FileUsage, initialize_event_usage
 
 
 def run_subject(task):
@@ -32,6 +33,10 @@ class Store:
         database_uri = (store.var / "state.sqlite").as_uri() + "?mode=ro"
         store.db = sqlite3.connect(database_uri, uri=True, timeout=2)
         store.db.row_factory = sqlite3.Row
+        store.file_usage = {}
+        store.has_event_usage = bool(
+            store.db.execute("SELECT 1 FROM sqlite_master WHERE name='event_usage'").fetchone()
+        )
         try:
             store.db.execute("PRAGMA query_only=ON")
         except sqlite3.Error:
@@ -48,6 +53,7 @@ class Store:
             self.check_cleanup()
         self.db = sqlite3.connect(self.var / "state.sqlite")
         self.db.row_factory = sqlite3.Row
+        self.file_usage = {}
         self.db.execute("PRAGMA journal_mode=WAL")
         self.db.execute("PRAGMA synchronous=FULL")
         self.db.execute("PRAGMA foreign_keys=ON")
@@ -122,6 +128,8 @@ class Store:
             if version != 4:
                 with FileLock(self.var / "execution.lock"):
                     upgrade(self.db, self.var, version)
+            initialize_event_usage(self)
+        self.has_event_usage = True
 
     def close(self):
         self.db.close()
@@ -445,11 +453,22 @@ class Store:
         return events
 
     def event_bytes(self, run_id):
+        if self.has_event_usage:
+            row = self.db.execute(
+                "SELECT size_bytes FROM event_usage WHERE run_id=?", (run_id,)
+            ).fetchone()
+            return row[0] if row else 0
         row = self.db.execute(
             "SELECT COALESCE(SUM(LENGTH(CAST(data AS BLOB))),0) FROM events WHERE run_id=?",
             (run_id,),
         ).fetchone()
         return row[0]
+
+    def files(self, run_id):
+        if run_id not in self.file_usage:
+            self.file_usage[run_id] = FileUsage(self.run_dir(run_id))
+            self.file_usage[run_id].scan()
+        return self.file_usage[run_id]
 
     def action_records(self, run_id):
         rows = self.db.execute(
@@ -462,6 +481,8 @@ class Store:
         path = within(self.run_dir(run_id), relative)
         try:
             atomic_json(path, redact(value))
+            if run_id in self.file_usage:
+                self.file_usage[run_id].track(path)
         except OSError as exc:
             raise FrameworkError(ErrorCode.TRACE_UNAVAILABLE) from exc
         return path.relative_to(self.run_dir(run_id)).as_posix()

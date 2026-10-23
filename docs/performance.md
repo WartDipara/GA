@@ -63,3 +63,18 @@ Perception results are reused only for the same observation/comparison pair, wit
 reference. The cache holds at most four entries. Guarded routines can consume already collected
 facts rather than immediately settling the same starting point again. Every dispatched action
 still performs the existing fresh process, display and target-image safety checks.
+
+## Increment 5: incremental evidence budgets
+
+SQLite maintains serialized event bytes with transactional insert, update and delete triggers.
+Existing events are backfilled once in an atomic initialization under the execution lock. Read-only
+views remain compatible with databases that predate this counter. Run deletion cascades to its
+counter, so explicit task cleanup still removes all owned records.
+
+The storage owner counts execution files once at admission, then tracks known artifact writes,
+planner images, credential envelopes and plugin output workspaces. Each plugin completion or
+failure accounts for files in its output directory. Full reconciliation runs every five minutes
+and on process restart. Logical event bytes remain separate from actual filesystem free space;
+every admission still checks free space, the evidence budget and reserved observation/report
+headroom. Unclean shutdown cannot leave a trusted stale file counter. No evidence is deleted to
+make the counter fit its budget.

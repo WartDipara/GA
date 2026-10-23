@@ -58,7 +58,7 @@ class EvidenceRecorder:
         self.settings = settings
 
     def admit(self, *, initial=False):
-        used = sum(path.stat().st_size for path in self.directory.rglob("*") if path.is_file())
+        used = self.store.files(self.run_id).total()
         used += 2 * self.store.event_bytes(self.run_id)
         # Reserve enough for one bounded observation, protocol records, and an offline report.
         headroom = 128 * 1024**2
@@ -93,6 +93,7 @@ class DeviceRuntime:
         frozen.parent.mkdir(parents=True, exist_ok=True)
         if not frozen.exists():
             frozen.write_bytes(data)
+        store.files(run_id).track(frozen)
         self.credential_path = str(frozen)
 
     def begin_step(self, reason):

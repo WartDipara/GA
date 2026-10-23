@@ -203,6 +203,18 @@ class Host:
                     await asyncio.sleep(0.05 * attempt)
                     continue
                 raise error from exc
+            finally:
+                workspace = params.get("workspace")
+                if workspace and self.run_id in self.store.file_usage:
+                    from pathlib import Path
+
+                    directory = Path(workspace).resolve()
+                    if directory.is_relative_to(self.store.run_dir(self.run_id).resolve()):
+                        try:
+                            self.store.files(self.run_id).scan(directory)
+                        except Exception as exc:
+                            self.stop(exc)
+                            raise
 
     async def install(self, params):
         from game_automation.prompting.snapshots import load

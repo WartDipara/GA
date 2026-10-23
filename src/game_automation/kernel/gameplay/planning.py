@@ -36,6 +36,7 @@ class Planner:
         pending = progress["pending"]
         image_path = directory / "artifacts/planner" / f"{observation['observation_id']}.png"
         coordinates = planner_image(within(directory, observation["evidence_ref"]), image_path)
+        runtime.store.files(runtime.run_id).track(image_path)
         progress_view = deepcopy(
             {key: value for key, value in progress.items() if key not in ("learned_steps", "paths")}
         )
@@ -85,6 +86,7 @@ class Planner:
             previous = within(runtime.store.run_dir(pending["run_id"]), pending["image_ref"])
             previous_image = directory / "artifacts/planner" / f"{pending['observation_id']}.png"
             previous_coordinates = planner_image(previous, previous_image)
+            runtime.store.files(runtime.run_id).track(previous_image)
             images.append(previous_image)
             context["image_order"].append(pending["observation_id"])
             context["image_coordinates"][pending["observation_id"]] = (
