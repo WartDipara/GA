@@ -467,6 +467,15 @@ class Store:
                 ErrorCode.TRACE_UNAVAILABLE, "Cannot persist supplement; execution halted"
             ) from exc
 
+    def task_supplements(self, task_id):
+        rows = self.db.execute(
+            "SELECT e.data FROM events e JOIN runs r ON r.id=e.run_id "
+            "WHERE r.task_id=? AND e.kind='task.supplement' ORDER BY e.seq",
+            (task_id,),
+        )
+        supplements = [json.loads(row["data"]) for row in rows]
+        return supplements
+
     def unknown_actions(self, run_id):
         action_ids = [
             row[0]
