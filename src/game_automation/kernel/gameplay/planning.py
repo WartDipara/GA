@@ -53,6 +53,9 @@ class Planner:
             "task": {
                 "goal": runtime.task["goal"],
                 "credential_profile": runtime.task["credential_profile"],
+                "user_supplements": runtime.store.task_supplements(
+                    runtime.store.run(runtime.run_id)["task_id"]
+                ),
             },
             "observation_id": observation["observation_id"],
             "runtime": observation["runtime"],

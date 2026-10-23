@@ -32,6 +32,11 @@ the declared field bounds; values are resolved locally from the credential profi
 do not establish an account mismatch or failed input. Input command completion and authenticated
 game entry remain separate outcomes.
 
+Use `game-auto provide <run_id> --text "..."` to clarify a blocked task before resuming its owning
+workflow. Gameplay planning receives the task's append-only supplements, including their source
+events, across child stages and new batches. Clarifications remain scoped to their stated target;
+they cannot override kernel action restrictions or apply to another business task.
+
 ## Prepare and run
 
 Choose an already-running dedicated MuMu instance from `game-auto emulators`. Its index identifies
