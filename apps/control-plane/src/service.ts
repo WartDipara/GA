@@ -5,10 +5,10 @@ import { createServer, type Socket } from 'node:net';
 import { resolve, join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { performance } from 'node:perf_hooks';
-import { object, text } from './contracts.js';
-import { ErrorCode, FrameworkError, frameworkError } from './errors.js';
+import { object, text } from '@game-automation/contracts';
+import { ErrorCode, FrameworkError, frameworkError } from '@game-automation/contracts/errors';
 import { Host } from './kernel/host.js';
-import { Peer } from './protocol/peer.js';
+import { Peer } from '@game-automation/plugin-sdk/rpc';
 import { Store } from './storage/store.js';
 import { atomicJson, type Fields } from './storage/values.js';
 

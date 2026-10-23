@@ -28,6 +28,9 @@
 - Use TypeScript for the control plane and Python 3.12 with uv for capability plugins. Migrate the
   existing Python kernel incrementally; never introduce two state or event writers. Pin Node and npm
   dependencies. Enable strict TypeScript checking, checked indexed access and exact optional fields.
+  Use the root npm workspaces and lockfile. Applications live in apps/, shared TypeScript libraries
+  in packages/, and independent capabilities in plugins/. Import shared libraries through their
+  public package exports; libraries must not import applications or plugin internals.
   External data starts as unknown and must pass runtime schema validation. Do not bypass checking
   with any, unchecked type assertions, non-null assertions or ignored compiler errors. Await or
   explicitly supervise every promise. Generate protocol types from contracts/v1, never mirror them.

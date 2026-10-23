@@ -1,4 +1,4 @@
-import { ErrorCode, errorMessages } from '../../var/cache/typescript/generated/errors.js';
+import { ErrorCode, errorMessages } from '../../../var/cache/typescript/generated/errors.js';
 
 export { ErrorCode };
 

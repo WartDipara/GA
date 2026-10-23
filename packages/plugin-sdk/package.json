@@ -1,0 +1,13 @@
+{
+  "name": "@game-automation/plugin-sdk",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./rpc": "./src/peer.ts",
+    "./process": "./src/process.ts"
+  },
+  "dependencies": {
+    "@game-automation/contracts": "0.1.0"
+  }
+}

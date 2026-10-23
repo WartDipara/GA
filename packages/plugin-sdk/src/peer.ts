@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { Readable, Writable } from 'node:stream';
-import { object, text } from '../contracts.js';
-import { ErrorCode, FrameworkError, frameworkError } from '../errors.js';
+import { object, text } from '@game-automation/contracts';
+import { ErrorCode, FrameworkError, frameworkError } from '@game-automation/contracts/errors';
 
 const MAX_MESSAGE = 8 * 1024 * 1024;
 type Message = Record<string, unknown>;

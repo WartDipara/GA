@@ -11,10 +11,10 @@ import {
   frameworkVersion,
   pinnedCodexVersion,
 } from '../../var/cache/typescript/generated/agent-metadata.js';
-import { decode, object, text, type ContractMap } from '../../src/control_plane/contracts.js';
-import { ErrorCode, FrameworkError } from '../../src/control_plane/errors.js';
-import { Peer } from '../../src/control_plane/protocol/peer.js';
-import { executable, start, terminate } from '../../src/control_plane/protocol/process.js';
+import { decode, object, text, type ContractMap } from '@game-automation/contracts';
+import { ErrorCode, FrameworkError } from '@game-automation/contracts/errors';
+import { Peer } from '@game-automation/plugin-sdk/rpc';
+import { executable, start, terminate } from '@game-automation/plugin-sdk/process';
 import { ProviderEvents } from './events.js';
 import { jsonValue, restoreOptional, strictSchema, type JsonValue } from './schema.js';
 

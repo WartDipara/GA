@@ -5,7 +5,7 @@ import { readFile, readdir, writeFile } from 'node:fs/promises';
 await build({
   entryPoints: {
     agent_codex: 'plugins/agent_codex/main.ts',
-    control_plane: 'src/control_plane/main.ts',
+    control_plane: 'apps/control-plane/src/main.ts',
   },
   outdir: 'var/cache/typescript',
   outExtension: { '.js': '.mjs' },
@@ -32,10 +32,10 @@ async function sources(directory) {
   for (const entry of await readdir(directory, { withFileTypes: true })) {
     const path = `${directory}/${entry.name}`;
     if (entry.isDirectory() && entry.name !== '__pycache__') await sources(path);
-    else if (/\.(ts|mjs|py)$/.test(entry.name)) files.push(path);
+    else if (/\.(ts|mjs|py|json)$/.test(entry.name)) files.push(path);
   }
 }
-for (const directory of ['src/control_plane', 'plugins/agent_codex', 'tools'])
+for (const directory of ['apps', 'packages', 'plugins/agent_codex', 'tools'])
   await sources(directory);
 for (const file of await readdir('contracts/v1')) {
   if (file.endsWith('.schema.json')) files.push(`contracts/v1/${file}`);

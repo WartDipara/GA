@@ -1,6 +1,6 @@
 import { Ajv2020 } from 'ajv/dist/2020.js';
-import type { ContractMap } from '../../var/cache/typescript/generated/contracts.js';
-import { schemas } from '../../var/cache/typescript/generated/schemas.js';
+import type { ContractMap } from '../../../var/cache/typescript/generated/contracts.js';
+import { schemas } from '../../../var/cache/typescript/generated/schemas.js';
 import { ErrorCode, FrameworkError } from './errors.js';
 
 export type { ContractMap };

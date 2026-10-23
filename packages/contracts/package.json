@@ -1,0 +1,13 @@
+{
+  "name": "@game-automation/contracts",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/contracts.ts",
+    "./errors": "./src/errors.ts"
+  },
+  "dependencies": {
+    "ajv": "8.20.0"
+  }
+}

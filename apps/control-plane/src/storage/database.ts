@@ -1,8 +1,8 @@
 import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
 import { existsSync, mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { object, text } from '../contracts.js';
-import { ErrorCode, FrameworkError } from '../errors.js';
+import { object, text } from '@game-automation/contracts';
+import { ErrorCode, FrameworkError } from '@game-automation/contracts/errors';
 import { counters, schema } from './schema.js';
 import { parsed, type Fields } from './values.js';
 

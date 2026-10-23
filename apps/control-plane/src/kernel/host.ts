@@ -1,10 +1,10 @@
 import { performance } from 'node:perf_hooks';
 import { createInterface } from 'node:readline';
 import { setTimeout as delay } from 'node:timers/promises';
-import { decode, object, text, type ContractMap } from '../contracts.js';
-import { ErrorCode, FrameworkError, frameworkError } from '../errors.js';
-import { Peer } from '../protocol/peer.js';
-import { start, terminate } from '../protocol/process.js';
+import { decode, object, text, type ContractMap } from '@game-automation/contracts';
+import { ErrorCode, FrameworkError, frameworkError } from '@game-automation/contracts/errors';
+import { Peer } from '@game-automation/plugin-sdk/rpc';
+import { start, terminate } from '@game-automation/plugin-sdk/process';
 import { Store, type TraceIds } from '../storage/store.js';
 import {
   canonical,

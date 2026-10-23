@@ -1,4 +1,4 @@
-import { object } from '../../src/control_plane/contracts.js';
+import { object } from '@game-automation/contracts';
 
 export type JsonValue =
   null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
