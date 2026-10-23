@@ -11,6 +11,7 @@ command_timeout_seconds = 10
 
 [device]
 install_timeout_seconds = 900
+operation_timeout_seconds = 120
 reserve_bytes = 1073741824
 
 [storage]
@@ -34,6 +35,8 @@ timeout_seconds = 180
 # Omit model to use the signed-in account's configured default.
 
 [gameplay]
+no_progress_rounds = 24
+no_progress_seconds = 900
 evidence_budget_bytes = 4294967296
 reserve_bytes = 2147483648
 

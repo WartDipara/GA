@@ -80,6 +80,7 @@ class DeviceRuntime:
         self.progress = progress
         self.step_id = None
         self.step_started = None
+        self.watchdog = None
         profile = profile_path(store.root, task["credential_profile"])
         frozen = store.run_dir(run_id) / "credentials" / profile.name
         data = frozen.read_bytes() if frozen.exists() else profile.read_bytes()
@@ -132,6 +133,8 @@ class DeviceRuntime:
             self.finish_step()
 
     async def observe(self):
+        if self.watchdog is not None:
+            self.watchdog.check()
         for attempt in range(3):
             try:
                 return await self._capture()

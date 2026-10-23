@@ -107,10 +107,18 @@ class Host:
             if not mutating and capability in plugin["retry_safe"]
             else 1
         )
-        if timeout is None:
+        bounded_device = capability.startswith(("device.", "emulator."))
+        if bounded_device and timeout in (None, 0):
+            settings = self.manifest["application"]["device"]
+            timeout = (
+                settings["install_timeout_seconds"] + 60
+                if capability == "device.install"
+                else settings.get("operation_timeout_seconds", 120)
+            )
+        elif timeout is None:
             if capability == "ai.decide":
                 timeout = self.manifest["application"]["codex"]["timeout_seconds"] + 45
-            elif capability != "emulator.session":
+            else:
                 timeout = self.manifest["application"]["call_timeout_seconds"]
         elif timeout == 0:
             timeout = None
