@@ -20,7 +20,7 @@ def code_hashes(directory):
         str(file_path.resolve()): digest(file_path.read_bytes())
         for file_path in directory.rglob("*")
         if file_path.is_file()
-        and file_path.suffix in (".py", ".toml", ".ts", ".mjs")
+        and file_path.suffix in (".py", ".toml", ".ts", ".mjs", ".json")
         and "__pycache__" not in file_path.parts
     }
     return source_hashes
@@ -30,8 +30,9 @@ def implementation_hashes(root, plugins):
     hashes = code_hashes(root / "src/game_automation")
     for plugin in plugins.values():
         hashes.update(code_hashes(Path(plugin["cwd"])))
-    if (root / "src/control_plane").is_dir():
-        hashes.update(code_hashes(root / "src/control_plane"))
+    if (root / "apps/control-plane").is_dir():
+        hashes.update(code_hashes(root / "apps"))
+        hashes.update(code_hashes(root / "packages"))
         hashes.update(code_hashes(root / "tools"))
         files = [
             root / name

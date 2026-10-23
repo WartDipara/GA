@@ -24,6 +24,9 @@ Use the Node version in `.node-version`, run `npm ci` and `npm run build` for th
 artifacts. The existing CLI remains available during migration. See
 [the migration decision](docs/decisions/0002-typescript-control-plane.md).
 
+The repository uses npm workspaces for the TypeScript application, shared contracts, plugin SDK and
+Codex plugin. Use root npm commands and the single lockfile. See [source layout](docs/project-layout.md).
+
 ```powershell
 uv sync --locked
 uv run game-auto submit --task contracts/v1/examples/task.json --key task-001

@@ -3,7 +3,7 @@ import { access, stat } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import { delimiter, isAbsolute, join } from 'node:path';
 import { once } from 'node:events';
-import { ErrorCode, FrameworkError } from '../errors.js';
+import { ErrorCode, FrameworkError } from '@game-automation/contracts/errors';
 
 export async function executable(name: string): Promise<string> {
   const directories = isAbsolute(name) ? [''] : (process.env['PATH'] ?? '').split(delimiter);

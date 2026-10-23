@@ -1,6 +1,6 @@
 import { appendFileSync, mkdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { frameworkError } from './errors.js';
+import { frameworkError } from '@game-automation/contracts/errors';
 import { redact } from './storage/values.js';
 
 function fatal(error: unknown): never {

@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
-import { object, text } from '../../src/control_plane/contracts.js';
-import { ErrorCode, FrameworkError } from '../../src/control_plane/errors.js';
-import type { Peer } from '../../src/control_plane/protocol/peer.js';
+import { object, text } from '@game-automation/contracts';
+import { ErrorCode, FrameworkError } from '@game-automation/contracts/errors';
+import type { Peer } from '@game-automation/plugin-sdk/rpc';
 
 type Entry = { kind: string; payload: Record<string, unknown> };
 

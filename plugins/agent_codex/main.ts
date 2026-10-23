@@ -1,7 +1,7 @@
 import { metadata } from '../../var/cache/typescript/generated/agent-metadata.js';
-import { object } from '../../src/control_plane/contracts.js';
-import { ErrorCode, FrameworkError, frameworkError } from '../../src/control_plane/errors.js';
-import { Peer } from '../../src/control_plane/protocol/peer.js';
+import { object } from '@game-automation/contracts';
+import { ErrorCode, FrameworkError, frameworkError } from '@game-automation/contracts/errors';
+import { Peer } from '@game-automation/plugin-sdk/rpc';
 import { CodexAdapter } from './adapter.js';
 
 let invoking = false;

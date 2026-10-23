@@ -14,7 +14,14 @@
     "verbatimModuleSyntax": true,
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true,
-    "types": ["node"]
+    "types": [
+      "node"
+    ]
   },
-  "include": ["src/control_plane/**/*.ts", "plugins/agent_codex/**/*.ts", "var/cache/typescript/generated/**/*.ts"]
+  "include": [
+    "apps/**/*.ts",
+    "packages/**/*.ts",
+    "plugins/agent_codex/**/*.ts",
+    "var/cache/typescript/generated/**/*.ts"
+  ]
 }

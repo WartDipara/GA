@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync } from 'node:fs';
 import { join, relative } from 'node:path';
-import { decode, object, text, type ContractMap } from '../contracts.js';
-import { ErrorCode, FrameworkError } from '../errors.js';
+import { decode, object, text, type ContractMap } from '@game-automation/contracts';
+import { ErrorCode, FrameworkError } from '@game-automation/contracts/errors';
 import { Database } from './database.js';
 import {
   atomicJson,

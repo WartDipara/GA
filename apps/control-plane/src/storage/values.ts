@@ -11,8 +11,8 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { dirname, isAbsolute, relative, resolve, sep } from 'node:path';
-import { object, text } from '../contracts.js';
-import { ErrorCode, FrameworkError } from '../errors.js';
+import { object, text } from '@game-automation/contracts';
+import { ErrorCode, FrameworkError } from '@game-automation/contracts/errors';
 
 export type Fields = Record<string, unknown>;
 

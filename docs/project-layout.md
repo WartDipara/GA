@@ -10,10 +10,9 @@ docs/                           Architecture, commands and decisions
 plugins/<capability>/           Independent stdio process implementations and manifests
 skills/<skill>/                 Shared runtime AI instructions and reference material
 tools/                          Maintained build and contract-generation tools
-src/control_plane/              Strict TypeScript control plane during incremental migration
-  contracts.ts                 Runtime validation against generated protocol types
-  errors.ts                    Structured framework errors from the shared error-code authority
-  protocol/                    Bounded JSON-RPC streams and child-process lifecycle
+apps/control-plane/src/         TypeScript service, plugin host and authoritative storage
+packages/contracts/src/         Shared generated contract validation and structured errors
+packages/plugin-sdk/src/        Bounded JSON-RPC streams and child-process lifecycle
 src/game_automation/
   __init__.py                   Package version metadata only
   __main__.py                   python -m game_automation entry
@@ -25,7 +24,7 @@ src/game_automation/
   observability.py              Deterministic projection of recorded context and public events
   kernel/
     capability_router.py        Plugin registration and dependency routing
-    plugin_host.py              Process lifecycle, call tracing and mutation authorization
+    plugin_host.py              Transitional client of the TypeScript plugin host
     storage_policy.py           Storage budget configuration rules
     workflow/                   Stage orchestration and execution lifecycle
     gameplay/                   Planning, local routing, routines, progress and verification
@@ -82,3 +81,9 @@ temporary developer output from persistent task state.
 TypeScript is checked with `npm run check`; `npm run build` also creates shared bundles under
 `var/cache/typescript/`. `contracts/v1` remains authoritative. Generated types, installed npm
 dependencies and bundles are not task-local copies. Python remains managed by uv.
+
+The root npm workspace manages these private packages with one lockfile. Dependencies point from
+the control plane and Codex plugin to the SDK and contracts; contracts do not depend on either
+application or plugin code. Package exports and ESLint enforce this direction. Shared protocols
+stay under contracts/v1 and generated outputs stay in the shared cache. Do not add a second package
+manager or build orchestrator until there is a concrete requirement for one.
