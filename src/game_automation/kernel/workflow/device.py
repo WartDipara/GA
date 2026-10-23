@@ -6,7 +6,7 @@ import zipfile
 from game_automation.common import FrameworkError, uid, within
 from game_automation.contracts import validate
 from game_automation.errors import ErrorCode
-from game_automation.prompting.resources import resource_root
+from game_automation.prompting.resources import read_manifest
 
 from .evidence import verify_image
 from .preprocessing import preprocessing_status
@@ -27,8 +27,9 @@ def ready_apk(store, source_run, index):
             ErrorCode.DEVICE_APK_REQUIRED,
             "Prepared APK evidence is incomplete; preprocess the source again",
         )
-    contracts = resource_root(store, source_run, "contracts")
-    validate(contracts, "apk-metadata", item["metadata"])
+    read_manifest(store, source_run)
+    # Historical output is data for the new consumer, not an execution of the old runtime.
+    validate(store.root / "contracts/v1", "apk-metadata", item["metadata"])
     return item
 
 

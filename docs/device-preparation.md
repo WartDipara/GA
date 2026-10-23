@@ -21,6 +21,11 @@ uv run game-auto resume <preparation_run_id>
 `--apk-index` is zero-based, matching preprocessing status entries. A ready item may be selected
 even if another item in its batch is blocked. Its stored metadata, local APK size, and SHA-256 must
 still match. Installation uses that existing APK without duplicating it into another workspace.
+When a new batch reuses a completed download, the original manifest must still match its recorded
+hash. The retained APK metadata is validated against the consuming version's contract, then the
+APK bytes are verified before installation. Reading this historical output does not reactivate the
+old producer or require all of its former shared contracts to remain current. Executing an old
+batch still requires its pinned dependencies to match.
 
 The kernel reserves one instance for one preprocessing workspace. Both sides have database unique
 constraints; a different APK cannot claim the same instance, and the same workspace cannot claim
