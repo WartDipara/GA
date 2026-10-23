@@ -1,0 +1,657 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://game-automation.local/contracts/v1/gameplay-progress",
+  "type": "object",
+  "properties": {
+    "identity": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "small_account": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "server": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "role": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "small_account",
+            "server",
+            "role"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "checkpoint": {
+      "anyOf": [
+        {
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "pending": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "observation_id": {
+              "type": "string"
+            },
+            "action": {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "enum": [
+                    "tap",
+                    "swipe",
+                    "long_press",
+                    "back",
+                    "wait",
+                    "credential",
+                    "launch",
+                    "return"
+                  ]
+                },
+                "x": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "y": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "end_x": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "end_y": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "duration_ms": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 30000
+                },
+                "bounds": {
+                  "anyOf": [
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "minItems": 4,
+                      "maxItems": 4
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "credential_field": {
+                  "enum": [
+                    "username",
+                    "password",
+                    null
+                  ]
+                }
+              },
+              "required": [
+                "type",
+                "x",
+                "y",
+                "end_x",
+                "end_y",
+                "duration_ms",
+                "bounds",
+                "credential_field"
+              ],
+              "additionalProperties": false
+            },
+            "run_id": {
+              "type": "string"
+            },
+            "image_ref": {
+              "type": "string"
+            },
+            "step_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "action_id": {
+              "type": "string"
+            },
+            "expected_outcome": {
+              "type": "string"
+            },
+            "screen_key": {
+              "type": "string"
+            },
+            "risk": {
+              "type": "string"
+            },
+            "cache_scope": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "cache_intent": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "image_sha256": {
+              "type": "string"
+            },
+            "sensitive_regions": {
+              "type": "array",
+              "items": {
+                "type": "array",
+                "items": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "minItems": 4,
+                "maxItems": 4
+              },
+              "maxItems": 30
+            }
+          },
+          "required": [
+            "observation_id",
+            "action",
+            "run_id",
+            "image_ref"
+          ],
+          "additionalProperties": true
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "paths": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "run_id": {
+            "type": "string"
+          },
+          "action_id": {
+            "type": "string"
+          },
+          "before": {
+            "type": "string"
+          },
+          "objective": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "after": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "action_id",
+          "status"
+        ],
+        "additionalProperties": true
+      }
+    },
+    "sensitive_regions": {
+      "type": "array",
+      "items": {
+        "type": "array",
+        "items": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "minItems": 4,
+        "maxItems": 4
+      },
+      "maxItems": 30
+    },
+    "recovery_rounds": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "credential_revision": {
+      "type": "string"
+    },
+    "goals": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "requires": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "maxItems": 20
+          },
+          "status": {
+            "enum": [
+              "pending",
+              "active",
+              "verified",
+              "blocked",
+              "unknown"
+            ]
+          },
+          "evidence_refs": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "minItems": 1,
+            "maxItems": 10
+          }
+        },
+        "required": [
+          "id",
+          "description",
+          "requires",
+          "status",
+          "evidence_refs"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "milestones": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "status": {
+            "enum": [
+              "discovered",
+              "attempted",
+              "verified",
+              "blocked",
+              "unknown"
+            ]
+          },
+          "evidence_refs": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "minItems": 1,
+            "maxItems": 10
+          },
+          "run_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "description",
+          "status",
+          "evidence_refs"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "learned_steps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "scope": {
+            "type": "string"
+          },
+          "intent": {
+            "type": "string"
+          },
+          "before": {
+            "type": "string"
+          },
+          "before_screen": {
+            "type": "string"
+          },
+          "after": {
+            "type": "string"
+          },
+          "after_screen": {
+            "type": "string"
+          },
+          "action": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "enum": [
+                  "tap",
+                  "swipe",
+                  "long_press",
+                  "back",
+                  "wait",
+                  "credential",
+                  "launch",
+                  "return"
+                ]
+              },
+              "x": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "y": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "end_x": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "end_y": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "duration_ms": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 30000
+              },
+              "bounds": {
+                "anyOf": [
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "minItems": 4,
+                    "maxItems": 4
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "credential_field": {
+                "enum": [
+                  "username",
+                  "password",
+                  null
+                ]
+              }
+            },
+            "required": [
+              "type",
+              "x",
+              "y",
+              "end_x",
+              "end_y",
+              "duration_ms",
+              "bounds",
+              "credential_field"
+            ],
+            "additionalProperties": false
+          },
+          "source_run": {
+            "type": "string"
+          },
+          "action_id": {
+            "type": "string"
+          },
+          "observation_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "scope",
+          "intent",
+          "before",
+          "before_screen",
+          "after",
+          "after_screen",
+          "action",
+          "source_run",
+          "action_id",
+          "observation_id"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "watchdog": {
+      "type": "object",
+      "properties": {
+        "rounds": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "elapsed_seconds": {
+          "type": "number",
+          "minimum": 0
+        },
+        "history": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "proofs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "scope": {
+          "type": "string"
+        },
+        "blocked": {
+          "type": "boolean"
+        },
+        "state": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "rounds",
+        "elapsed_seconds",
+        "history",
+        "proofs"
+      ],
+      "additionalProperties": false
+    },
+    "battle": {
+      "type": "object",
+      "properties": {
+        "phase": {
+          "type": "string"
+        },
+        "stage": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "settlement": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "stage": {
+                  "type": "string"
+                },
+                "observation_id": {
+                  "type": "string"
+                },
+                "run_id": {
+                  "type": "string"
+                },
+                "result": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "stage",
+                "observation_id",
+                "run_id",
+                "result"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "advances": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "from_stage": {
+                "type": "string"
+              },
+              "to_stage": {
+                "type": "string"
+              },
+              "settlement": {
+                "type": "object",
+                "properties": {
+                  "stage": {
+                    "type": "string"
+                  },
+                  "observation_id": {
+                    "type": "string"
+                  },
+                  "run_id": {
+                    "type": "string"
+                  },
+                  "result": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "stage",
+                  "observation_id",
+                  "run_id",
+                  "result"
+                ],
+                "additionalProperties": false
+              },
+              "observation_id": {
+                "type": "string"
+              },
+              "source": {
+                "type": "string"
+              },
+              "run_id": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "from_stage",
+              "to_stage",
+              "settlement",
+              "observation_id",
+              "source",
+              "run_id"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "phase",
+        "stage",
+        "settlement",
+        "advances"
+      ],
+      "additionalProperties": false
+    },
+    "recovery_attempts": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": 0
+      }
+    },
+    "planner_coordinate_space": {
+      "type": "string"
+    },
+    "planner_coordinate_action_dispatched": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "identity",
+    "checkpoint",
+    "pending",
+    "paths",
+    "sensitive_regions",
+    "recovery_rounds",
+    "credential_revision",
+    "goals",
+    "milestones"
+  ],
+  "additionalProperties": true
+}

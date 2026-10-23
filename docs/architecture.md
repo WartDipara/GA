@@ -1,13 +1,12 @@
 # Architecture and state
 
 The control plane uses TypeScript for the Codex adapter, plugin host and authoritative SQLite
-writer, execution lifecycle and APK scheduler. Migration is incremental; Python retains the gameplay
-loop, CLI and read-only
-report projections. See
+writer, execution lifecycle, APK scheduler and gameplay loop. Migration is incremental; Python retains
+capability tools, CLI entry points, remaining leaf stages and read-only report projections. See
 [ADR 0002](decisions/0002-typescript-control-plane.md) for ownership and compatibility requirements.
 
 The transitional executor bridge invokes named Python leaf operations, snapshot utilities and
-renderers; it does not delegate scheduling or terminal-state policy. Python workflow entry points
+renderers; it does not delegate scheduling, gameplay decisions or terminal-state policy. Python entry points
 hold the existing OS execution lock across the remote request. Connection loss aborts execution,
 drains plugin calls, and leaves unknown device outcomes for observation-based recovery.
 

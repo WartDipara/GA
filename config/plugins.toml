@@ -25,3 +25,7 @@ enabled = true
 [plugins.perception]
 manifest = "plugins/perception/plugin.toml"
 enabled = true
+
+[plugins.gameplay_tools]
+manifest = "plugins/gameplay_tools/plugin.toml"
+enabled = true
