@@ -37,3 +37,11 @@ runtime change. Old evidence must remain readable.
 Verification remains compilation/type checking and source syntax checks. No mock, smoke or synthetic
 inference calls are permitted. Runtime acceptance and latency improvement require a separately
 authorized, bounded business execution.
+
+Implemented increments:
+
+- Strict generated contracts, shared errors and TypeScript build/type-check gates.
+- TypeScript JSON-RPC/process support and the active Codex adapter, replacing its Python entry.
+
+The plugin host, scheduler, gameplay loop, SQLite writer and report service remain Python during
+this stage. Their later replacement is pending; installing TypeScript does not mark them migrated.

@@ -19,6 +19,9 @@ from .preprocessing import preprocess
 from .recovery import reconcile_interrupted_runs
 
 BLOCKED = {
+    ErrorCode.NODE_UNAVAILABLE,
+    ErrorCode.NODE_RUNTIME_MISMATCH,
+    ErrorCode.TYPESCRIPT_BUILD_REQUIRED,
     ErrorCode.WORKFLOW_BLOCKED,
     ErrorCode.AI_OUTPUT_INVALID,
     ErrorCode.AI_OUTPUT_MISSING,

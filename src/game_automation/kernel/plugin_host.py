@@ -10,6 +10,7 @@ from game_automation.plugin_sdk.rpc import Peer, spawn, terminate
 from game_automation.prompting.resources import resource_root
 
 CAPABILITY_CONTRACTS = {
+    "ai.decide": ("ai-decide-request", "ai-decide-result"),
     "task.intake": ("intake-request", "intake-result"),
     "environment.check": ("environment-request", "environment-result"),
     "apk.prepare": ("apk-prepare-request", "apk-metadata"),
