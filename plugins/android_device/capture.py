@@ -6,7 +6,7 @@ from pathlib import Path
 from PIL import Image, ImageDraw
 from runtime import same_runtime, snapshot
 
-from game_automation.common import FrameworkError, digest
+from game_automation.common import FrameworkError, digest, uid
 from game_automation.errors import ErrorCode
 from game_automation.plugin_sdk.privacy import credential_regions
 
@@ -22,22 +22,40 @@ def masked_image(data, rectangles):
 
 
 async def read_controls(device, display):
+    if display["display_id"] != 0:
+        await device.commands.event(
+            "ui_tree", {"status": "unavailable", "reason": "non-default-display"}
+        )
+        controls = []
+        return controls
+    remote_path = f"/data/local/tmp/{uid('game_auto_ui')}.xml"
     try:
-        result = await device.run("shell", "uiautomator", "dump", "/dev/tty", allow_failure=True)
-        text = result["stdout"]
+        result = await device.run("shell", "uiautomator", "dump", remote_path, allow_failure=True)
+        if result["exit_code"]:
+            raise FrameworkError(ErrorCode.INVALID_ADB_OUTPUT)
+        output = await device.run("shell", "cat", remote_path, raw=True)
+        text = output["data"].decode("utf-8", errors="replace")
         start, end = text.find("<?xml"), text.rfind("</hierarchy>")
         if start < 0 or end < 0:
-            result = []
-            return result
+            raise ET.ParseError("Hierarchy XML is missing")
         root = ET.fromstring(text[start : end + len("</hierarchy>")])
     except FrameworkError as exc:
         if exc.code in (ErrorCode.TRACE_UNAVAILABLE, ErrorCode.CANCELLED, ErrorCode.CLOSED):
             raise
-        result = []
-        return result
+        await device.commands.event("ui_tree", {"status": "unavailable", "error": exc.code})
+        controls = []
+        return controls
     except ET.ParseError:
-        result = []
-        return result
+        await device.commands.event("ui_tree", {"status": "malformed"})
+        controls = []
+        return controls
+    finally:
+        try:
+            await device.run("shell", "rm", "-f", remote_path, allow_failure=True)
+        except FrameworkError as exc:
+            if exc.code in (ErrorCode.TRACE_UNAVAILABLE, ErrorCode.CANCELLED, ErrorCode.CLOSED):
+                raise
+            await device.commands.event("ui_tree.cleanup_failed", {"error": exc.code})
     controls = []
     for node in root.iter("node"):
         values = node.attrib
@@ -50,7 +68,7 @@ async def read_controls(device, display):
         label = values.get("text", "") or values.get("content-desc", "")
         control = {
             "resource_id": values.get("resource-id", ""),
-            "label": label,
+            "label": device.commands.sanitize(label),
             "class_name": values.get("class", ""),
             "bounds": rectangle,
             "clickable": values.get("clickable") == "true",
@@ -58,6 +76,9 @@ async def read_controls(device, display):
         }
         controls.append(control)
     controls = controls[:500]
+    await device.commands.event(
+        "ui_tree", {"status": "available", "controls": len(controls), "display_id": 0}
+    )
     return controls
 
 

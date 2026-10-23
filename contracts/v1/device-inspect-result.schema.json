@@ -21,9 +21,18 @@
         "adb_executable": {
           "type": "string",
           "minLength": 1
+        },
+        "manager_executable": {
+          "type": "string",
+          "minLength": 1
         }
       },
-      "required": ["instance_index", "instance_id", "serial", "adb_executable"],
+      "required": [
+        "instance_index",
+        "instance_id",
+        "serial",
+        "adb_executable"
+      ],
       "additionalProperties": false
     },
     "package_name": {
@@ -34,7 +43,10 @@
       "type": "boolean"
     },
     "sha256": {
-      "type": ["string", "null"],
+      "type": [
+        "string",
+        "null"
+      ],
       "pattern": "^[0-9a-f]{64}$"
     },
     "available_bytes": {
@@ -42,7 +54,13 @@
       "minimum": 0
     }
   },
-  "required": ["session", "package_name", "installed", "sha256", "available_bytes"],
+  "required": [
+    "session",
+    "package_name",
+    "installed",
+    "sha256",
+    "available_bytes"
+  ],
   "additionalProperties": false,
   "allOf": [
     {

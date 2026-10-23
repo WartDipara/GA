@@ -21,6 +21,10 @@
         "adb_executable": {
           "type": "string",
           "minLength": 1
+        },
+        "manager_executable": {
+          "type": "string",
+          "minLength": 1
         }
       },
       "required": [

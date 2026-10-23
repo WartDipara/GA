@@ -21,20 +21,39 @@
         "adb_executable": {
           "type": "string",
           "minLength": 1
+        },
+        "manager_executable": {
+          "type": "string",
+          "minLength": 1
         }
       },
-      "required": ["instance_index", "instance_id", "serial", "adb_executable"],
+      "required": [
+        "instance_index",
+        "instance_id",
+        "serial",
+        "adb_executable"
+      ],
       "additionalProperties": false
     },
     "status": {
-      "enum": ["installed", "rejected"]
+      "enum": [
+        "installed",
+        "rejected"
+      ]
     },
     "rejection_code": {
-      "type": ["string", "null"],
+      "type": [
+        "string",
+        "null"
+      ],
       "minLength": 1
     }
   },
-  "required": ["session", "status", "rejection_code"],
+  "required": [
+    "session",
+    "status",
+    "rejection_code"
+  ],
   "additionalProperties": false,
   "allOf": [
     {

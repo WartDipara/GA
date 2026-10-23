@@ -74,7 +74,13 @@ async def device_session(store, run_id, host, manifest, task):
         or request["serial"] not in (None, result["serial"])
     ):
         raise FrameworkError(ErrorCode.DEVICE_IDENTITY_CHANGED)
-    bound = {**request, "instance_id": result["instance_id"], "serial": result["serial"]}
+    bound = {
+        **request,
+        "instance_id": result["instance_id"],
+        "serial": result["serial"],
+        "manager_executable": result.get("manager_executable", request["manager_executable"]),
+        "adb_executable": result["adb_executable"],
+    }
     if not previous:
         host.record("device.session.bound", {"request": bound, "session": result})
     return bound

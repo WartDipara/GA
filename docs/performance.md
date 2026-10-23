@@ -22,3 +22,17 @@ Terminal reporting and report-only recovery remain independent of device availab
 
 Verification is Python compilation and maintained JavaScript syntax checks only. No runtime speedup
 or new device acceptance is established by these checks.
+
+## Increment 2: native observation and discovery
+
+Native hierarchy capture writes to a unique device-side file, reads its actual XML and removes
+the file. Raw XML is not stored in command logs. Candidate labels pass through credential
+scrubbing. Available empty, malformed and unavailable trees have distinct trace events. The
+standard UIAutomator command cannot establish a non-default display binding, so such displays
+explicitly return unavailable and retain screenshot-based planning rather than using another
+display's coordinates. Screenshots retain runtime consistency and privacy checks.
+
+Session results may additionally return the resolved manager executable. The kernel binds that
+path and the ADB path into subsequent session requests, avoiding repeated installation discovery.
+Every session still checks the selected instance identity, endpoint and boot readiness. Existing
+session fields remain valid; the new response field is optional in version 1 contracts.
