@@ -341,6 +341,32 @@ class Store:
                 ErrorCode.TRACE_UNAVAILABLE, "Cannot persist trace; execution halted"
             ) from exc
 
+    def event_batch(self, run_id, entries, **ids):
+        if not isinstance(entries, list) or not 1 <= len(entries) <= 16:
+            raise FrameworkError(ErrorCode.INVALID_EVENT)
+        try:
+            with self.db:
+                for entry in entries:
+                    if (
+                        not isinstance(entry, dict)
+                        or set(entry) != {"kind", "payload", "event_id"}
+                        or not isinstance(entry["kind"], str)
+                        or not entry["kind"].startswith(("provider.", "ai.", "plugin."))
+                        or not isinstance(entry["event_id"], str)
+                        or not entry["event_id"]
+                        or entry["kind"] == "ai.session"
+                    ):
+                        raise FrameworkError(ErrorCode.INVALID_EVENT)
+                    self._event(
+                        run_id,
+                        entry["kind"],
+                        entry["payload"],
+                        event_id=entry["event_id"],
+                        **ids,
+                    )
+        except sqlite3.Error as exc:
+            raise FrameworkError(ErrorCode.TRACE_UNAVAILABLE) from exc
+
     def transition(self, run_id, status, stage=None, reason=None):
         run = self.run(run_id)
         allowed = {
@@ -393,6 +419,23 @@ class Store:
             args.append(limit)
         for row in self.db.execute(sql, args):
             event = {"seq": row[0], **json.loads(row[1])}
+            if event["payload"].get("event_payloads_referenced"):
+                message = event["payload"]["message"]
+                references = message["params"]["events"]
+                expanded = []
+                for reference in references:
+                    original = self.db.execute(
+                        "SELECT data FROM events WHERE event_id=? AND run_id=?",
+                        (reference["event_id"], run_id),
+                    ).fetchone()
+                    if original:
+                        original = json.loads(original[0])
+                        expanded.append(
+                            {key: original[key] for key in ("event_id", "kind", "payload")}
+                        )
+                    else:
+                        expanded.append({**reference, "unavailable": True})
+                message["params"]["events"] = expanded
             yield event
 
     def events(self, run_id, after=0, span=None, *, kinds=None, limit=None):

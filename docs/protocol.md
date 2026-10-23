@@ -143,7 +143,8 @@ accesses SQLite. See [MuMu discovery](emulators.md).
 `emulator.session` uses emulator-session-request and emulator-session-result. An explicit instance
 index is required; nullable identity and serial allow initial read-only resolution. Non-null values
 must match the current manager record. The response identifies the instance and resolved local ADB
-executable. Session resolution has no aggregate deadline; each child command remains bounded.
+executable and optionally the resolved manager executable. Session resolution has a finite
+aggregate device-operation deadline; each child command also remains bounded.
 
 `device.inspect`, `device.install`, and `device.observe` use their corresponding request/result
 schemas. Each request includes a pinned session request, resolved again through the declared
@@ -192,3 +193,19 @@ check result; trace retains all attempts, including incomplete calls.
 The capability is non-mutating and does not retry automatically. These checks do not prove launch,
 permission readiness, observation availability, or game coverage. See
 [environment checks](environment.md).
+
+## Durable event batches
+
+The host advertises `event-batches-v1` in the optional initialize features list. Supporting plugins
+may send `host.events` with an `events` array of one through sixteen records, each containing
+`event_id`, `kind` and object `payload`. Only provider, AI and plugin event namespaces are allowed.
+Session registration continues through `host.event`. Older peers continue using individual events.
+
+The host validates and commits the complete batch in one SQLite transaction before returning
+`{"persisted": true}`. Duplicate IDs must retain identical content. A rejected batch rolls back;
+its submitted contents are retained in an error event when storage remains writable. Transport
+envelopes reference canonical event IDs instead of duplicating payloads. Store readers expand the
+references for inspection; missing canonical events are explicitly marked unavailable. SQL retains
+the original provider message structure and every normalized event under the original call span.
+Provider wire payloads additionally retain the adapter receive time. No deltas are sampled or
+discarded, and no acknowledged events depend on a background memory queue.
