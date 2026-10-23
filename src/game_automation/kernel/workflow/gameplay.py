@@ -9,6 +9,7 @@ from game_automation.common import FrameworkError, digest, uid, within
 from game_automation.contracts import validate
 from game_automation.disk import require_disk_space
 from game_automation.errors import ErrorCode
+from game_automation.kernel.gameplay.diagnostics import DiagnosticCollector
 from game_automation.kernel.gameplay.hybrid import run_hybrid
 from game_automation.kernel.gameplay.local import Perception, execute_routine
 from game_automation.kernel.gameplay.progress import ProgressStore
@@ -81,6 +82,9 @@ class DeviceRuntime:
         self.step_id = None
         self.step_started = None
         self.watchdog = None
+        self.diagnostics = DiagnosticCollector(self)
+        self.perception_cache = {}
+        self.latest_perception = None
         profile = profile_path(store.root, task["credential_profile"])
         frozen = store.run_dir(run_id) / "credentials" / profile.name
         data = frozen.read_bytes() if frozen.exists() else profile.read_bytes()
@@ -196,24 +200,13 @@ class DeviceRuntime:
             ),
             "credential_path": self.credential_path,
         }
-        try:
-            result = await self.host.perform(request, parent_span_id=self.step_id)
-        finally:
-            if not self.host.failure and not self.store.run(self.run_id)["cancel_requested"]:
-                log_request = {
-                    "session": self.session,
-                    "package_name": self.task["target"],
-                    "credential_path": self.credential_path,
-                }
-                logs = await self.host.call(
-                    "device.logs", log_request, timeout=0, parent_span_id=self.step_id
-                )
-                self.host.record("gameplay.logs", logs)
+        result = await self.host.perform(request, parent_span_id=self.step_id)
         self.host.record(
             "gameplay.action.origin", {"action_id": result["action_id"], "source": source}
         )
         self.progress.data["pending"]["action_id"] = result["action_id"]
         self.progress.save()
+        self.diagnostics.request(result["action_id"])
         return result
 
 
@@ -231,6 +224,15 @@ async def play(store, run_id, host, manifest, task):
     if installed["sha256"] != task["metadata"]["sha256"]:
         raise FrameworkError(ErrorCode.DEVICE_PACKAGE_CONFLICT)
     runtime = DeviceRuntime(store, run_id, host, task, session, recorder, progress)
+    try:
+        await play_bound(runtime, manifest)
+    finally:
+        await runtime.diagnostics.close()
+
+
+async def play_bound(runtime, manifest):
+    store, run_id, host = runtime.store, runtime.run_id, runtime.host
+    task, progress = runtime.task, runtime.progress
     observation = await runtime.observe()
     progress.data["checkpoint"] = {
         "run_id": run_id,
@@ -238,13 +240,7 @@ async def play(store, run_id, host, manifest, task):
         "runtime": observation["runtime"],
     }
     progress.save()
-    request = {
-        "session": session,
-        "package_name": task["target"],
-        "credential_path": runtime.credential_path,
-    }
-    logs = await host.call("device.logs", request, timeout=0)
-    host.record("gameplay.logs", logs)
+    runtime.diagnostics.request()
     previous = store.latest_device_action(run_id)
     if previous and previous["status"] in ("verified", "reconciled"):
         for path in progress.data["paths"]:
