@@ -46,3 +46,20 @@ their ordering. SQLite stores canonical payloads once; RPC envelopes reference a
 them through event IDs. Legacy individual event delivery is still supported. Rejected batches
 retain diagnostic evidence, and failed persistence stops further work. Runtime-version and
 session-setup phases are separately timed. Performance improvement requires later business evidence.
+
+## Increment 4: diagnostics and observation reuse
+
+Action results and their pending verification IDs are saved before requesting diagnostics. At most
+one diagnostic collection runs per gameplay execution. Overlapping requests produce an explicit
+skipped record instead of an unbounded queue. Collection errors retain failed call spans and an
+unavailable event; authoritative persistence failure still stops execution. Finalization waits up
+to five seconds, then cancels and joins the collector before report generation.
+
+Game log windows retain boot, UID, PID and start-tick attribution. Normalized diagnostic records
+remove overlapping lines and identify possible gaps; original bounded windows remain in call
+outputs. These snapshots do not promise continuous logcat coverage. Boot changes invalidate data.
+
+Perception results are reused only for the same observation/comparison pair, with a source event
+reference. The cache holds at most four entries. Guarded routines can consume already collected
+facts rather than immediately settling the same starting point again. Every dispatched action
+still performs the existing fresh process, display and target-image safety checks.

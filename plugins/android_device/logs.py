@@ -51,16 +51,22 @@ async def collect(device, request):
         }
         windows.append(window)
     after = await snapshot(device, request["package_name"])
-    identities = {(item["pid"], item["start_ticks"]) for item in after["processes"]}
+    identities = {(item["uid"], item["pid"], item["start_ticks"]) for item in after["processes"]}
     for window in windows:
         process = window["process"]
-        if (process["pid"], process["start_ticks"]) not in identities:
+        if (
+            before["boot_id"] != after["boot_id"]
+            or (process["uid"], process["pid"], process["start_ticks"]) not in identities
+        ):
             window.update(text="", available=False)
     result = {
         "boot_id": before["boot_id"],
         "windows": windows,
         "lifetime_stable": before["boot_id"] == after["boot_id"]
-        and all((item["pid"], item["start_ticks"]) in identities for item in before["processes"]),
+        and all(
+            (item["uid"], item["pid"], item["start_ticks"]) in identities
+            for item in before["processes"]
+        ),
         "scope": "Exact package process names; isolated renderers are not attributed",
     }
     return result

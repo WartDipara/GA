@@ -42,9 +42,13 @@ async def _run_hybrid(runtime, manifest, observation):
             if steps:
                 runtime.host.record("gameplay.cache.hit", {"steps": len(steps)})
                 try:
-                    observation = await execute_routine(runtime, observation, steps)
+                    observation = await execute_routine(runtime, observation, steps, facts=facts)
                     cached_steps += len(steps)
-                    facts = await perception.analyze(observation)
+                    latest = runtime.latest_perception
+                    if latest and latest[0] == observation["observation_id"]:
+                        facts = latest[1]
+                    else:
+                        facts = await perception.analyze(observation)
                 except FrameworkError as exc:
                     if exc.code not in (ErrorCode.GAMEPLAY_BLOCKED, ErrorCode.STALE_OBSERVATION):
                         raise

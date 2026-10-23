@@ -13,6 +13,16 @@ class Perception:
         self.runtime = runtime
 
     async def analyze(self, observation, previous=None):
+        key = (observation["observation_id"], previous["observation_id"] if previous else None)
+        cached = self.runtime.perception_cache.get(key)
+        if cached is not None:
+            result, event_id = cached
+            self.runtime.host.record(
+                "gameplay.perception.reused",
+                {"observation_id": observation["observation_id"], "source_event_id": event_id},
+            )
+            self.runtime.latest_perception = (observation["observation_id"], result)
+            return result
         directory = self.runtime.store.run_dir(self.runtime.run_id)
         request = {
             "image_path": str(within(directory, observation["evidence_ref"])),
@@ -23,9 +33,15 @@ class Perception:
             "excluded_regions": observation["sensitive_regions"],
         }
         result = await self.runtime.host.call("perception.analyze", request)
-        self.runtime.host.record(
-            "gameplay.perception", {"observation_id": observation["observation_id"], **result}
+        event = self.runtime.host.record(
+            "gameplay.perception",
+            {"observation_id": observation["observation_id"], "previous": key[1], **result},
         )
+        self.runtime.perception_cache[key] = (result, event["event_id"])
+        if len(self.runtime.perception_cache) > 4:
+            oldest = next(iter(self.runtime.perception_cache))
+            del self.runtime.perception_cache[oldest]
+        self.runtime.latest_perception = (observation["observation_id"], result)
         return result
 
     async def settle(self, before):
@@ -79,18 +95,19 @@ class Perception:
         return result
 
 
-async def execute_routine(runtime, observation, steps):
+async def execute_routine(runtime, observation, steps, *, facts=None):
     with runtime.step_lifecycle():
-        return await _execute_routine(runtime, observation, steps)
+        return await _execute_routine(runtime, observation, steps, facts)
 
 
-async def _execute_routine(runtime, observation, steps):
+async def _execute_routine(runtime, observation, steps, facts):
     runtime.begin_step("guarded-routine")
     perception = Perception(runtime)
     routine = RoutineExecutor(steps)
     router = DecisionRouter()
     verifier = OutcomeVerifier()
-    observation, facts = await perception.settle(observation)
+    if facts is None:
+        observation, facts = await perception.settle(observation)
     while not routine.complete:
         route, reason = router.route(observation, facts, routine)
         runtime.host.record("gameplay.route", {"route": route, "reason": reason})
