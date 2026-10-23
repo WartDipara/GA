@@ -18,6 +18,9 @@
     "scope": {
       "const": "recorded_application_boundaries"
     },
+    "snapshot": {
+      "type": "object"
+    },
     "event_limit_reached": {
       "type": "boolean"
     },

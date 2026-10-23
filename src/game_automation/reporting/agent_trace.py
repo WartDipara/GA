@@ -13,12 +13,14 @@ from .action_evidence import action_figures
 from .agent_metrics import trace_metrics, version_identity
 from .agent_quality import quality_report
 from .agent_sessions import session_replay
+from .execution import snapshot_metadata
 from .gameplay import action_path
 from .trace_projection import project_trace
 
 
 def agent_view(store, run_id):
     view = project_trace(store, run_id)
+    view["snapshot"] = snapshot_metadata(store, run_id)
     owners = store.events(run_id, kinds=("agent.actor_assigned",), limit=1)
     actor = owners[0]["payload"]["actor_ref"] if owners else None
     view["actor_ref"] = actor

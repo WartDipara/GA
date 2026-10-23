@@ -6,7 +6,7 @@ import sys
 import time
 from pathlib import Path
 
-from game_automation.common import FrameworkError, json_text, redact
+from game_automation.common import FileLock, FrameworkError, json_text, redact
 from game_automation.contracts import validate
 from game_automation.errors import ErrorCode
 from game_automation.kernel.workflow.device import preparation_task
@@ -130,8 +130,9 @@ def parser():
         action="store_true",
         help="Continue the same task with current code and pinned shared Skill versions",
     )
-    report = commands.add_parser("report", help="Rebuild an offline gameplay report")
-    report.add_argument("run_id")
+    report = commands.add_parser("report", help="Rebuild outcome reports without replaying work")
+    report.add_argument("run_id", nargs="?")
+    report.add_argument("--pending", action="store_true", help="Retry pending report publications")
     compare = commands.add_parser("compare-games", help="Compare cross-game acceptance evidence")
     compare.add_argument("first_run")
     compare.add_argument("second_run")
@@ -177,6 +178,8 @@ def print_json(value):
 
 
 def run_details(store, run_id):
+    from game_automation.reporting.execution import publication_status
+
     details = store.run(run_id)
     details["task_directory"] = str(store.task_dir(details["task_id"]))
     details["execution_directory"] = str(store.run_dir(run_id))
@@ -206,12 +209,19 @@ def run_details(store, run_id):
         details["workflow"] = workflow_status(store, run_id)
     details["unknown_actions"] = store.unknown_actions(run_id)
     details["trace"] = str(store.run_dir(run_id) / "reports/trace.html")
+    details["report_publication"] = publication_status(store, run_id)
     return details
 
 
 def execution_result(store, run_id):
     details = run_details(store, run_id)
     print_json(details)
+    if details["report_publication"]["status"] != "complete":
+        print(
+            "Warning: report publication is incomplete. Business state is preserved; "
+            "use game-auto report to rebuild it without replaying work.",
+            file=sys.stderr,
+        )
     reasons = [
         event["payload"].get("reason")
         for event in store.events(run_id, kinds=("run.state",), limit=1)
@@ -374,10 +384,30 @@ def main(argv=None):
             asyncio.run(execute(store, run_id, args.input))
             return execution_result(store, run_id)
         elif args.command == "report":
-            from game_automation.reporting.gameplay import gameplay_report
+            from game_automation.kernel.report_finalization import (
+                finalize_reports,
+                repair_pending_reports,
+            )
+            from game_automation.kernel.workflow.recovery import reconcile_interrupted_runs
 
-            gameplay_report(store, args.run_id)
-            print_json({"report": str(store.run_dir(args.run_id) / "reports/gameplay.html")})
+            if bool(args.run_id) == args.pending:
+                raise FrameworkError(ErrorCode.INVALID_CONTRACT, "Choose a run ID or --pending")
+            with FileLock(store.var / "execution.lock"):
+                reconcile_interrupted_runs(store)
+                if args.pending:
+                    receipts = repair_pending_reports(store)
+                else:
+                    receipts = [finalize_reports(store, args.run_id)]
+            result = {"publications": receipts}
+            if args.run_id:
+                filename = (
+                    "gameplay.html"
+                    if store.run(args.run_id)["mode"] == "gameplay"
+                    else "execution.html"
+                )
+                result["report"] = str(store.run_dir(args.run_id) / "reports" / filename)
+            print_json(result)
+            return 0 if all(receipt["status"] == "complete" for receipt in receipts) else 2
         elif args.command == "compare-games":
             from game_automation.reporting.game_comparison import compare_games
 

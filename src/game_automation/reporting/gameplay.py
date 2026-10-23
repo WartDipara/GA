@@ -5,10 +5,11 @@ import json
 from collections import Counter
 from pathlib import Path
 
-from game_automation.common import FrameworkError, within
+from game_automation.common import FrameworkError, atomic_text, within
 from game_automation.errors import ErrorCode
 
 from .action_evidence import action_figures
+from .execution import snapshot_metadata
 
 REPORT_KINDS = (
     "call.started",
@@ -42,7 +43,14 @@ def action_path(store, run_id):
     observations = {}
     path = []
     for action in store.action_records(run_id):
-        request = json.loads(within(directory, action["input_ref"]).read_text(encoding="utf-8"))
+        issues = []
+        try:
+            request = json.loads(within(directory, action["input_ref"]).read_text(encoding="utf-8"))
+            if not isinstance(request, dict):
+                raise ValueError("Invalid retained request")
+        except (FrameworkError, OSError, ValueError):
+            request = {}
+            issues.append("Retained action input is unavailable or invalid")
         timing = timings.get(action["span_id"])
         item = {
             "action_id": action["action_id"],
@@ -54,16 +62,25 @@ def action_path(store, run_id):
             "result": action.get("result"),
             "execution_duration_ms": timing["payload"].get("duration_ms") if timing else None,
             "execution_status": timing["kind"].removeprefix("call.") if timing else "unknown",
+            "evidence_issues": issues,
         }
         if request.get("observation_path"):
-            item["before_image"] = (
-                store.artifact_path(run_id, request["observation_path"])
-                .relative_to(directory)
-                .as_posix()
-            )
+            try:
+                item["before_image"] = (
+                    store.artifact_path(run_id, request["observation_path"])
+                    .relative_to(directory)
+                    .as_posix()
+                )
+            except (FrameworkError, OSError, ValueError):
+                issues.append("Before observation reference is unavailable")
         outcome = action.get("result") or {}
         after_run = outcome.get("observation_run") or run_id
-        if store.run(after_run)["task_id"] == store.run(run_id)["task_id"]:
+        try:
+            same_task = store.run(after_run)["task_id"] == store.run(run_id)["task_id"]
+        except FrameworkError:
+            same_task = False
+            issues.append("After observation execution is unavailable")
+        if same_task:
             if after_run not in observations:
                 observations[after_run] = {
                     event["payload"]["observation_id"]: event["payload"]["evidence_ref"]
@@ -120,6 +137,7 @@ def write_html(store, run_id, report):
         key: report[key]
         for key in (
             "state",
+            "snapshot",
             "goal",
             "ai_calls",
             "deterministic_steps",
@@ -163,8 +181,7 @@ def write_html(store, run_id, report):
         + decisions
     )
     target = store.run_dir(run_id) / "reports/gameplay.html"
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(document, encoding="utf-8", newline="\n")
+    atomic_text(target, document)
 
 
 def gameplay_report(store, run_id):
@@ -192,6 +209,7 @@ def gameplay_report(store, run_id):
     report = {
         "run_id": run_id,
         "state": store.run(run_id)["status"],
+        "snapshot": snapshot_metadata(store, run_id),
         "goal": task["goal"],
         "ai_calls": sum(item["capability"] == "ai.decide" for item in starts),
         "ai_trigger_reasons": dict(reasons),

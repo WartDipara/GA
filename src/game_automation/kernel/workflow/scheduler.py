@@ -234,7 +234,4 @@ async def schedule(store, run_id, host, task, source_file):
     scheduler = Scheduler(store, run_id, host, task, source_file)
     plan = {"stages": task["stages"], "instances": task["instances"], "order": "apk-list"}
     store.event(run_id, "workflow.plan", plan)
-    try:
-        await scheduler.run(stages)
-    finally:
-        store.artifact(run_id, "reports/workflow.json", workflow_status(store, run_id))
+    await scheduler.run(stages)

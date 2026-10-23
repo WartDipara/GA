@@ -1,5 +1,9 @@
 # Agent observability
 
+Final outcome publication and report-only recovery are described in
+[Report finalization](report-finalization.md). Live projections are explicitly separate from final
+or blocked-checkpoint snapshots.
+
 The primary view follows recorded calls and their evidence. It projects the existing SQLite event
 store; it does not create another logging database. The structure takes inspiration from
 [Tencent Agent Trace](https://cloud.tencent.com/document/product/614/136743), while preserving this

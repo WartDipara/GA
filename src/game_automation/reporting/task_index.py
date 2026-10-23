@@ -3,7 +3,7 @@
 import html
 from collections import Counter
 
-from game_automation.common import FileLock, atomic_json
+from game_automation.common import FileLock, atomic_json, atomic_text
 
 
 def task_report(store, task_id, *, layout_locked=False):
@@ -71,5 +71,5 @@ def write_task_report(store, task_id):
         "<table><thead><tr><th>Execution</th><th>Mode</th><th>Status</th>"
         "<th>Evidence available</th></tr></thead><tbody>" + "".join(rows) + "</tbody></table>"
     )
-    (directory / "reports/task.html").write_text(document, encoding="utf-8", newline="\n")
+    atomic_text(directory / "reports/task.html", document)
     return report

@@ -6,11 +6,9 @@ from game_automation.disk import require_disk_space
 from game_automation.errors import ErrorCode
 from game_automation.kernel.capability_router import Router
 from game_automation.kernel.plugin_host import Host
+from game_automation.kernel.report_finalization import finalize_reports, repair_pending_reports
 from game_automation.kernel.storage_policy import storage_settings
 from game_automation.prompting.snapshots import freeze, load
-from game_automation.reporting.gameplay import gameplay_report
-from game_automation.reporting.task_index import task_report
-from game_automation.reporting.trace import export_trace
 
 from .device import observe_device, prepare_device
 from .emulators import discover_emulators
@@ -18,6 +16,7 @@ from .environment import check_environment
 from .gameplay import play
 from .intake import intake
 from .preprocessing import preprocess
+from .recovery import reconcile_interrupted_runs
 
 BLOCKED = {
     ErrorCode.WORKFLOW_BLOCKED,
@@ -90,14 +89,24 @@ def new_run_locked(store, task_id, mode="game", spec=None, *, parent_run=None):
     run_id = store.create_run(task_id, mode, spec)
     try:
         freeze(store, run_id, parent_run=parent_run)
-    except FrameworkError as exc:
-        store.transition(run_id, "blocked", reason=exc.as_dict())
-    task_report(store, store.run(run_id)["task_id"])
+    except (Exception, KeyboardInterrupt) as exc:
+        interrupted = isinstance(exc, KeyboardInterrupt)
+        error = (
+            exc
+            if isinstance(exc, FrameworkError)
+            else FrameworkError(ErrorCode.CANCELLED if interrupted else ErrorCode.SNAPSHOT_MISSING)
+        )
+        store.transition(run_id, "cancelled" if interrupted else "blocked", reason=error.as_dict())
+        finalize_reports(store, run_id)
+        if interrupted:
+            raise
     return run_id
 
 
 async def execute(store, run_id, source_file=None):
     with ExecutionLock(store.var / "execution.lock"):
+        reconcile_interrupted_runs(store)
+        repair_pending_reports(store)
         if store.run_task(run_id).get("workflow_run"):
             raise FrameworkError(
                 ErrorCode.WORKFLOW_INVALID, "Resume the owning workflow instead of its child"
@@ -111,46 +120,21 @@ async def execute_locked(store, run_id, source_file=None):
     run = store.run(run_id)
     if run["status"] in ("succeeded", "failed", "cancelled"):
         raise FrameworkError(ErrorCode.RUN_TERMINAL)
-    if run["mode"] not in (
-        "game",
-        "intake",
-        "preprocessing",
-        "emulators",
-        "device",
-        "observation",
-        "gameplay",
-        "workflow",
-        "analysis",
-    ):
-        raise FrameworkError(ErrorCode.RUN_MODE_REMOVED)
     try:
-        if run["status"] == "running":
-            call_kinds = ("call.started", "call.completed", "call.failed", "call.incomplete")
-            events = store.events(run_id, kinds=call_kinds)
-            closed = {
-                event["span_id"]
-                for event in events
-                if event["kind"] in ("call.completed", "call.failed", "call.incomplete")
-            }
-            for event in events:
-                if event["kind"] == "call.started" and event["span_id"] not in closed:
-                    incomplete_payload = {
-                        "error": {"code": ErrorCode.PREVIOUS_PROCESS_EXITED},
-                        "result": "unknown",
-                        "attempt": event["payload"]["attempt"],
-                    }
-                    store.event(
-                        run_id,
-                        "call.incomplete",
-                        incomplete_payload,
-                        span_id=event["span_id"],
-                        parent_span_id=event["parent_span_id"],
-                        request_id=event["request_id"],
-                    )
-            store.transition(run_id, "blocked", reason={"code": ErrorCode.PREVIOUS_PROCESS_EXITED})
+        if run["mode"] not in (
+            "game",
+            "intake",
+            "preprocessing",
+            "emulators",
+            "device",
+            "observation",
+            "gameplay",
+            "workflow",
+            "analysis",
+        ):
+            raise FrameworkError(ErrorCode.RUN_MODE_REMOVED)
         if store.run(run_id)["cancel_requested"]:
             store.transition(run_id, "cancelled")
-            export_trace(store, run_id)
             return store.run(run_id)
         manifest = load(store, run_id)
         if run["mode"] not in ("device", "gameplay") and store.unknown_actions(run_id):
@@ -245,10 +229,11 @@ async def execute_locked(store, run_id, source_file=None):
             status = "blocked"
         else:
             status = "failed"
+        if store.run(run_id)["status"] in ("queued", "blocked") and status == "failed":
+            status = "blocked"
         # Persistence failure must escape, not become a fabricated terminal record.
         store.transition(run_id, status, reason=error.as_dict())
-    if run["mode"] == "gameplay":
-        gameplay_report(store, run_id)
-    export_trace(store, run_id)
-    task_report(store, store.run(run_id)["task_id"])
+    finally:
+        if store.run(run_id)["status"] in ("succeeded", "failed", "cancelled", "blocked"):
+            finalize_reports(store, run_id)
     return store.run(run_id)

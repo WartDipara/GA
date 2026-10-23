@@ -83,6 +83,9 @@
       const indicator = node('span', undefined, `status-dot ${run.status}`);
       const label = node('span', undefined, 'execution-label');
       label.append(node('strong', runLabel(run)), node('small', run.apk_name || run.stage));
+      const publication = run.report_publication?.status;
+      if (publication && publication !== 'in_progress')
+        label.append(node('small', `Reports: ${publication}`));
       entry.append(indicator, label);
       entry.setAttribute('aria-pressed', String(selectedRun === run.run_id));
       return entry;

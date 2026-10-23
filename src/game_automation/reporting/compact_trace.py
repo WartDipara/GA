@@ -4,7 +4,7 @@ import html
 import json
 
 
-def render_compact(store, run_id):
+def render_compact(store, run_id, *, degraded=False):
     kinds = (
         "call.started",
         "gameplay.step.started",
@@ -46,6 +46,12 @@ def render_compact(store, run_id):
             f'<details style="margin-left:{indent}px"><summary>{label}</summary>'
             f"<pre>{preview}</pre></details>"
         )
+    explanation = (
+        "The detailed renderer is unavailable. This fallback shows the latest 2,000 "
+        "recorded execution events; inspect the publication status for rendering errors."
+        if degraded
+        else "This large run shows the latest 2,000 execution events with bounded previews."
+    )
     document = (
         '<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width">'
         '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; '
@@ -54,10 +60,11 @@ def render_compact(store, run_id):
         "margin:32px auto;padding:20px;background:#101820;color:#e6edf3}"
         "details{padding:8px}pre{white-space:pre-wrap;overflow-wrap:anywhere}a{color:#84caff}</style>"
         f"<h1>Execution timeline</h1><p>{html.escape(run_id)}</p>"
-        "<p>This large run shows the latest 2,000 call and execution events with bounded previews. "
+        f"<p>{explanation} "
         "Complete provider events and earlier records remain in SQLite and the calls directory. "
         "Use game-auto trace or game-auto inspect for complete stored records.</p>"
         '<p><a href="gameplay.html">Gameplay actions, screenshots and decisions</a></p>'
-        + "".join(rows)
+        '<p><a href="execution.html">Execution outcome</a> · '
+        '<a href="publication.json">Publication status</a></p>' + "".join(rows)
     )
     return document

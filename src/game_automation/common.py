@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 import re
+import tempfile
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -139,8 +140,21 @@ def within(root: Path, relative: str) -> Path:
     return candidate
 
 
-def atomic_json(path: Path, value):
+def atomic_text(path: Path, contents: str):
     path.parent.mkdir(parents=True, exist_ok=True)
-    temporary_path = path.with_name(path.name + ".tmp")
-    temporary_path.write_text(json_text(value), encoding="utf-8", newline="\n")
-    temporary_path.replace(path)
+    handle, temporary = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
+    try:
+        with os.fdopen(handle, "w", encoding="utf-8", newline="\n") as stream:
+            stream.write(contents)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, path)
+    finally:
+        try:
+            os.unlink(temporary)
+        except OSError:
+            pass
+
+
+def atomic_json(path: Path, value):
+    atomic_text(path, json_text(value))

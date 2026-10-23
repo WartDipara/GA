@@ -230,6 +230,11 @@ class ErrorCode(StrEnum):
     TIMEOUT = ("TIMEOUT", "Operation timed out")
     TRACE_UNAVAILABLE = ("TRACE_UNAVAILABLE", "Cannot persist trace; execution halted")
     OBSERVABILITY_INVALID = ("OBSERVABILITY_INVALID", "Invalid observability scope or evidence")
+    REPORT_GENERATION_FAILED = (
+        "REPORT_GENERATION_FAILED",
+        "A report component could not be generated",
+    )
+    REPORT_NOT_READY = ("REPORT_NOT_READY", "The execution has not reached a settled outcome")
     WORKSPACE_CONFLICT = (
         "WORKSPACE_CONFLICT",
         "Workspace relocation found conflicting directories; no files were overwritten",

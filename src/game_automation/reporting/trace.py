@@ -6,19 +6,29 @@ from pathlib import Path
 from string import Template
 from urllib.parse import quote
 
-from game_automation.common import FrameworkError, atomic_json, within
+from game_automation.common import FrameworkError, atomic_json, atomic_text, within
 from game_automation.observability import build_insights
 
 
 def export_trace(store, run_id):
     """Offline context dashboard and raw evidence viewer; no network or device calls."""
+    path = export_agent_trace(store, run_id)
+    export_context(store, run_id)
+    return path
+
+
+def export_agent_trace(store, run_id):
     document, view = render_trace(store, run_id)
     path = store.run_dir(run_id) / "reports/trace.html"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(document, encoding="utf-8", newline="\n")
     atomic_json(path.with_name("agent-trace.json"), view)
+    atomic_text(path, document)
+    return path
+
+
+def export_context(store, run_id):
     context, insights = render_context(store, run_id)
-    path.with_name("context.html").write_text(context, encoding="utf-8", newline="\n")
+    path = store.run_dir(run_id) / "reports/context.html"
+    atomic_text(path, context)
     if insights is not None:
         atomic_json(path.with_name("context.json"), insights)
     return path
