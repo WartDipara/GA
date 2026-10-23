@@ -1,7 +1,7 @@
 name = "agent_codex"
-version = "0.2.0"
+version = "0.3.0"
 protocol_version = "1.0"
-command = ["{python}", "{plugin}/main.py"]
+command = ["{node}", "{project}/var/cache/typescript/agent_codex.mjs"]
 capabilities = ["ai.decide"]
 required_capabilities = []
 optional_capabilities = []

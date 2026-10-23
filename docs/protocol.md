@@ -14,6 +14,13 @@ publication IDs keep retries distinct. Rendering status does not replace busines
 Transport: UTF-8 JSON-RPC 2.0 over stdio, one JSON object per line, maximum 8 MiB per message.
 stdout is protocol-only; stderr carries diagnostics. Use artifact references for large payloads.
 
+The `agent_codex` implementation uses TypeScript. `ai-decide-request` and `ai-decide-result`
+define its cross-language business boundary. Its provider request types are generated from the
+pinned Codex CLI; provider-specific shapes do not become application contracts. Optional business
+fields still receive the strict-output adaptation and are restored and validated before return.
+Node plugin exceptions are recorded as `plugin.node.exception` before an error response. Raw
+provider events, standard events, usage and session/turn/item correlation retain their identifiers.
+
 `workflow.schema.json` defines kernel workflow submissions: ordered APK source hashes, dedicated
 instance assignments, stage composition and gameplay goal. The original APK URL file remains a
 private CLI input. Child executions carry kernel-owned `workflow_run` and `workflow_key` metadata

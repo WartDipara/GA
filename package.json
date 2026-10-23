@@ -5,8 +5,8 @@
   "type": "module",
   "engines": { "node": "22.19.0" },
   "scripts": {
-    "generate": "node tools/generate-contracts.mjs",
-    "check": "npm run generate && tsc --noEmit && eslint src/control_plane --max-warnings 0",
+    "generate": "node tools/generate-contracts.mjs && node tools/generate-codex-types.mjs",
+    "check": "npm run generate && tsc --noEmit && eslint src/control_plane plugins/agent_codex --max-warnings 0",
     "build": "npm run check && node tools/build.mjs"
   },
   "dependencies": {

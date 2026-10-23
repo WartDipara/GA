@@ -1,3 +1,4 @@
+import shutil
 import sys
 import tomllib
 from pathlib import Path
@@ -20,12 +21,23 @@ def load_plugins(root: Path):
         validate(root / "contracts/v1", "plugin", manifest)
         if manifest["name"] != name:
             raise FrameworkError(ErrorCode.INVALID_PLUGIN)
+        node = shutil.which("node") if "{node}" in manifest["command"] else None
+        if "{node}" in manifest["command"] and node is None:
+            raise FrameworkError(ErrorCode.NODE_UNAVAILABLE)
         manifest["command"] = [
-            argument.replace("{python}", sys.executable).replace(
-                "{plugin}", str(manifest_path.parent)
-            )
+            argument.replace("{python}", sys.executable)
+            .replace("{node}", node or "")
+            .replace("{project}", str(root))
+            .replace("{plugin}", str(manifest_path.parent))
             for argument in manifest["command"]
         ]
+        if node and any(
+            argument.endswith(".mjs") and not Path(argument).is_file()
+            for argument in manifest["command"]
+        ):
+            raise FrameworkError(ErrorCode.TYPESCRIPT_BUILD_REQUIRED)
+        if node:
+            manifest["runtime"] = "node"
         manifest["cwd"] = str(manifest_path.parent)
         plugins[name] = manifest
     return plugins

@@ -1,5 +1,6 @@
 import json
 import re
+import subprocess
 import sys
 import tomllib
 from pathlib import Path
@@ -17,10 +18,83 @@ def code_hashes(directory):
         str(file_path.resolve()): digest(file_path.read_bytes())
         for file_path in directory.rglob("*")
         if file_path.is_file()
-        and file_path.suffix in (".py", ".toml")
+        and file_path.suffix in (".py", ".toml", ".ts", ".mjs")
         and "__pycache__" not in file_path.parts
     }
     return source_hashes
+
+
+def implementation_hashes(root, plugins):
+    hashes = code_hashes(root / "src/game_automation")
+    for plugin in plugins.values():
+        hashes.update(code_hashes(Path(plugin["cwd"])))
+    if any(plugin.get("runtime") == "node" for plugin in plugins.values()):
+        hashes.update(code_hashes(root / "src/control_plane"))
+        hashes.update(code_hashes(root / "tools"))
+        files = [
+            root / name
+            for name in (
+                "package.json",
+                "package-lock.json",
+                "tsconfig.json",
+                "eslint.config.mjs",
+                ".node-version",
+                "var/cache/typescript/build.json",
+            )
+        ]
+        for plugin in plugins.values():
+            if plugin.get("runtime") == "node":
+                files.extend(Path(value) for value in plugin["command"] if value.endswith(".mjs"))
+        for path in files:
+            if not path.is_file():
+                raise FrameworkError(ErrorCode.TYPESCRIPT_BUILD_REQUIRED)
+            hashes[str(path.resolve())] = digest(path.read_bytes())
+    return hashes
+
+
+def verify_typescript_build(root, plugins):
+    if not any(plugin.get("runtime") == "node" for plugin in plugins.values()):
+        return
+    try:
+        proof = json.loads((root / "var/cache/typescript/build.json").read_text(encoding="utf-8"))
+        if (
+            not isinstance(proof, dict)
+            or not isinstance(proof.get("files"), dict)
+            or not proof["files"]
+        ):
+            raise ValueError
+        for relative, expected in proof["files"].items():
+            path = (root / relative).resolve()
+            if not path.is_relative_to(root) or digest(path.read_bytes()) != expected:
+                raise ValueError
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        raise FrameworkError(ErrorCode.TYPESCRIPT_BUILD_REQUIRED) from exc
+
+
+def node_runtime(root, plugins):
+    binaries = {
+        plugin["command"][0] for plugin in plugins.values() if plugin.get("runtime") == "node"
+    }
+    if not binaries:
+        return None
+    if len(binaries) != 1:
+        raise FrameworkError(ErrorCode.NODE_RUNTIME_MISMATCH)
+    executable = next(iter(binaries))
+    try:
+        version = subprocess.run(
+            [executable, "--version"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
+        )
+        expected = (root / ".node-version").read_text(encoding="utf-8").strip()
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise FrameworkError(ErrorCode.NODE_UNAVAILABLE) from exc
+    if version.returncode or version.stdout.strip() != f"v{expected}":
+        raise FrameworkError(ErrorCode.NODE_RUNTIME_MISMATCH)
+    runtime = {"executable": executable, "version": version.stdout.strip()}
+    return runtime
 
 
 def save_manifest(store, run_id, manifest, *, parent_run=None):
@@ -85,9 +159,8 @@ def freeze(store, run_id, *, parent_run=None):
                     relative = file_path.relative_to(resource_roots[kind]).as_posix()
                     files[f"{kind}/{relative}"] = digest(file_path.read_bytes())
     plugins = load_plugins(root)
-    source_hashes = code_hashes(root / "src/game_automation")
-    for plugin in plugins.values():
-        source_hashes.update(code_hashes(Path(plugin["cwd"])))
+    verify_typescript_build(root, plugins)
+    source_hashes = implementation_hashes(root, plugins)
     manifest = {
         "framework_version": __version__,
         "python_version": sys.version,
@@ -100,6 +173,7 @@ def freeze(store, run_id, *, parent_run=None):
         ),
         "plugins": plugins,
         "source_hashes": source_hashes,
+        "node_runtime": node_runtime(root, plugins),
         "resource_roots": {kind: str(path.resolve()) for kind, path in resource_roots.items()},
         "files": files,
     }
@@ -116,9 +190,9 @@ def load(store, run_id):
             raise FrameworkError(
                 ErrorCode.RUNTIME_CHANGED, "Implementation changed; use a new execution batch"
             )
-    current_sources = code_hashes(store.root / "src/game_automation")
-    for plugin in manifest["plugins"].values():
-        current_sources.update(code_hashes(Path(plugin["cwd"])))
+    current_sources = implementation_hashes(store.root, manifest["plugins"])
+    if manifest.get("node_runtime") != node_runtime(store.root, manifest["plugins"]):
+        raise FrameworkError(ErrorCode.NODE_RUNTIME_MISMATCH)
     if current_sources != manifest["source_hashes"] or manifest["python_version"] != sys.version:
         raise FrameworkError(ErrorCode.RUNTIME_CHANGED)
     return manifest

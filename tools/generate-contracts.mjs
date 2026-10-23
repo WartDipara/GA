@@ -11,7 +11,10 @@ const entries = [];
 for (const file of (await readdir('contracts/v1')).sort()) {
   if (!file.endsWith('.schema.json')) continue;
   const name = file.slice(0, -'.schema.json'.length);
-  const type = name.split('-').map((part) => part[0].toUpperCase() + part.slice(1)).join('');
+  const type = name
+    .split('-')
+    .map((part) => part[0].toUpperCase() + part.slice(1))
+    .join('');
   const schema = JSON.parse(await readFile(`contracts/v1/${file}`, 'utf8'));
   const source = await compile({ ...schema, title: type }, type, {
     bannerComment: '// Generated from contracts/v1; do not edit.',
@@ -28,13 +31,37 @@ await writeFile(`${directory}/contracts.ts`, map);
 await writeFile(`${directory}/schemas.ts`, `export const schemas = ${JSON.stringify(schemas)};\n`);
 
 const exported = spawnSync('uv', ['run', 'python', 'tools/export-error-codes.py'], {
-  encoding: 'utf8', windowsHide: true,
+  encoding: 'utf8',
+  windowsHide: true,
 });
 if (exported.status !== 0) throw new Error('Cannot generate framework error codes');
 const errors = JSON.parse(exported.stdout);
-const members = Object.entries(errors).map(([name, value]) => `  ${name} = ${JSON.stringify(value.code)},`);
-const messages = Object.entries(errors).map(([name, value]) => `  [ErrorCode.${name}]: ${JSON.stringify(value.message)},`);
-const source = `// Generated from the authoritative framework ErrorCode; do not edit.\n`
-  + `export enum ErrorCode {\n${members.join('\n')}\n}\n`
-  + `export const errorMessages: Record<ErrorCode, string> = {\n${messages.join('\n')}\n};\n`;
+const members = Object.entries(errors).map(
+  ([name, value]) => `  ${name} = ${JSON.stringify(value.code)},`,
+);
+const messages = Object.entries(errors).map(
+  ([name, value]) => `  [ErrorCode.${name}]: ${JSON.stringify(value.message)},`,
+);
+const source =
+  `// Generated from the authoritative framework ErrorCode; do not edit.\n` +
+  `export enum ErrorCode {\n${members.join('\n')}\n}\n` +
+  `export const errorMessages: Record<ErrorCode, string> = {\n${messages.join('\n')}\n};\n`;
 await writeFile(`${directory}/errors.ts`, source);
+
+const manifest = await readFile('plugins/agent_codex/plugin.toml', 'utf8');
+const metadata = {};
+for (const field of ['version', 'protocol_version', 'capabilities']) {
+  const match = new RegExp(`^${field} = (.+)$`, 'm').exec(manifest);
+  if (!match) throw new Error(`Missing plugin metadata: ${field}`);
+  metadata[field] = JSON.parse(match[1]);
+}
+const configuration = await readFile('config/application.toml', 'utf8');
+const codexVersion = /\[codex\][\s\S]*?\nversion = "([^"]+)"/.exec(configuration)?.[1];
+if (!codexVersion) throw new Error('Pinned Codex version is missing');
+const package_ = JSON.parse(await readFile('package.json', 'utf8'));
+await writeFile(
+  `${directory}/agent-metadata.ts`,
+  `export const metadata = ${JSON.stringify(metadata)};\n` +
+    `export const frameworkVersion = ${JSON.stringify(package_.version)};\n` +
+    `export const pinnedCodexVersion = ${JSON.stringify(codexVersion)};\n`,
+);

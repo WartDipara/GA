@@ -11,6 +11,9 @@ plugins/<capability>/           Independent stdio process implementations and ma
 skills/<skill>/                 Shared runtime AI instructions and reference material
 tools/                          Maintained build and contract-generation tools
 src/control_plane/              Strict TypeScript control plane during incremental migration
+  contracts.ts                 Runtime validation against generated protocol types
+  errors.ts                    Structured framework errors from the shared error-code authority
+  protocol/                    Bounded JSON-RPC streams and child-process lifecycle
 src/game_automation/
   __init__.py                   Package version metadata only
   __main__.py                   python -m game_automation entry

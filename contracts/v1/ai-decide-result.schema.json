@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://game-automation.local/contracts/v1/ai-decide-result",
+  "type": "object",
+  "properties": {
+    "decision": {
+      "type": "object"
+    },
+    "thread_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "turn_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "reasoning_summary_available": {
+      "type": "boolean"
+    },
+    "usage": {
+      "type": [
+        "object",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "decision",
+    "thread_id",
+    "turn_id",
+    "reasoning_summary_available",
+    "usage"
+  ],
+  "additionalProperties": false
+}

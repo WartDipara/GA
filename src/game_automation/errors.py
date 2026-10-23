@@ -50,6 +50,12 @@ class ErrorCode(StrEnum):
     APK_WORKSPACE_BUSY = ("APK_WORKSPACE_BUSY", "Another worker owns this APK workspace")
     BUDGET_EXHAUSTED = ("BUDGET_EXHAUSTED", "Run time limit exceeded")
     CALL_FAILED = ("CALL_FAILED", "Call failed")
+    NODE_UNAVAILABLE = ("NODE_UNAVAILABLE", "Install the pinned Node runtime")
+    NODE_RUNTIME_MISMATCH = ("NODE_RUNTIME_MISMATCH", "Node differs from the pinned runtime")
+    TYPESCRIPT_BUILD_REQUIRED = (
+        "TYPESCRIPT_BUILD_REQUIRED",
+        "TypeScript artifacts are missing; run npm ci and npm run build",
+    )
     CANCELLED = ("CANCELLED", "Cancellation requested")
     CREDENTIAL_UNAVAILABLE = ("CREDENTIAL_UNAVAILABLE", "Local credential profile is unavailable")
     GAMEPLAY_BLOCKED = ("GAMEPLAY_BLOCKED", "Game task requires attention; inspect its checkpoint")

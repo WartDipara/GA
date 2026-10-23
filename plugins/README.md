@@ -6,7 +6,7 @@ that another plugin may import private implementation files.
 
 | Plugin | Implemented boundary |
 | --- | --- |
-| agent_codex | Pinned App Server connection, explicit Skills, structured decisions and public events |
+| agent_codex | TypeScript App Server adapter, explicit Skills, structured decisions and public events |
 | task_intake | Canonical JSON handling and AI-assisted text/Markdown intake |
 | environment | Read-only ADB availability, boot and package checks |
 | apk_preprocessing | Resumable downloads, archive checks and concise AAPT2 metadata |
@@ -17,6 +17,12 @@ that another plugin may import private implementation files.
 Plugins request declared dependencies through `host.call` and await event-persistence
 acknowledgements. They never access the business database. stdout is protocol-only. A separate
 process is not a security sandbox.
+
+Build TypeScript plugins with `npm ci` and `npm run build`. Their manifests use the pinned Node
+runtime and shared bundles under `var/cache/typescript`. Execution admission checks build-source
+hashes before accepting a bundle. Runtime manifests pin TypeScript sources, the dependency lock,
+the bundle and Node identity. Missing or stale builds block admission instead of silently using a
+previous artifact. Windows uses the native pinned Codex executable without shell interpolation.
 
 The framework's `kernel/gameplay/` coordinates exploration, routines and battle goals. Offline report
 generation lives under `src/game_automation/reporting/`; there is no placeholder reporting plugin.
