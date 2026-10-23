@@ -4,6 +4,10 @@ import { schemas } from '../../../var/cache/typescript/generated/schemas.js';
 import { ErrorCode, FrameworkError } from './errors.js';
 
 export type { ContractMap };
+
+export function schema(name: keyof ContractMap): unknown {
+  return schemas[name];
+}
 const validator = new Ajv2020({ strict: false, allErrors: false, validateFormats: false });
 
 export function decode<K extends keyof ContractMap>(name: K, value: unknown): ContractMap[K] {

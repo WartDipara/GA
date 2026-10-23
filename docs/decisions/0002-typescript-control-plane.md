@@ -51,7 +51,12 @@ Python CLI compatibility functions hold the existing OS execution lock and invok
 they do not select stages, reuse child executions or publish business terminal states. During this
 increment a named reverse-RPC bridge retains existing leaf-stage operations, snapshot utilities and
 rich report renderers. This bridge is transitional and must be removed as those operations become
-TypeScript orchestration plus independent Python tools. The Python gameplay loop is still pending.
+TypeScript orchestration plus independent Python tools. Gameplay execution now runs directly in
+TypeScript: observation, planning, bounded routines, progress, battle evidence, reconciliation and
+stall handling. The former Python loop and its policy modules are removed. Image resizing and
+DPAPI credential validation are independent `gameplay_tools` plugin capabilities with no database
+access. Existing checkpoint keys and fingerprints are preserved; checkpoint decoding validates
+persisted inputs before they can authorize another action.
 
 The executor preserves stage keys, child ownership, continued-from links, explicit unknown spans,
 actual duration fields, atomic settlement/report requests and report-only recovery. A broken bridge

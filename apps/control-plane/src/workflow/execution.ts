@@ -14,6 +14,7 @@ import {
 } from '../storage/values.js';
 import { requireDiskSpace } from '../storage/disk.js';
 import { Scheduler } from './scheduler.js';
+import { play } from '../gameplay/play.js';
 import { blockedErrors, settledStatuses } from './state-policy.js';
 
 export type Tool = (operation: string, runId: string, input: Fields) => Promise<unknown>;
@@ -35,7 +36,7 @@ export class Execution {
   constructor(
     readonly store: Store,
     readonly tool: Tool,
-    private readonly signal: AbortSignal,
+    readonly signal: AbortSignal,
     private readonly drain: () => Promise<void>,
   ) {}
 
@@ -289,13 +290,16 @@ export class Execution {
           status: 'running',
           stage: stages[mode] ?? 'intake',
         });
-        const result = await this.tool('stage', runId, {
-          mode,
-          task,
-          manifest,
-          source_file: sourceFile,
-          timeout_seconds: timeout,
-        });
+        const result =
+          mode === 'gameplay'
+            ? await play(this, runId, manifest, task)
+            : await this.tool('stage', runId, {
+                mode,
+                task,
+                manifest,
+                source_file: sourceFile,
+                timeout_seconds: timeout,
+              });
         if (mode === 'game' || mode === 'intake') task = object(result);
         if (mode === 'game') {
           this.store.command('transition', {

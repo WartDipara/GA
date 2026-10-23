@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://game-automation.local/contracts/v1/planner-image-result",
+  "type": "object",
+  "properties": {
+    "width": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "height": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "native_width": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "native_height": {
+      "type": "integer",
+      "minimum": 1
+    }
+  },
+  "required": [
+    "width",
+    "height",
+    "native_width",
+    "native_height"
+  ],
+  "additionalProperties": false
+}

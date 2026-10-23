@@ -17,6 +17,8 @@ import {
 } from '../storage/values.js';
 
 const capabilityContracts: Record<string, [keyof ContractMap, keyof ContractMap]> = {
+  'credential.prepare': ['credential-prepare-request', 'credential-prepare-result'],
+  'planner.image': ['planner-image-request', 'planner-image-result'],
   'ai.decide': ['ai-decide-request', 'ai-decide-result'],
   'task.intake': ['intake-request', 'intake-result'],
   'environment.check': ['environment-request', 'environment-result'],
@@ -116,14 +118,19 @@ export class Host {
     return plugin;
   }
 
-  async execute(operation: string, input: Fields, context: Fields): Promise<unknown> {
+  async execute(
+    operation: string,
+    input: Fields,
+    context: Fields,
+    signal = this.signal,
+  ): Promise<unknown> {
     const options: CallOptions = {
       parent: optionalText(context['parent_span_id']),
       timeout: context['timeout'] == null ? null : integer(context['timeout']),
       ancestry: strings(context['ancestry'] ?? []),
       span: optionalText(context['span_id']),
       action: null,
-      signal: this.signal,
+      signal,
     };
     if (operation === 'call') return this.call(text(context['capability']), input, options);
     if (operation !== 'install' && operation !== 'perform')

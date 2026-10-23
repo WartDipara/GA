@@ -18,9 +18,10 @@ Use Python 3.12, uv, and Codex CLI 0.163.0. Run commands from the repository roo
 machine-specific executable paths out of committed configuration.
 
 The control plane is being migrated incrementally to TypeScript; capability plugins retain Python.
-The Codex adapter, plugin host and sole SQLite writer now use TypeScript. Python retains the
-gameplay loop, CLI and read-only reporting projections for this stage. Execution lifecycle,
-interrupted-span recovery and APK batch scheduling now run in TypeScript. Remaining Python stage
+The Codex adapter, plugin host and sole SQLite writer now use TypeScript. The gameplay loop,
+planning, guarded routines, action reconciliation, progress and stall limits also run in TypeScript.
+Python retains the CLI, read-only reporting projections and capability tools. Execution lifecycle,
+interrupted-span recovery and APK batch scheduling run in TypeScript. Remaining Python stage
 operations use an explicit temporary bridge until their dedicated migration increment.
 Use the Node version in `.node-version`, run `npm ci` and `npm run build` for the shared TypeScript
 artifacts. The existing CLI remains available during migration. See

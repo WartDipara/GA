@@ -2,6 +2,12 @@
 
 ## Module boundaries
 
+Gameplay orchestration lives in `apps/control-plane/src/gameplay/`. It calls the TypeScript plugin
+host and sole state writer directly. Python handles image processing, DPAPI and device capabilities
+through independent plugins; it no longer runs a gameplay loop. Stored checkpoints are decoded
+against `gameplay-progress` before reuse. The language migration has compilation verification only;
+historical device evidence does not establish acceptance of the migrated runtime.
+
 | Component | Boundary |
 | --- | --- |
 | DeviceRuntime | Bound process/task/display observations and kernel-authorized input |

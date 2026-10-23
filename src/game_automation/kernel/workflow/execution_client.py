@@ -79,7 +79,6 @@ async def run_stage(store, run_id, inputs):
     from .device import observe_device, prepare_device
     from .emulators import discover_emulators
     from .environment import check_environment
-    from .gameplay import play
     from .intake import intake
     from .preprocessing import preprocess
     from .trace_analysis import analyze_trace
@@ -102,8 +101,6 @@ async def run_stage(store, run_id, inputs):
                 await prepare_device(store, run_id, host, manifest, task)
             elif mode == "observation":
                 await observe_device(store, run_id, host, manifest, task)
-            elif mode == "gameplay":
-                await play(store, run_id, host, manifest, task)
             elif mode == "analysis":
                 await analyze_trace(store, run_id, host, manifest, task)
             elif mode == "environment":
