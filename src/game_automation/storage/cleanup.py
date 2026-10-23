@@ -2,7 +2,6 @@
 
 import json
 import shutil
-import sqlite3
 from pathlib import Path
 
 from game_automation.common import FileLock, FrameworkError, atomic_json, within
@@ -101,35 +100,6 @@ def plan_cleanup(store, task_ids, *, all_tasks, missing):
     return plan
 
 
-def delete_records(store, task_ids):
-    encoded = json.dumps(task_ids)
-    runs = "SELECT id FROM runs WHERE task_id IN (SELECT value FROM json_each(?))"
-    for table in (
-        "events",
-        "sessions",
-        "actions",
-        "device_bindings",
-        "gameplay_progress",
-        "run_inputs",
-    ):
-        store.db.execute(f"DELETE FROM {table} WHERE run_id IN ({runs})", (encoded,))
-    store.db.execute(f"DELETE FROM runs WHERE id IN ({runs})", (encoded,))
-    aliases = [
-        row[0]
-        for row in store.db.execute(
-            "SELECT alias_id FROM task_aliases WHERE task_id IN (SELECT value FROM json_each(?))",
-            (encoded,),
-        )
-    ]
-    store.db.execute(
-        "DELETE FROM task_aliases WHERE task_id IN (SELECT value FROM json_each(?))", (encoded,)
-    )
-    deleted_tasks = json.dumps([*task_ids, *aliases])
-    store.db.execute(
-        "DELETE FROM tasks WHERE id IN (SELECT value FROM json_each(?))", (deleted_tasks,)
-    )
-
-
 def cleanup(store, task_ids=None, *, all_tasks=False, missing=False, apply=False):
     with FileLock(store.var / "execution.lock"), FileLock(store.var / "layout.lock"):
         if store.cleanup_journal.parent.is_symlink() or store.cleanup_journal.parent.is_junction():
@@ -152,24 +122,17 @@ def cleanup(store, task_ids=None, *, all_tasks=False, missing=False, apply=False
         # Filesystem deletion and a SQLite commit cannot be one atomic transaction.
         # Keep the fixed intent until both deletion and compaction finish; retries are idempotent.
         try:
-            with store.db:
-                store.db.execute("BEGIN IMMEDIATE")
-                check_dependencies(store, plan["task_ids"])
-                for relative in plan["paths"]:
-                    path = checked_path(store, relative)
-                    if path.is_dir():
-                        shutil.rmtree(path)
-                    elif path.exists():
-                        path.unlink()
-                delete_records(store, plan["task_ids"])
-            checkpoint = store.db.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone()
-            if checkpoint[0]:
-                raise FrameworkError(ErrorCode.CLEANUP_FAILED)
-            store.db.execute("VACUUM")
-            checkpoint = store.db.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone()
-            if checkpoint[0]:
-                raise FrameworkError(ErrorCode.CLEANUP_FAILED)
-        except sqlite3.Error as exc:
+            store._write("prepare_cleanup")
+            check_dependencies(store, plan["task_ids"])
+            for relative in plan["paths"]:
+                path = checked_path(store, relative)
+                if path.is_dir():
+                    shutil.rmtree(path)
+                elif path.exists():
+                    path.unlink()
+            store._write("delete_tasks", task_ids=plan["task_ids"])
+            store._write("compact")
+        except FrameworkError as exc:
             raise FrameworkError(ErrorCode.CLEANUP_FAILED) from exc
         store.cleanup_journal.unlink()
         result.update(

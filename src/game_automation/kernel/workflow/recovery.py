@@ -19,6 +19,7 @@ BOUNDARIES = {
 
 def reconcile_interrupted_runs(store):
     """The caller owns execution.lock, proving no framework execution still owns these runs."""
+    store.quiesce()
     runs = store.db.execute("SELECT id FROM runs WHERE status='running' ORDER BY rowid").fetchall()
     for row in runs:
         run_id = row[0]

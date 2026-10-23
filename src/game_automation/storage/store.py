@@ -1,15 +1,14 @@
 from __future__ import annotations
 
 import json
-import re
 import sqlite3
 from pathlib import Path
 
-from game_automation.common import FileLock, FrameworkError, atomic_json, now, redact, uid, within
+from game_automation.common import FileLock, FrameworkError, atomic_json, redact, within
 from game_automation.errors import ErrorCode
 
-from .layout import upgrade
-from .usage import FileUsage, initialize_event_usage
+from .control_client import ControlClient
+from .usage import FileUsage
 
 
 def run_subject(task):
@@ -21,7 +20,7 @@ def run_subject(task):
 
 
 class Store:
-    """Only the kernel owns this database. Events and state commit together."""
+    """Read-only projections with writes delegated to the TypeScript kernel."""
 
     @classmethod
     def open_readonly(cls, root: Path):
@@ -31,17 +30,19 @@ class Store:
         store.cleanup_journal = store.var / "cleanup/pending.json"
         store.check_cleanup()
         database_uri = (store.var / "state.sqlite").as_uri() + "?mode=ro"
-        store.db = sqlite3.connect(database_uri, uri=True, timeout=2)
-        store.db.row_factory = sqlite3.Row
+        store.writer = None
         store.file_usage = {}
-        store.has_event_usage = bool(
-            store.db.execute("SELECT 1 FROM sqlite_master WHERE name='event_usage'").fetchone()
-        )
         try:
+            store.db = sqlite3.connect(database_uri, uri=True, timeout=2)
+            store.db.row_factory = sqlite3.Row
             store.db.execute("PRAGMA query_only=ON")
-        except sqlite3.Error:
-            store.db.close()
-            raise
+            store.has_event_usage = bool(
+                store.db.execute("SELECT 1 FROM sqlite_master WHERE name='event_usage'").fetchone()
+            )
+        except sqlite3.Error as exc:
+            if hasattr(store, "db"):
+                store.db.close()
+            raise FrameworkError(ErrorCode.TRACE_UNAVAILABLE) from exc
         return store
 
     def __init__(self, root: Path, *, allow_cleanup=False):
@@ -51,125 +52,45 @@ class Store:
         self.cleanup_journal = self.var / "cleanup/pending.json"
         if not allow_cleanup:
             self.check_cleanup()
-        self.db = sqlite3.connect(self.var / "state.sqlite")
-        self.db.row_factory = sqlite3.Row
-        self.file_usage = {}
-        self.db.execute("PRAGMA journal_mode=WAL")
-        self.db.execute("PRAGMA synchronous=FULL")
-        self.db.execute("PRAGMA foreign_keys=ON")
-        version = self.db.execute("PRAGMA user_version").fetchone()[0]
-        if version not in (0, 1, 2, 3, 4):
-            raise FrameworkError(ErrorCode.SCHEMA_VERSION)
-        schema_sql = """
-            CREATE TABLE IF NOT EXISTS tasks (
-                id TEXT PRIMARY KEY,
-                submission_key TEXT UNIQUE,
-                spec TEXT NOT NULL,
-                created_at TEXT
-            );
-            CREATE TABLE IF NOT EXISTS runs (
-                id TEXT PRIMARY KEY,
-                task_id TEXT REFERENCES tasks(id),
-                mode TEXT NOT NULL,
-                status TEXT NOT NULL,
-                stage TEXT NOT NULL,
-                cancel_requested INTEGER DEFAULT 0,
-                created_at TEXT,
-                updated_at TEXT
-            );
-            CREATE TABLE IF NOT EXISTS events (
-                seq INTEGER PRIMARY KEY AUTOINCREMENT,
-                event_id TEXT UNIQUE NOT NULL,
-                run_id TEXT REFERENCES runs(id),
-                span_id TEXT,
-                kind TEXT NOT NULL,
-                data TEXT NOT NULL
-            );
-            CREATE INDEX IF NOT EXISTS run_task ON runs(task_id);
-            CREATE INDEX IF NOT EXISTS event_run ON events(run_id, seq);
-            CREATE TABLE IF NOT EXISTS sessions (
-                run_id TEXT,
-                role TEXT,
-                thread_id TEXT,
-                PRIMARY KEY(run_id, role)
-            );
-            CREATE TABLE IF NOT EXISTS actions (
-                run_id TEXT,
-                action_id TEXT,
-                status TEXT,
-                result TEXT,
-                PRIMARY KEY(run_id, action_id)
-            );
-            CREATE TABLE IF NOT EXISTS device_bindings (
-                instance_id TEXT PRIMARY KEY,
-                apk_key TEXT UNIQUE NOT NULL,
-                instance_index INTEGER NOT NULL,
-                run_id TEXT UNIQUE NOT NULL REFERENCES runs(id)
-            );
-            CREATE TABLE IF NOT EXISTS gameplay_progress (
-                workspace_key TEXT PRIMARY KEY,
-                run_id TEXT NOT NULL REFERENCES runs(id),
-                data TEXT NOT NULL
-            );
-            CREATE TABLE IF NOT EXISTS run_inputs (
-                run_id TEXT PRIMARY KEY REFERENCES runs(id),
-                spec TEXT NOT NULL
-            );
-            CREATE TABLE IF NOT EXISTS task_aliases (
-                alias_id TEXT PRIMARY KEY REFERENCES tasks(id),
-                task_id TEXT NOT NULL REFERENCES tasks(id)
-            );
-        """
         with FileLock(self.var / "layout.lock"):
             if not allow_cleanup:
                 self.check_cleanup()
-            version = self.db.execute("PRAGMA user_version").fetchone()[0]
-            self.db.executescript(schema_sql)
-            if version != 4:
-                with FileLock(self.var / "execution.lock"):
-                    upgrade(self.db, self.var, version)
-            initialize_event_usage(self)
+            self.writer = ControlClient.start(self.root)
+        database_uri = (self.var / "state.sqlite").as_uri() + "?mode=ro"
+        try:
+            self.db = sqlite3.connect(database_uri, uri=True, timeout=2)
+            self.db.row_factory = sqlite3.Row
+            self.db.execute("PRAGMA query_only=ON")
+        except BaseException:
+            self.writer.close()
+            raise
+        self.file_usage = {}
         self.has_event_usage = True
+
+    def _write(self, method, **params):
+        if self.writer is None:
+            raise FrameworkError(ErrorCode.CAPABILITY_DENIED, "This store is read-only")
+        return self.writer.request("storage." + method, params)
 
     def close(self):
         self.db.close()
+        if self.writer is not None:
+            self.writer.close()
+
+    def quiesce(self):
+        """Caller owns execution.lock; drain previous calls before reconciling their evidence."""
+        if self.writer is None:
+            raise FrameworkError(ErrorCode.CAPABILITY_DENIED)
+        return self.writer.request("storage.quiesce", {}, timeout=None)
 
     def check_cleanup(self):
         if self.cleanup_journal.exists():
             raise FrameworkError(ErrorCode.CLEANUP_PENDING)
 
     def submit(self, spec, key=None):
-        spec = redact(spec)
-        encoded = json.dumps(spec, sort_keys=True, ensure_ascii=False)
-        subject = run_subject(spec)
-        label = re.sub(r"[^a-z0-9._-]+", "-", subject.lower())[:40].strip("._-") or "task"
-        with FileLock(self.var / "layout.lock"), self.db:
+        with FileLock(self.var / "layout.lock"):
             self.check_cleanup()
-            self.db.execute("BEGIN IMMEDIATE")
-            if key:
-                row = self.db.execute(
-                    "SELECT * FROM tasks WHERE submission_key=?", (key,)
-                ).fetchone()
-                if row:
-                    if row["spec"] != encoded:
-                        raise FrameworkError(ErrorCode.IDEMPOTENCY_CONFLICT)
-                    task_id = self.canonical_task_id(row["id"])
-                    self.write_task(task_id)
-                    return task_id
-            for _ in range(10):
-                task_id = uid(f"task_{label}")
-                if self.db.execute("SELECT 1 FROM tasks WHERE id=?", (task_id,)).fetchone():
-                    continue
-                try:
-                    self.task_dir(task_id).mkdir(parents=True, exist_ok=False)
-                except FileExistsError:
-                    continue
-                break
-            else:
-                raise FrameworkError(ErrorCode.TASK_ID_COLLISION)
-            self.db.execute("INSERT INTO tasks VALUES(?,?,?,?)", (task_id, key, encoded, now()))
-            self.write_task(task_id)
-        return task_id
+            return self._write("submit", spec=spec, key=key)
 
     def canonical_task_id(self, task_id):
         row = self.db.execute(
@@ -198,42 +119,9 @@ class Store:
         return json.loads(row[0])
 
     def create_run(self, task_id, mode, spec=None):
-        task_id = self.canonical_task_id(task_id)
-        task = self.task(task_id) if spec is None else redact(spec)
-        self.task(task_id)
-        source_run = task.get("prepared_run") or task.get("source_run")
-        if source_run and self.run(source_run)["task_id"] != task_id:
-            raise FrameworkError(
-                ErrorCode.INVALID_STATE, "Execution source belongs to another task"
-            )
-        timestamp = now()
-        directory = self.task_dir(task_id) / "executions"
-        with FileLock(self.var / "layout.lock"), self.db:
+        with FileLock(self.var / "layout.lock"):
             self.check_cleanup()
-            directory.mkdir(parents=True, exist_ok=True)
-            self.db.execute("BEGIN IMMEDIATE")
-            for _ in range(10):
-                run_id = uid("run")
-                existing = self.db.execute("SELECT 1 FROM runs WHERE id=?", (run_id,)).fetchone()
-                if existing:
-                    continue
-                try:
-                    within(directory, run_id).mkdir(exist_ok=False)
-                except FileExistsError:
-                    continue
-                break
-            else:
-                raise FrameworkError(ErrorCode.RUN_ID_COLLISION)
-            self.db.execute(
-                "INSERT INTO runs VALUES(?,?,?,?,?,0,?,?)",
-                (run_id, task_id, mode, "queued", "intake", timestamp, timestamp),
-            )
-            self.db.execute(
-                "INSERT INTO run_inputs VALUES(?,?)", (run_id, json.dumps(task, ensure_ascii=False))
-            )
-            self._event(run_id, "run.created", {"mode": mode, "name": run_subject(task)})
-            self.write_task(task_id)
-        return run_id
+            return self._write("create_run", task_id=task_id, mode=mode, spec=spec)
 
     def list_runs(self, limit=20):
         if not 1 <= limit <= 200:
@@ -302,114 +190,14 @@ class Store:
             path = path.relative_to(legacy)
         return within(self.run_dir(run_id), path)
 
-    def _event(
-        self,
-        run_id,
-        kind,
-        payload,
-        span_id=None,
-        parent_span_id=None,
-        request_id=None,
-        event_id=None,
-    ):
-        if not isinstance(payload, dict):
-            raise FrameworkError(ErrorCode.INVALID_EVENT, "Event payload must be an object")
-        run = self.run(run_id)
-        event = {
-            "event_id": event_id or uid("evt"),
-            "task_id": run["task_id"],
-            "run_id": run_id,
-            "span_id": span_id,
-            "parent_span_id": parent_span_id,
-            "request_id": request_id,
-            "kind": kind,
-            "timestamp": now(),
-            "payload": redact(payload),
-        }
-        previous = self.db.execute(
-            "SELECT data FROM events WHERE event_id=?", (event["event_id"],)
-        ).fetchone()
-        if previous:
-            old = json.loads(previous[0])
-            if any(old.get(key) != value for key, value in event.items() if key != "timestamp"):
-                raise FrameworkError(ErrorCode.EVENT_ID_CONFLICT)
-            return old
-        self.db.execute(
-            "INSERT OR IGNORE INTO events(event_id,run_id,span_id,kind,data) VALUES(?,?,?,?,?)",
-            (event["event_id"], run_id, span_id, kind, json.dumps(event, ensure_ascii=False)),
-        )
-        return event
-
     def event(self, run_id, kind, payload, **ids):
-        try:
-            with self.db:
-                return self._event(run_id, kind, payload, **ids)
-        except sqlite3.Error as exc:
-            raise FrameworkError(
-                ErrorCode.TRACE_UNAVAILABLE, "Cannot persist trace; execution halted"
-            ) from exc
+        return self._write("event", run_id=run_id, kind=kind, payload=payload, **ids)
 
     def event_batch(self, run_id, entries, **ids):
-        if not isinstance(entries, list) or not 1 <= len(entries) <= 16:
-            raise FrameworkError(ErrorCode.INVALID_EVENT)
-        try:
-            with self.db:
-                for entry in entries:
-                    if (
-                        not isinstance(entry, dict)
-                        or set(entry) != {"kind", "payload", "event_id"}
-                        or not isinstance(entry["kind"], str)
-                        or not entry["kind"].startswith(("provider.", "ai.", "plugin."))
-                        or not isinstance(entry["event_id"], str)
-                        or not entry["event_id"]
-                        or entry["kind"] == "ai.session"
-                    ):
-                        raise FrameworkError(ErrorCode.INVALID_EVENT)
-                    self._event(
-                        run_id,
-                        entry["kind"],
-                        entry["payload"],
-                        event_id=entry["event_id"],
-                        **ids,
-                    )
-        except sqlite3.Error as exc:
-            raise FrameworkError(ErrorCode.TRACE_UNAVAILABLE) from exc
+        self._write("event_batch", run_id=run_id, entries=entries, **ids)
 
     def transition(self, run_id, status, stage=None, reason=None):
-        run = self.run(run_id)
-        allowed = {
-            "queued": {"running", "cancelled", "blocked"},
-            "running": {"running", "blocked", "failed", "succeeded", "cancelled"},
-            "blocked": {"running", "cancelled", "blocked"},
-            "failed": set(),
-            "succeeded": set(),
-            "cancelled": set(),
-        }
-        if status not in allowed[run["status"]]:
-            if status == run["status"]:
-                return
-            raise FrameworkError(
-                ErrorCode.INVALID_STATE, f"Cannot change {run['status']} to {status}"
-            )
-        with self.db:
-            state_payload = {
-                "from": run["status"],
-                "to": status,
-                "stage": stage or run["stage"],
-                "reason": reason,
-            }
-            state_event = self._event(run_id, "run.state", state_payload)
-            self.db.execute(
-                "UPDATE runs SET status=?,stage=?,updated_at=? WHERE id=?",
-                (status, stage or run["stage"], now(), run_id),
-            )
-            if status in ("blocked", "failed", "succeeded", "cancelled"):
-                report_request = {
-                    "request_id": uid("report"),
-                    "state_event_id": state_event["event_id"],
-                    "business_status": status,
-                }
-                self._event(run_id, "report.requested", report_request)
+        self._write("transition", run_id=run_id, status=status, stage=stage, reason=reason)
 
     def iter_events(self, run_id, after=0, span=None, *, kinds=None, limit=None, through=None):
         self.run(run_id)
@@ -497,49 +285,13 @@ class Store:
         return row[0] if row else None
 
     def save_session(self, run_id, role, thread_id):
-        with self.db:
-            self.db.execute(
-                "INSERT OR REPLACE INTO sessions VALUES(?,?,?)", (run_id, role, thread_id)
-            )
-            self._event(run_id, "ai.session", {"role": role, "thread_id": thread_id})
+        self._write("save_session", run_id=run_id, role=role, thread_id=thread_id)
 
     def cancel(self, run_id):
-        if self.run(run_id)["status"] in ("succeeded", "failed", "cancelled"):
-            return
-        with self.db:
-            self.db.execute("UPDATE runs SET cancel_requested=1 WHERE id=?", (run_id,))
-            self._event(run_id, "run.cancel_requested", {})
+        self._write("cancel", run_id=run_id)
 
     def supplement(self, run_id, text):
-        if not text.strip() or "\x00" in text or len(text.encode("utf-8")) > 200_000:
-            raise FrameworkError(
-                ErrorCode.INVALID_DOCUMENT,
-                "Supplement must contain 1 to 200,000 UTF-8 bytes and no null bytes",
-            )
-        try:
-            with self.db:
-                # Serialize the state check and append against a concurrent resume.
-                self.db.execute("BEGIN IMMEDIATE")
-                run = self.run(run_id)
-                if run["mode"] == "preprocessing":
-                    raise FrameworkError(ErrorCode.APK_INPUT_REQUIRED)
-                if run["status"] != "blocked":
-                    raise FrameworkError(ErrorCode.INVALID_STATE)
-                if (
-                    run["mode"] in ("intake", "game")
-                    and self.db.execute(
-                        "SELECT 1 FROM events WHERE run_id=? AND kind='intake.accepted'", (run_id,)
-                    ).fetchone()
-                ):
-                    raise FrameworkError(
-                        ErrorCode.INTAKE_NEW_RUN_REQUIRED,
-                        "Intake is accepted; submit a new task to change requirements",
-                    )
-                return self._event(run_id, "task.supplement", {"text": text})
-        except sqlite3.Error as exc:
-            raise FrameworkError(
-                ErrorCode.TRACE_UNAVAILABLE, "Cannot persist supplement; execution halted"
-            ) from exc
+        return self._write("supplement", run_id=run_id, text=text)
 
     def task_supplements(self, task_id):
         rows = self.db.execute(
@@ -560,103 +312,29 @@ class Store:
         return action_ids
 
     def reserve_device(self, run_id, instance_id, instance_index, apk_key):
-        with self.db:
-            self.db.execute("BEGIN IMMEDIATE")
-            rows = self.db.execute(
-                "SELECT * FROM device_bindings WHERE instance_id=? OR apk_key=?",
-                (instance_id, apk_key),
-            ).fetchall()
-            if rows:
-                expected = {
-                    "instance_id": instance_id,
-                    "apk_key": apk_key,
-                    "instance_index": instance_index,
-                }
-                if len(rows) != 1 or any(rows[0][key] != value for key, value in expected.items()):
-                    raise FrameworkError(ErrorCode.DEVICE_BINDING_CONFLICT)
-                if rows[0]["run_id"] != run_id:
-                    payload = {"instance_id": instance_id, "reservation_run": rows[0]["run_id"]}
-                    self._event(run_id, "device.reservation.reused", payload)
-                return
-            self.db.execute(
-                "INSERT INTO device_bindings VALUES(?,?,?,?)",
-                (instance_id, apk_key, instance_index, run_id),
-            )
-            binding = {
-                "instance_id": instance_id,
-                "instance_index": instance_index,
-                "apk_key": apk_key,
-            }
-            self._event(run_id, "device.reserved", binding)
+        self._write(
+            "reserve_device",
+            run_id=run_id,
+            instance_id=instance_id,
+            instance_index=instance_index,
+            apk_key=apk_key,
+        )
 
     def begin_device_action(
         self, run_id, instance_id, input_ref, max_actions, span_id, capability="device.install"
     ):
-        with self.db:
-            self.db.execute("BEGIN IMMEDIATE")
-            binding = self.db.execute(
-                "SELECT apk_key FROM device_bindings WHERE instance_id=?", (instance_id,)
-            ).fetchone()
-            task = self.run_task(run_id)
-            apk_key = f"{task.get('source_run')}:{task.get('apk_index')}"
-            if (
-                binding is None
-                or binding[0] != apk_key
-                or task.get("kind") not in ("device_preparation", "gameplay")
-            ):
-                raise FrameworkError(ErrorCode.DEVICE_BINDING_CONFLICT)
-            count = self.db.execute(
-                "SELECT COUNT(*) FROM actions WHERE run_id=?", (run_id,)
-            ).fetchone()[0]
-            if max_actions is not None and count >= max_actions:
-                raise FrameworkError(ErrorCode.BUDGET_EXHAUSTED)
-            pending = self.db.execute(
-                "SELECT 1 FROM actions WHERE json_extract(result,'$.instance_id')=? "
-                "AND status IN ('prepared','unknown','executed')",
-                (instance_id,),
-            ).fetchone()
-            if pending:
-                code = (
-                    ErrorCode.DEVICE_INSTALL_UNKNOWN
-                    if capability == "device.install"
-                    else ErrorCode.ACTION_ALREADY_DISPATCHED
-                )
-                raise FrameworkError(code)
-            action_id = uid("action")
-            details = {
-                "capability": capability,
-                "input_ref": input_ref,
-                "instance_id": instance_id,
-                "span_id": span_id,
-            }
-            self.db.execute(
-                "INSERT INTO actions VALUES(?,?,?,?)",
-                (run_id, action_id, "prepared", json.dumps(details)),
-            )
-            self._event(
-                run_id, "action.intent", {"action_id": action_id, **details}, span_id=span_id
-            )
-        return action_id
+        return self._write(
+            "begin_device_action",
+            run_id=run_id,
+            instance_id=instance_id,
+            input_ref=input_ref,
+            max_actions=max_actions,
+            span_id=span_id,
+            capability=capability,
+        )
 
     def dispatch_device_action(self, run_id, action_id):
-        with self.db:
-            row = self.db.execute(
-                "SELECT status,result FROM actions WHERE run_id=? AND action_id=?",
-                (run_id, action_id),
-            ).fetchone()
-            if row is None or row[0] != "prepared":
-                raise FrameworkError(ErrorCode.INVALID_STATE)
-            details = json.loads(row[1])
-            self.db.execute(
-                "UPDATE actions SET status='unknown' WHERE run_id=? AND action_id=?",
-                (run_id, action_id),
-            )
-            self._event(
-                run_id,
-                "action.dispatched",
-                {"action_id": action_id, **details},
-                span_id=details["span_id"],
-            )
+        self._write("dispatch_device_action", run_id=run_id, action_id=action_id)
 
     def latest_device_action(self, run_id):
         task = self.run_task(run_id)
@@ -689,38 +367,9 @@ class Store:
         return progress
 
     def checkpoint(self, run_id, workspace_key, data):
-        try:
-            with self.db:
-                self.db.execute(
-                    "INSERT INTO gameplay_progress VALUES(?,?,?) "
-                    "ON CONFLICT(workspace_key) DO UPDATE SET run_id=excluded.run_id,"
-                    "data=excluded.data",
-                    (workspace_key, run_id, json.dumps(redact(data))),
-                )
-                self._event(
-                    run_id,
-                    "gameplay.checkpoint",
-                    {"workspace_key": workspace_key, "progress": data},
-                )
-        except sqlite3.Error as exc:
-            raise FrameworkError(ErrorCode.TRACE_UNAVAILABLE) from exc
+        self._write("checkpoint", run_id=run_id, workspace_key=workspace_key, data=data)
 
     def finish_device_action(self, run_id, action_id, status, result):
-        if status not in ("executed", "rejected", "verified", "reconciled"):
-            raise FrameworkError(ErrorCode.INVALID_STATE)
-        with self.db:
-            row = self.db.execute(
-                "SELECT status,result FROM actions WHERE run_id=? AND action_id=?",
-                (run_id, action_id),
-            ).fetchone()
-            if row is None or row[0] not in ("prepared", "unknown", "executed"):
-                raise FrameworkError(ErrorCode.INVALID_STATE)
-            if row[0] == "prepared" and status != "rejected":
-                raise FrameworkError(ErrorCode.INVALID_STATE)
-            details = {**json.loads(row[1]), "result": redact(result)}
-            self.db.execute(
-                "UPDATE actions SET status=?,result=? WHERE run_id=? AND action_id=?",
-                (status, json.dumps(details), run_id, action_id),
-            )
-            payload = {"action_id": action_id, "from": row[0], "status": status, **details}
-            self._event(run_id, "action.result", payload, span_id=details["span_id"])
+        self._write(
+            "finish_device_action", run_id=run_id, action_id=action_id, status=status, result=result
+        )

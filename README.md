@@ -18,7 +18,8 @@ Use Python 3.12, uv, and Codex CLI 0.163.0. Run commands from the repository roo
 machine-specific executable paths out of committed configuration.
 
 The control plane is being migrated incrementally to TypeScript; capability plugins retain Python.
-The Codex adapter now uses TypeScript; the scheduler and SQLite owner remain Python for this stage.
+The Codex adapter, plugin host and sole SQLite writer now use TypeScript. Python retains the
+scheduler, gameplay loop, CLI and read-only reporting projections for this stage.
 Use the Node version in `.node-version`, run `npm ci` and `npm run build` for the shared TypeScript
 artifacts. The existing CLI remains available during migration. See
 [the migration decision](docs/decisions/0002-typescript-control-plane.md).

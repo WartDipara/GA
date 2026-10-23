@@ -26,8 +26,14 @@ export async function start(
   command: string,
   arguments_: string[],
   cwd: string,
+  environment: NodeJS.ProcessEnv = process.env,
 ): Promise<ChildProcessWithoutNullStreams> {
-  const child = spawn(command, arguments_, { cwd, windowsHide: true, stdio: 'pipe' });
+  const child = spawn(command, arguments_, {
+    cwd,
+    env: environment,
+    windowsHide: true,
+    stdio: 'pipe',
+  });
   await once(child, 'spawn');
   return child;
 }

@@ -1,0 +1,580 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "KernelCommand",
+  "description": "Private authenticated kernel commands, separate from the plugin protocol. Arbitrary SQL is not accepted.",
+  "oneOf": [
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "submit"
+        },
+        "input": {
+          "type": "object",
+          "properties": {
+            "spec": {
+              "type": "object"
+            },
+            "key": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "spec"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "method",
+        "input"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "create_run"
+        },
+        "input": {
+          "type": "object",
+          "properties": {
+            "task_id": {
+              "type": "string"
+            },
+            "mode": {
+              "type": "string"
+            },
+            "spec": {
+              "type": [
+                "object",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "task_id",
+            "mode"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "method",
+        "input"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "event"
+        },
+        "input": {
+          "type": "object",
+          "properties": {
+            "run_id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "minLength": 1
+            },
+            "payload": {
+              "type": "object"
+            },
+            "span_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "parent_span_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "request_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "event_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "run_id",
+            "kind",
+            "payload"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "method",
+        "input"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "event_batch"
+        },
+        "input": {
+          "type": "object",
+          "properties": {
+            "run_id": {
+              "type": "string"
+            },
+            "entries": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 16,
+              "items": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "pattern": "^(provider|ai|plugin)\\.",
+                    "not": {
+                      "const": "ai.session"
+                    }
+                  },
+                  "event_id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "payload": {
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "event_id",
+                  "payload"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "span_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "parent_span_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "request_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "event_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "run_id",
+            "entries"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "method",
+        "input"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "transition"
+        },
+        "input": {
+          "type": "object",
+          "properties": {
+            "run_id": {
+              "type": "string"
+            },
+            "status": {
+              "enum": [
+                "queued",
+                "running",
+                "blocked",
+                "failed",
+                "succeeded",
+                "cancelled"
+              ]
+            },
+            "stage": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "reason": {}
+          },
+          "required": [
+            "run_id",
+            "status"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "method",
+        "input"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "save_session"
+        },
+        "input": {
+          "type": "object",
+          "properties": {
+            "run_id": {
+              "type": "string"
+            },
+            "role": {
+              "type": "string"
+            },
+            "thread_id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "run_id",
+            "role",
+            "thread_id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "method",
+        "input"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "cancel"
+        },
+        "input": {
+          "type": "object",
+          "properties": {
+            "run_id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "run_id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "method",
+        "input"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "supplement"
+        },
+        "input": {
+          "type": "object",
+          "properties": {
+            "run_id": {
+              "type": "string"
+            },
+            "text": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "run_id",
+            "text"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "method",
+        "input"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "reserve_device"
+        },
+        "input": {
+          "type": "object",
+          "properties": {
+            "run_id": {
+              "type": "string"
+            },
+            "instance_id": {
+              "type": "string"
+            },
+            "instance_index": {
+              "type": "integer"
+            },
+            "apk_key": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "run_id",
+            "instance_id",
+            "instance_index",
+            "apk_key"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "method",
+        "input"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "begin_device_action"
+        },
+        "input": {
+          "type": "object",
+          "properties": {
+            "run_id": {
+              "type": "string"
+            },
+            "instance_id": {
+              "type": "string"
+            },
+            "input_ref": {
+              "type": "string"
+            },
+            "max_actions": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "span_id": {
+              "type": "string"
+            },
+            "capability": {
+              "enum": [
+                "device.install",
+                "device.execute"
+              ]
+            }
+          },
+          "required": [
+            "run_id",
+            "instance_id",
+            "input_ref",
+            "max_actions",
+            "span_id",
+            "capability"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "method",
+        "input"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "dispatch_device_action"
+        },
+        "input": {
+          "type": "object",
+          "properties": {
+            "run_id": {
+              "type": "string"
+            },
+            "action_id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "run_id",
+            "action_id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "method",
+        "input"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "finish_device_action"
+        },
+        "input": {
+          "type": "object",
+          "properties": {
+            "run_id": {
+              "type": "string"
+            },
+            "action_id": {
+              "type": "string"
+            },
+            "status": {
+              "enum": [
+                "executed",
+                "rejected",
+                "verified",
+                "reconciled"
+              ]
+            },
+            "result": {}
+          },
+          "required": [
+            "run_id",
+            "action_id",
+            "status",
+            "result"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "method",
+        "input"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "checkpoint"
+        },
+        "input": {
+          "type": "object",
+          "properties": {
+            "run_id": {
+              "type": "string"
+            },
+            "workspace_key": {
+              "type": "string"
+            },
+            "data": {
+              "type": "object"
+            }
+          },
+          "required": [
+            "run_id",
+            "workspace_key",
+            "data"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "method",
+        "input"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "delete_tasks"
+        },
+        "input": {
+          "type": "object",
+          "properties": {
+            "task_ids": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "uniqueItems": true
+            }
+          },
+          "required": [
+            "task_ids"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "method",
+        "input"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "compact"
+        },
+        "input": {
+          "type": "object",
+          "properties": {},
+          "required": [],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "method",
+        "input"
+      ],
+      "additionalProperties": false
+    }
+  ],
+  "$id": "https://game-automation.local/contracts/v1/kernel-command"
+}

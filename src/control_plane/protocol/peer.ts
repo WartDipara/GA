@@ -9,7 +9,7 @@ type RpcId = string | number;
 type Pending = {
   resolve: (value: unknown) => void;
   reject: (error: FrameworkError) => void;
-  timer: NodeJS.Timeout;
+  timer: NodeJS.Timeout | undefined;
 };
 export type Observer = (direction: 'in' | 'out', message: Message) => Promise<void>;
 export type Handler = (method: string, params: Message) => Promise<unknown>;
@@ -28,6 +28,7 @@ export class Peer {
     private readonly handler: Handler,
     private readonly observer?: Observer,
     private readonly provider = false,
+    private readonly reportExceptions = true,
   ) {
     this.writer.on('error', (error: Error) => {
       this.fail(error);
@@ -40,10 +41,15 @@ export class Peer {
   async request(method: string, params: Message, timeoutMs = 30_000): Promise<unknown> {
     const id = `rpc_${randomUUID().replaceAll('-', '')}`;
     const response = new Promise<unknown>((resolve, reject) => {
-      const timer = setTimeout(() => {
-        this.pending.delete(id);
-        reject(new FrameworkError(ErrorCode.TIMEOUT, `Timed out waiting for ${method}`, true));
-      }, timeoutMs);
+      const timer =
+        timeoutMs === 0
+          ? undefined
+          : setTimeout(() => {
+              this.pending.delete(id);
+              reject(
+                new FrameworkError(ErrorCode.TIMEOUT, `Timed out waiting for ${method}`, true),
+              );
+            }, timeoutMs);
       this.pending.set(id, { resolve, reject, timer });
     });
     void response.catch(() => undefined);
@@ -165,7 +171,7 @@ export class Peer {
       response = { id, result: await this.handler(method, params) };
     } catch (error) {
       const failure = frameworkError(error);
-      if (!this.provider) {
+      if (!this.provider && this.reportExceptions) {
         const payload = {
           error: failure.details(),
           stack: error instanceof Error ? (error.stack ?? null) : null,
@@ -198,6 +204,7 @@ export class Peer {
     this.closing = true;
     this.fail(new FrameworkError(ErrorCode.CLOSED));
     this.reader.destroy();
+    this.writer.destroy();
     await this.done.catch(() => undefined);
     await Promise.allSettled(this.handlers);
   }

@@ -21,6 +21,13 @@ fields still receive the strict-output adaptation and are restored and validated
 Node plugin exceptions are recorded as `plugin.node.exception` before an error response. Raw
 provider events, standard events, usage and session/turn/item correlation retain their identifiers.
 
+The TypeScript kernel supervises plugin stdio and owns all SQLite writes. The transitional Python
+client uses private authenticated JSON-RPC to this owner. `kernel-command.schema.json` validates
+named mutations; raw SQL is never accepted. This interface is not provided to plugins. Connection
+loss leaves the submitted request uncertain, and the client never resends it. A
+`kernel.request.accepted` event is a durable deduplication receipt, not proof of action execution.
+Existing `call.*`, `rpc.*`, session, provider, action and report events remain authoritative.
+
 `workflow.schema.json` defines kernel workflow submissions: ordered APK source hashes, dedicated
 instance assignments, stage composition and gameplay goal. The original APK URL file remains a
 private CLI input. Child executions carry kernel-owned `workflow_run` and `workflow_key` metadata
@@ -51,7 +58,8 @@ Reverse requests:
   `persisted:true` before continuing.
 - host.call({capability,input}): declared dependencies only. The kernel creates a child span and
   rejects dependency cycles.
-- `host.action({instance_id,serial})`: only the current kernel-dispatched `device.install` call may
+- `host.action({instance_id,serial})`: only the current kernel-dispatched `device.install` or
+  `device.execute` call may
   request this grant. The kernel commits the action as unknown before returning `persisted:true`.
   Acknowledgement is required immediately before the installation command; it does not verify an
   outcome or grant any other device capability.

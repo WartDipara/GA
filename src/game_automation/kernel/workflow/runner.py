@@ -83,6 +83,7 @@ BLOCKED = {
 
 def new_run(store, task_id, mode="game", spec=None):
     with ExecutionLock(store.var / "execution.lock"):
+        store.quiesce()
         return new_run_locked(store, task_id, mode, spec)
 
 
