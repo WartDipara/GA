@@ -27,11 +27,13 @@ policy. Completing the selected goal does not establish whole-game coverage or b
 
 ## Composition
 
-`kernel/workflow/assembly.py` is the composition root. Each `Stage` declares its execution mode,
-input adapter, required predecessor outputs, scope and capabilities. `WorkflowBuilder` validates the
-ordered stages before any stage executes. The scheduler does not dispatch on business stage names.
-It passes execution IDs between adapters, leaving installation, actions, planning and verification
-inside their existing kernel modules.
+`apps/control-plane/src/workflow/assembly.ts` owns the runtime composition. Each `Stage` declares
+its execution mode, required predecessor outputs, scope and capabilities. `WorkflowBuilder`
+validates the ordered stages before any stage executes. The Python `kernel/workflow/assembly.py`
+compatibility bridge still supplies CLI validation and stage input adapters; keep its declarations
+aligned until those adapters migrate. The scheduler passes execution IDs between adapters without
+dispatching on business stage names. Credential preparation and planner image capabilities are
+checked with the other stage requirements before preprocessing starts.
 
 The default composition is stored in `config/application.toml`:
 
@@ -51,8 +53,8 @@ The second example requires one APK. Download-only composition needs neither ins
 credential profile. Removing a prerequisite while retaining its consumer is rejected. APK-scoped
 stages form one contiguous group so that each APK finishes that group before the next APK starts.
 Batch stages may follow the group, but cannot consume an individual APK's output as a batch result.
-To connect another existing module, register its `Stage` and input adapter in `build_workflow` and
-include its name in the composition. No scheduler loop or plugin internals need to change.
+To connect another existing module, register its runtime `Stage` and compatibility input adapter,
+then include its name in the composition. No scheduler loop or plugin internals need to change.
 
 ## Checkpoints and evidence
 
@@ -65,7 +67,7 @@ SQLite `workflow.stage.*` events record stage starts, child execution bindings, 
 interruptions and failures. Each attempt has its own span and monotonic `duration_ms`. An interrupted
 attempt has unknown duration. Recovering a child's already committed success does not invent a
 duration for its earlier execution. Detailed action and model timings remain in the child trace.
-`status` projects current child states; `reports/workflow.json` saves the workflow checkpoint view.
+`status` projects stage and child states separately; `reports/workflow.json` saves that checkpoint view.
 The workflow HTML trace links to child traces, and the task report indexes all execution reports.
 Offline status and export commands never invoke devices or models.
 
@@ -96,6 +98,13 @@ instance bindings. Unfinished stages get new executions under the current pinned
 Device stages still reconcile earlier actions against fresh observations; a new batch never grants
 permission to replay an unknown action. Only identical task inputs and stage modes can continue this
 way. Historical failures remain intact. To change composition, submit a new workflow instead.
+
+Recovery reconstructs stage bindings from both child ownership and committed binding events.
+Reused children retain their original immutable inputs, including across multiple new batches.
+A completed stage must resolve to a successful child of the expected mode and the same task;
+missing or conflicting bindings block recovery rather than replaying a completed operation.
+Stage failure events retain the actual error and separate child status. A successful child does
+not make an interrupted parent stage successful.
 
 The scheduler has been compiled, but batch installation and sequential gameplay require a separate,
 explicit real task with the necessary instances. Compilation does not prove device behavior.

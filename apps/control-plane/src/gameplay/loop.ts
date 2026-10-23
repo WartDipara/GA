@@ -92,13 +92,13 @@ export async function runLoop(runtime: Runtime, initial: Observation): Promise<v
     if (watchdog.data.rounds >= 3) selection.reason = 'no-verified-progress';
     runtime.record('gameplay.route', selection);
     const decision = await planner.decide(view.observation, view.facts, selection.reason);
-    watchdog.review(decision, view.observation);
     cachedSteps = 0;
     const pending = progress.pending;
     const requestedWait = decision.disposition === 'wait' || decision.action?.type === 'wait';
     if (pending) {
       const assessment = decision.previous_outcome;
       if (assessment.status === 'unknown' && requestedWait) {
+        watchdog.review(decision, view.observation, pending);
         view = await perception.wait(view.observation);
         continue;
       }
@@ -130,7 +130,10 @@ export async function runLoop(runtime: Runtime, initial: Observation): Promise<v
         }
       if (assessment.status === 'verified') knowledge.learn(pending, view.observation, view.facts);
       progress.pending = null;
+      runtime.progress.save();
     }
+    // Commit known outcomes before a watchdog can stop further planning or dispatch.
+    watchdog.review(decision, view.observation, pending);
     if (decision.identity) {
       const identity = progress.identity ?? { small_account: null, server: null, role: null };
       const keys: (keyof typeof identity)[] = ['small_account', 'server', 'role'];
@@ -187,10 +190,7 @@ export async function runLoop(runtime: Runtime, initial: Observation): Promise<v
     } catch (error) {
       if (!(error instanceof FrameworkError) || error.code !== ErrorCode.STALE_OBSERVATION)
         throw error;
-      const ledger = runtime.store.latestAction(runtime.runId);
-      if (ledger && ['unknown', 'executed'].includes(text(ledger['status']))) throw error;
-      progress.pending = null;
-      runtime.progress.save();
+      if (progress.pending) throw error;
       runtime.record('gameplay.correction', { reason: 'stale-target-not-executed' });
       view = await perception.settle(view.observation);
       continue;

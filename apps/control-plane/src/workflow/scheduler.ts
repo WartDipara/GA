@@ -1,6 +1,6 @@
 import { performance } from 'node:perf_hooks';
 import { object, text } from '@game-automation/contracts';
-import { ErrorCode, FrameworkError } from '@game-automation/contracts/errors';
+import { ErrorCode, FrameworkError, frameworkError } from '@game-automation/contracts/errors';
 import { canonical, strings, uid, type Fields } from '../storage/values.js';
 import { buildWorkflow, type Stage } from './assembly.js';
 import type { Execution } from './execution.js';
@@ -57,14 +57,32 @@ export class Scheduler {
   private stageChildren(runId: string): Map<string, string> {
     const store = this.execution.store;
     const children = new Map<string, string>();
-    for (const run of store.taskRuns(text(store.run(runId)['task_id']))) {
+    const taskId = text(store.run(runId)['task_id']);
+    const bind = (key: string, id: string): void => {
+      const run = store.run(id);
+      const input = store.input(id);
+      if (run['task_id'] !== taskId || input['workflow_key'] !== key)
+        throw new FrameworkError(
+          ErrorCode.WORKFLOW_INVALID,
+          'Stage binding differs from its input',
+        );
+      const existing = children.get(key);
+      if (existing && existing !== id)
+        throw new FrameworkError(ErrorCode.WORKFLOW_INVALID, 'Duplicate stage execution');
+      children.set(key, id);
+    };
+    for (const run of store.taskRuns(taskId)) {
       const id = text(run['id']);
       const input = store.input(id);
       if (input['workflow_run'] !== runId) continue;
-      const key = text(input['workflow_key']);
-      if (children.has(key))
-        throw new FrameworkError(ErrorCode.WORKFLOW_INVALID, 'Duplicate stage execution');
-      children.set(key, id);
+      bind(text(input['workflow_key']), id);
+    }
+    // Reused children retain their original ownership; durable bindings connect later batches.
+    for (const event of store.events(runId, {
+      kinds: ['workflow.stage.bound', 'workflow.stage.completed'],
+    })) {
+      const child = event.payload['child_run'];
+      if (child != null) bind(text(event.payload['key']), text(child));
     }
     return children;
   }
@@ -74,7 +92,14 @@ export class Scheduler {
     this.execution.check(this.runId);
     const key = stage.perApk ? `apk:${String(context.apkIndex)}:${stage.name}` : stage.name;
     let child = this.children.get(key) ?? null;
+    if (child && store.run(child)['mode'] !== stage.mode)
+      throw new FrameworkError(ErrorCode.WORKFLOW_INVALID, 'Stage mode changed');
     if (this.completed.has(key)) {
+      if (stage.mode !== null && (!child || store.run(child)['status'] !== 'succeeded'))
+        throw new FrameworkError(
+          ErrorCode.WORKFLOW_INVALID,
+          'Completed stage has no successful bound execution',
+        );
       context.outputs[stage.name] = child;
       return;
     }
@@ -150,8 +175,15 @@ export class Scheduler {
       this.completed.add(key);
       context.outputs[stage.name] = child;
     } catch (error) {
+      const failure = frameworkError(error);
       payload['duration_ms'] = Math.round(performance.now() - started);
-      payload['status'] = child ? store.run(child)['status'] : 'incomplete';
+      payload['status'] = [ErrorCode.CANCELLED, ErrorCode.PREVIOUS_PROCESS_EXITED].includes(
+        failure.code,
+      )
+        ? 'incomplete'
+        : 'failed';
+      payload['error'] = failure.details();
+      if (child) payload['child_status'] = store.run(child)['status'];
       store.event(this.runId, 'workflow.stage.failed', payload, { span_id: span });
       throw error;
     }

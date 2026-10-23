@@ -49,7 +49,7 @@ function workflow(execution: Execution, runId: string, snapshot: Fields): void {
     steps.set(key, { ...steps.get(key), ...event.payload });
   }
   for (const step of steps.values())
-    if (step['child_run']) step['status'] = store.run(text(step['child_run']))['status'];
+    if (step['child_run']) step['child_status'] = store.run(text(step['child_run']))['status'];
   const report = { run_id: runId, steps: [...steps.values()], snapshot };
   atomicJson(join(store.runDirectory(runId), 'reports/workflow.json'), report);
 }

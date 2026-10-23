@@ -37,6 +37,11 @@ async function reconcile(runtime: Runtime, observation: Observation): Promise<vo
     const priorRun = text(previous['run_id']);
     if (runtime.store.run(priorRun)['task_id'] !== runtime.store.run(runtime.runId)['task_id'])
       throw new FrameworkError(ErrorCode.INVALID_PATH);
+    if (previous['capability'] !== 'device.execute')
+      throw new FrameworkError(
+        ErrorCode.DEVICE_INSTALL_UNKNOWN,
+        'Reconcile installation in the preparation stage before gameplay',
+      );
     const directory = runtime.store.runDirectory(priorRun);
     const raw: unknown = JSON.parse(
       await readFile(within(directory, text(previous['input_ref'])), 'utf8'),

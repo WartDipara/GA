@@ -172,6 +172,12 @@ export class Runtime {
     await this.admit();
     decode('gameplay-action', action);
     const data = this.progress.data;
+    if (data.pending)
+      throw new FrameworkError(
+        ErrorCode.ACTION_ALREADY_DISPATCHED,
+        'Reconcile the pending action first',
+      );
+    const previousAction = this.store.latestAction(this.runId)?.['action_id'];
     if (action.type === 'credential') {
       if (!action.credential_field || !action.bounds)
         throw new FrameworkError(ErrorCode.CAPABILITY_DENIED);
@@ -199,9 +205,26 @@ export class Runtime {
       observation_path: within(this.directory, observation.evidence_ref),
       credential_path: this.credentialPath,
     };
-    const result = object(
-      await this.host.execute('perform', request, { parent_span_id: this.step }),
-    );
+    let result: Fields;
+    try {
+      result = object(await this.host.execute('perform', request, { parent_span_id: this.step }));
+    } catch (error) {
+      if (this.host.failure || this.store.database.failure) throw error;
+      const latest = this.store.latestAction(this.runId);
+      const created = latest && latest['action_id'] !== previousAction;
+      if (!created || latest['status'] === 'rejected') {
+        data.pending = null;
+        this.record('gameplay.action.not_dispatched', {
+          action_id: created ? latest['action_id'] : null,
+          observation_id: observation.observation_id,
+          error: frameworkError(error).details(),
+        });
+      } else {
+        data.pending.action_id = text(latest['action_id']);
+      }
+      this.progress.save();
+      throw error;
+    }
     const actionId = text(result['action_id']);
     this.record('gameplay.action.origin', { action_id: actionId, source });
     data.pending.action_id = actionId;
