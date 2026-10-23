@@ -230,8 +230,13 @@ def project_trace(store, run_id):
             span["attributes"]["gen_ai.agent.name"] = agent
     version = None
     manifest = store.run_dir(run_id) / "manifest.json"
-    if manifest.is_file():
-        version = json.loads(manifest.read_text(encoding="utf-8")).get("framework_version")
+    try:
+        contents = json.loads(manifest.read_text(encoding="utf-8"))
+        if not isinstance(contents, dict):
+            raise ValueError("Invalid manifest")
+        version = contents.get("framework_version")
+    except (OSError, ValueError):
+        root["attributes"]["game_automation.version_evidence"] = "unavailable"
     projection = {
         "schema_version": "1.0",
         "trace_id": run["task_id"],

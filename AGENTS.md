@@ -47,6 +47,8 @@
   batch. Keep actual submitted requests as trace evidence.
 - Persist calls, state transitions, and action intents through the kernel. Failed trace persistence
   must prevent new device actions.
+- Commit report requests with settled business states, then finalize reports independently. Rendering
+  failures must not rewrite business outcomes. Publish files atomically and support report-only recovery.
 - Keep one top-level workspace per business task under var/tasks/<task_id>/. Stage executions and
   new batches stay under its executions/ directory; inherit task ownership through explicit source
   references. Preserve historical evidence and never merge tasks merely because APKs match.

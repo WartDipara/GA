@@ -16,7 +16,12 @@ def percentile(values, fraction):
 
 def version_identity(store, run_id):
     path = store.run_dir(run_id) / "manifest.json"
-    manifest = json.loads(path.read_text(encoding="utf-8")) if path.is_file() else {}
+    try:
+        manifest = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(manifest, dict):
+            raise ValueError("Invalid manifest")
+    except (OSError, ValueError):
+        manifest = {}
     code = sorted(manifest.get("source_hashes", {}).values())
     skills = {
         key: value for key, value in manifest.get("files", {}).items() if key.startswith("skills/")

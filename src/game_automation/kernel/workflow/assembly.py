@@ -5,7 +5,6 @@ from typing import Callable
 
 from game_automation.common import FrameworkError
 from game_automation.errors import ErrorCode
-from game_automation.reporting.task_index import task_report
 
 from .device import preparation_task
 from .gameplay import gameplay_task
@@ -103,8 +102,9 @@ def play_input(context):
 
 
 def report_output(context):
-    task_id = context.store.run(context.run_id)["task_id"]
-    return task_report(context.store, task_id)
+    request = {"publication": "after_business_outcome"}
+    context.store.event(context.run_id, "workflow.report.requested", request)
+    return request
 
 
 def build_workflow(names):

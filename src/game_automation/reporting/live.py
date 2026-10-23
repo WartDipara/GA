@@ -14,6 +14,8 @@ from game_automation.errors import ErrorCode
 from game_automation.storage.store import Store
 
 from .agent_trace import agent_view
+from .compact_trace import render_compact
+from .execution import publication_status
 from .trace import render_context, render_trace
 
 
@@ -29,6 +31,7 @@ def task_snapshot(store, task_id):
         execution["label"] = inputs.get("workflow_key", execution["mode"])
         execution["parent_run"] = inputs.get("workflow_run")
         execution["apk_name"] = inputs.get("metadata", {}).get("apkName")
+        execution["report_publication"] = publication_status(store, execution["run_id"])
     rows = store.db.execute(
         "SELECT e.seq,e.data FROM events e JOIN runs r ON r.id=e.run_id "
         "WHERE r.task_id=? "
@@ -154,7 +157,10 @@ class TraceHandler(BaseHTTPRequestHandler):
         if not separator or run["task_id"] != self.server.task_id:
             raise FrameworkError(ErrorCode.NOT_FOUND)
         if relative == "reports/trace.html":
-            document, _ = render_trace(store, run_id)
+            try:
+                document, _ = render_trace(store, run_id)
+            except Exception:
+                document = render_compact(store, run_id, degraded=True)
             self.respond(200, document, "text/html; charset=utf-8")
             return
         if relative == "reports/context.html":
@@ -193,7 +199,15 @@ class TraceHandler(BaseHTTPRequestHandler):
             }
             self.respond(200, json.dumps(page, ensure_ascii=False), "application/json")
             return
-        allowed_reports = {"reports/gameplay.html", "reports/context.json", "reports/gameplay.json"}
+        allowed_reports = {
+            "reports/gameplay.html",
+            "reports/context.json",
+            "reports/gameplay.json",
+            "reports/execution.html",
+            "reports/execution.json",
+            "reports/publication.json",
+            "reports/workflow.json",
+        }
         evidence_types = {
             ".png": "image/png",
             ".jpg": "image/jpeg",

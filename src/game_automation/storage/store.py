@@ -364,11 +364,18 @@ class Store:
                 "stage": stage or run["stage"],
                 "reason": reason,
             }
-            self._event(run_id, "run.state", state_payload)
+            state_event = self._event(run_id, "run.state", state_payload)
             self.db.execute(
                 "UPDATE runs SET status=?,stage=?,updated_at=? WHERE id=?",
                 (status, stage or run["stage"], now(), run_id),
             )
+            if status in ("blocked", "failed", "succeeded", "cancelled"):
+                report_request = {
+                    "request_id": uid("report"),
+                    "state_event_id": state_event["event_id"],
+                    "business_status": status,
+                }
+                self._event(run_id, "report.requested", report_request)
 
     def iter_events(self, run_id, after=0, span=None, *, kinds=None, limit=None):
         self.run(run_id)

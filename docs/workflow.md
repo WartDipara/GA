@@ -69,6 +69,12 @@ duration for its earlier execution. Detailed action and model timings remain in 
 The workflow HTML trace links to child traces, and the task report indexes all execution reports.
 Offline status and export commands never invoke devices or models.
 
+Reports are finalized after the owning execution's business state commits, including failures and
+cancellations. The report stage requests this final publication rather than generating a premature
+index. Renderer failures have their own publication state and cannot change a successful stage into
+a failed one. Use `game-auto report <run_id>` or `game-auto report --pending` to repair files without
+replaying business work. See [Report finalization](report-finalization.md).
+
 Use `game-auto serve-trace <workflow_run_id>` in another terminal to poll the whole task every three
 seconds. The local page shows all stage states and the latest 200 task events, including durations,
 and links to detailed stage traces. Refresh, pause and interval controls are built in. See

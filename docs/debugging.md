@@ -53,6 +53,11 @@ Historical missing endings remain incomplete. The prior context dashboard remain
 the Context details link. See [Agent observability](agent-observability.md) for analysis, annotations,
 dataset export and version comparison commands.
 
+`status` also shows report publication separately from the business outcome. Use
+`game-auto report <run_id>` for a specific execution or `game-auto report --pending` for interrupted
+publications. These commands rebuild reports only, without models or device operations. See
+[Report finalization](report-finalization.md) for atomic writes, partial evidence and restart limits.
+
 The page provides pause/resume, manual refresh and interval selection. Polls do not overlap. A
 revision check avoids transferring the same events again, and the selected event and filters survive
 updates. Failed refreshes preserve the previous snapshot and show a retry notice. Removing the task

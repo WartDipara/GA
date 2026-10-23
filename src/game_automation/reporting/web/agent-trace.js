@@ -118,6 +118,10 @@
 
   function renderHeader() {
     byId('trace-limit').hidden = !data.event_limit_reached;
+    const snapshot = data.snapshot;
+    byId('snapshot-kind').textContent = snapshot
+      ? `${snapshot.kind} / ${snapshot.business_status} · captured event #${snapshot.source_event_seq}`
+      : 'Historical snapshot metadata unavailable';
     byId('execution-name').textContent = `${data.spans[0].name} / ${data.spans[0].status}`;
     byId('identity').textContent = `${data.trace_id} / ${data.run_id}`;
     const calls = data.spans.filter((span) => ['chat', 'tool'].includes(span.kind));
