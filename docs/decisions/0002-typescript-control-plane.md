@@ -46,9 +46,16 @@ Implemented increments:
   settlement, report requests, sessions, action authorization/uncertainty, checkpoints and cleanup
   transactions now execute in this owner. Python database connections are read-only.
 
-The scheduler, gameplay loop, CLI and report rendering remain Python during this stage. Their
-compatibility clients delegate writes and plugin calls; they do not retain an alternative writer
-or supervisor. Later scheduler and gameplay migration remains pending.
+Execution lifecycle, interrupted-span recovery and the APK scheduler now run in TypeScript.
+Python CLI compatibility functions hold the existing OS execution lock and invoke that executor;
+they do not select stages, reuse child executions or publish business terminal states. During this
+increment a named reverse-RPC bridge retains existing leaf-stage operations, snapshot utilities and
+rich report renderers. This bridge is transitional and must be removed as those operations become
+TypeScript orchestration plus independent Python tools. The Python gameplay loop is still pending.
+
+The executor preserves stage keys, child ownership, continued-from links, explicit unknown spans,
+actual duration fields, atomic settlement/report requests and report-only recovery. A broken bridge
+can produce a minimal degraded outcome report without replaying business operations.
 
 Use the pinned Node built-in SQLite implementation behind a single database module, preserving the
 existing schema, WAL/FULL durability and event-byte triggers. Its API is experimental in this Node

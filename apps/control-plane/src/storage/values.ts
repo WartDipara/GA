@@ -59,12 +59,16 @@ export function within(root: string, path: string): string {
 }
 
 export function atomicJson(path: string, value: unknown): void {
+  atomicText(path, `${JSON.stringify(value, null, 2)}\n`);
+}
+
+export function atomicText(path: string, value: string): void {
   mkdirSync(dirname(path), { recursive: true });
   const temporary = `${path}.${uid('tmp')}`;
   const descriptor = openSync(temporary, 'wx', 0o600);
   try {
     try {
-      writeFileSync(descriptor, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
+      writeFileSync(descriptor, value, 'utf8');
       fsyncSync(descriptor);
     } finally {
       closeSync(descriptor);
