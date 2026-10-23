@@ -284,6 +284,17 @@ class Host:
 
     async def _attempt(self, plugin, capability, params, timeout, trace_ids, ancestry, action_id):
         async def inbound(method, payload):
+            if method == "host.events":
+                self.check_cancel()
+                try:
+                    self.store.event_batch(self.run_id, payload.get("events"), **trace_ids)
+                except Exception as exc:
+                    if self.failure is None:
+                        self.record("rpc.batch.rejected", {"submitted": payload}, **trace_ids)
+                    self.stop(exc)
+                    raise
+                acknowledgement = {"persisted": True}
+                return acknowledgement
             if method == "host.action":
                 self.check_cancel()
                 if capability not in ("device.install", "device.execute") or action_id is None:
@@ -344,7 +355,17 @@ class Host:
 
         async def observe(direction, message):
             # Nested provider event is persisted by inbound before its acknowledgement.
-            self.record("rpc." + direction, {"message": message}, **trace_ids)
+            recorded = {"message": message}
+            if direction == "in" and message.get("method") == "host.events":
+                entries = message.get("params", {}).get("events")
+                if isinstance(entries, list) and all(
+                    isinstance(entry, dict) and isinstance(entry.get("event_id"), str)
+                    for entry in entries
+                ):
+                    references = [{"event_id": entry["event_id"]} for entry in entries]
+                    recorded["message"] = {**message, "params": {"events": references}}
+                    recorded["event_payloads_referenced"] = True
+            self.record("rpc." + direction, recorded, **trace_ids)
 
         env = {**os.environ, "PYTHONUTF8": "1", "PYTHONUNBUFFERED": "1"}
         process = await spawn(plugin["command"], cwd=plugin["cwd"], env=env)
@@ -361,7 +382,9 @@ class Host:
         async def execute():
             handshake_timeout = self.manifest["application"]["call_timeout_seconds"]
             result = await peer.request(
-                "initialize", {"protocol_version": "1.0"}, handshake_timeout
+                "initialize",
+                {"protocol_version": "1.0", "features": ["event-batches-v1"]},
+                handshake_timeout,
             )
             if (
                 result.get("protocol_version") != "1.0"

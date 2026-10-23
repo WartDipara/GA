@@ -36,3 +36,13 @@ Session results may additionally return the resolved manager executable. The ker
 path and the ADB path into subsequent session requests, avoiding repeated installation discovery.
 Every session still checks the selected instance identity, endpoint and boot readiness. Existing
 session fields remain valid; the new response field is optional in version 1 contracts.
+
+## Increment 3: durable trace batches
+
+The Codex adapter groups only records derived from the same received provider message. It awaits
+one durable batch acknowledgement before reading the next message. This removes the extra
+acknowledgement for the normalized event without buffering multiple provider messages or changing
+their ordering. SQLite stores canonical payloads once; RPC envelopes reference and reconstruct
+them through event IDs. Legacy individual event delivery is still supported. Rejected batches
+retain diagnostic evidence, and failed persistence stops further work. Runtime-version and
+session-setup phases are separately timed. Performance improvement requires later business evidence.

@@ -6,11 +6,12 @@ import copy
 import json
 import re
 import shutil
+import time
 import tomllib
 from pathlib import Path
 
 from game_automation import __version__
-from game_automation.common import FrameworkError, uid
+from game_automation.common import FrameworkError, now, uid
 from game_automation.errors import ErrorCode
 from game_automation.plugin_sdk.rpc import Peer, serve, spawn, terminate
 
@@ -60,13 +61,27 @@ def restore_optional(value, schema):
 class CodexAdapter:
     def __init__(self, host):
         self.host = host
+        self.event_batches = False
 
     async def emit(self, kind, payload):
         # Persistence acknowledgement is required before reading/sending more provider work.
         event_message = {"kind": kind, "payload": payload, "event_id": uid("provider")}
-        await self.host.request("host.event", event_message)
+        result = await self.host.request("host.event", event_message)
+        if result != {"persisted": True}:
+            raise FrameworkError(ErrorCode.TRACE_UNAVAILABLE)
+
+    async def emit_many(self, entries):
+        if not self.event_batches:
+            for entry in entries:
+                await self.emit(entry["kind"], entry["payload"])
+            return
+        request = {"events": [{**entry, "event_id": uid("provider")} for entry in entries]}
+        result = await self.host.request("host.events", request)
+        if result != {"persisted": True}:
+            raise FrameworkError(ErrorCode.TRACE_UNAVAILABLE)
 
     async def decide(self, params):
+        started = time.monotonic()
         executable = shutil.which(params["codex"]["executable"])
         if not executable:
             raise FrameworkError(ErrorCode.CODEX_UNAVAILABLE)
@@ -81,6 +96,10 @@ class CodexAdapter:
                 ErrorCode.CODEX_VERSION_MISMATCH,
                 f"Runtime must match pinned {params['codex']['version']}",
             )
+        await self.emit(
+            "ai.phase",
+            {"name": "runtime-version", "duration_ms": round((time.monotonic() - started) * 1000)},
+        )
         overrides = {
             "features.shell_tool": False,
             "features.unified_exec": False,
@@ -107,9 +126,11 @@ class CodexAdapter:
         thread_id = None
         turn_id = None
 
-        async def observe(direction, message):
+        async def observe_message(direction, message, emit):
             nonlocal usage, thread_id, turn_id
-            await self.emit("provider.wire", {"direction": direction, "message": message})
+            await emit(
+                "provider.wire", {"direction": direction, "message": message, "received_at": now()}
+            )
             if direction != "in" or "method" not in message:
                 return
             method = message["method"]
@@ -130,7 +151,7 @@ class CodexAdapter:
                     "item": item,
                 }
                 event_kind = kind + (".started" if method == "item/started" else ".completed")
-                await self.emit(event_kind, item_payload)
+                await emit(event_kind, item_payload)
                 if item.get("type") == "reasoning" and item.get("summary") and not summaries:
                     summaries.append(item["summary"])
             elif method == "item/agentMessage/delta":
@@ -140,7 +161,7 @@ class CodexAdapter:
                     "item_id": data.get("itemId"),
                     "text": data.get("delta", ""),
                 }
-                await self.emit("ai.progress", progress_payload)
+                await emit("ai.progress", progress_payload)
             if method == "turn/started":
                 turn_id = data["turn"]["id"]
             elif method == "item/reasoning/summaryTextDelta":
@@ -151,16 +172,26 @@ class CodexAdapter:
                     "turn_id": data.get("turnId"),
                     "item_id": data.get("itemId"),
                 }
-                await self.emit("ai.reasoning_summary", summary_payload)
+                await emit("ai.reasoning_summary", summary_payload)
             elif method == "thread/tokenUsage/updated":
                 usage = data.get("tokenUsage")
-                await self.emit("ai.usage", {"usage": usage})
+                await emit("ai.usage", {"usage": usage})
             elif method == "item/completed":
                 item = data.get("item", {})
                 if item.get("type") == "agentMessage" and item.get("phase") != "commentary":
                     messages[item["id"]] = item.get("text", "")
-            elif method == "turn/completed" and not completed.done():
-                completed.set_result(data["turn"])
+
+        async def observe(direction, message):
+            entries = []
+
+            async def emit(kind, payload):
+                entries.append({"kind": kind, "payload": payload})
+
+            await observe_message(direction, message, emit)
+            await self.emit_many(entries)
+            if direction == "in" and message.get("method") == "turn/completed":
+                if not completed.done():
+                    completed.set_result(message["params"]["turn"])
 
         async def inbound(method, data):
             # Notifications are already captured above. Never auto-approve server requests.
@@ -190,6 +221,7 @@ class CodexAdapter:
 
         stderr_task = asyncio.create_task(stderr())
         try:
+            started = time.monotonic()
             client_info = {
                 "name": "game_automation",
                 "title": "Game Automation",
@@ -234,6 +266,13 @@ class CodexAdapter:
             thread_method = "thread/resume" if params.get("thread_id") else "thread/start"
             thread_result = await peer.request(thread_method, thread_request)
             thread_id = thread_result["thread"]["id"]
+            await self.emit(
+                "ai.phase",
+                {
+                    "name": "session-setup",
+                    "duration_ms": round((time.monotonic() - started) * 1000),
+                },
+            )
             runtime_payload = {
                 "runtime": actual_version,
                 "model": thread_result.get("model"),
@@ -311,6 +350,7 @@ def handler_factory(peer):
 
     async def handler(method, params):
         if method == "initialize":
+            adapter.event_batches = "event-batches-v1" in params.get("features", [])
             response = {
                 field: MANIFEST[field] for field in ("protocol_version", "version", "capabilities")
             }
