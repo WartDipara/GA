@@ -5,6 +5,7 @@ import { decode, object, schema, text } from '@game-automation/contracts';
 import { ErrorCode, FrameworkError } from '@game-automation/contracts/errors';
 import { redact, strings, within, type Fields } from '../storage/values.js';
 import type { Runtime } from './runtime.js';
+import { verifyPlanningDependencies } from './dependencies.js';
 import type { Action, Coordinates, Decision, Facts, Observation } from './types.js';
 
 type Bounds = NonNullable<Action['bounds']>;
@@ -139,6 +140,7 @@ export class Planner {
   async decide(observation: Observation, facts: Facts, reason: string): Promise<Decision> {
     const runtime = this.runtime;
     runtime.begin(reason);
+    await verifyPlanningDependencies(runtime);
     const workspace = join(runtime.directory, 'ai-workspace');
     await mkdir(workspace, { recursive: true });
     const image = await this.image(
