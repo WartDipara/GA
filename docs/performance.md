@@ -78,3 +78,11 @@ and on process restart. Logical event bytes remain separate from actual filesyst
 every admission still checks free space, the evidence budget and reserved observation/report
 headroom. Unclean shutdown cannot leave a trusted stale file counter. No evidence is deleted to
 make the counter fit its budget.
+
+## Follow-up: lifecycle and long-trace completeness
+
+Provider completion is acknowledged only after the durable event batch and must match both the
+active thread and turn. Semantic call-chain projection traverses all relevant committed events
+up to a captured sequence watermark, instead of taking only the latest 20,000. Starts and ends
+use the same boundary. Detailed provider stream records remain in SQLite; bounded UI previews and
+the emergency compact renderer are explicitly separate from the complete semantic call chain.

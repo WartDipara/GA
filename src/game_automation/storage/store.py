@@ -411,10 +411,13 @@ class Store:
                 }
                 self._event(run_id, "report.requested", report_request)
 
-    def iter_events(self, run_id, after=0, span=None, *, kinds=None, limit=None):
+    def iter_events(self, run_id, after=0, span=None, *, kinds=None, limit=None, through=None):
         self.run(run_id)
         sql = "SELECT seq,data FROM events WHERE run_id=? AND seq>?"
         args = [run_id, after]
+        if through is not None:
+            sql += " AND seq<=?"
+            args.append(through)
         if span:
             sql += " AND span_id=?"
             args.append(span)

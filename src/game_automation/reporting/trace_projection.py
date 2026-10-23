@@ -39,6 +39,7 @@ DETAILS = (
     "ai.tool.started",
     "ai.tool.completed",
     "ai.usage",
+    "ai.phase",
     "ai.summary_availability",
     "run.state",
 )
@@ -138,13 +139,13 @@ def project_trace(store, run_id):
     for event in store.events(run_id, kinds=("run.continued_from",)):
         root["links"].append({"run_id": event["payload"]["run_id"], "relation": "continued_from"})
     kinds = (*STARTS, *ENDS, *DETAILS)
-    events = store.events(run_id, kinds=kinds, limit=20_000)
+    watermark = store.db.execute(
+        "SELECT COALESCE(MAX(seq),0) FROM events WHERE run_id=?", (run_id,)
+    ).fetchone()[0]
     spans = {}
     session_totals = {}
     baselines = {}
-    for event in events:
-        if event["kind"] not in STARTS:
-            continue
+    for event in store.iter_events(run_id, kinds=tuple(STARTS), through=watermark):
         payload = event["payload"]
         name = payload.get("capability") or payload.get("stage") or event["kind"]
         kind = "chat" if name == "ai.decide" else STARTS[event["kind"]]
@@ -166,7 +167,7 @@ def project_trace(store, run_id):
             if recorded_parent:
                 span["attributes"]["game_automation.unavailable_parent"] = recorded_parent
             span["parent_span_id"] = run_id
-    for event in events:
+    for event in store.iter_events(run_id, kinds=kinds, through=watermark):
         target = spans.get(event["span_id"])
         if target is not None:
             enrich_span(target, event)
@@ -243,7 +244,7 @@ def project_trace(store, run_id):
         "run_id": run_id,
         "resource": {"service.name": "game-automation", "service.version": version},
         "scope": "recorded_application_boundaries",
-        "event_limit_reached": len(events) == 20_000,
+        "event_limit_reached": False,
         "spans": [root, *spans.values()],
     }
     return projection

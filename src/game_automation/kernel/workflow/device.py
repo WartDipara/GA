@@ -106,6 +106,7 @@ async def observe_device(store, run_id, host, manifest, task):
     result["observation_id"] = uid("obs")
     result["evidence_ref"] = image["evidence_ref"]
     result["session"].pop("adb_executable")
+    result["session"].pop("manager_executable", None)
     host.record("device.observed", result)
     host.artifact("reports/observation.json", result)
 
