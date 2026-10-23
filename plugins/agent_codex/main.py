@@ -190,8 +190,13 @@ class CodexAdapter:
             await observe_message(direction, message, emit)
             await self.emit_many(entries)
             if direction == "in" and message.get("method") == "turn/completed":
-                if not completed.done():
-                    completed.set_result(message["params"]["turn"])
+                data = message["params"]
+                if (
+                    data.get("threadId") == thread_id
+                    and data["turn"]["id"] == turn_id
+                    and not completed.done()
+                ):
+                    completed.set_result(data["turn"])
 
         async def inbound(method, data):
             # Notifications are already captured above. Never auto-approve server requests.
