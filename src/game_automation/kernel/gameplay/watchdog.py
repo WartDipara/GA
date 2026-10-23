@@ -14,12 +14,22 @@ class ProgressWatchdog:
         self.data = runtime.progress.data.setdefault(
             "watchdog", {"rounds": 0, "elapsed_seconds": 0, "history": [], "proofs": []}
         )
+        scope = runtime.task["goal"]
+        if self.data.get("scope", scope) != scope:
+            self.data = {"rounds": 0, "elapsed_seconds": 0, "history": [], "proofs": []}
+            runtime.progress.data["watchdog"] = self.data
+        self.data["scope"] = scope
+        self.reconciling = bool(self.data.get("blocked") and runtime.progress.data["pending"])
+        if self.reconciling:
+            runtime.host.record("gameplay.watchdog.reconciliation", {"scope": scope})
         self.updated = time.monotonic()
 
     def check(self):
         current = time.monotonic()
         self.data["elapsed_seconds"] += current - self.updated
         self.updated = current
+        if self.reconciling:
+            return
         if self.data["rounds"] >= self.settings.get("no_progress_rounds", 24) or self.data[
             "elapsed_seconds"
         ] >= self.settings.get("no_progress_seconds", 900):
@@ -60,10 +70,13 @@ class ProgressWatchdog:
                 )
             if count >= 5:
                 self.block("repeated-state-and-action-cycle")
-        self.runtime.progress.save()
+        self.reconciling = False
         self.check()
+        self.data["blocked"] = False
+        self.runtime.progress.save()
 
     def block(self, reason):
+        self.data["blocked"] = True
         payload = {"reason": reason, **self.data}
         self.runtime.host.record("gameplay.watchdog.blocked", payload)
         self.runtime.progress.save()

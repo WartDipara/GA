@@ -86,3 +86,8 @@ active thread and turn. Semantic call-chain projection traverses all relevant co
 up to a captured sequence watermark, instead of taking only the latest 20,000. Starts and ends
 use the same boundary. Detailed provider stream records remain in SQLite; bounded UI previews and
 the emergency compact renderer are explicitly separate from the complete semantic call chain.
+
+A blocked watchdog preserves its limits across resume. If an action remains pending, recovery
+allows one observation/planning review before enforcing the old limits again. Only a new verified
+transition replenishes them; an unknown result cannot authorize a replay. A new business goal has
+its own progress scope while preserving account identity and historical action evidence.

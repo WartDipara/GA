@@ -37,7 +37,7 @@ async def _run_hybrid(runtime, manifest, observation):
                 ErrorCode.BUDGET_EXHAUSTED,
                 "Requested planning-turn boundary reached; resume to continue",
             )
-        if not progress["pending"] and cached_steps < 5:
+        if not progress["pending"] and not watchdog.reconciling and cached_steps < 5:
             steps = cache.routine(observation, facts)[: 5 - cached_steps]
             if steps:
                 runtime.host.record("gameplay.cache.hit", {"steps": len(steps)})
