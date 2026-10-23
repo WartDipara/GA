@@ -63,6 +63,6 @@ def workflow_status(store, run_id):
             steps.setdefault(key, {}).update(payload)
     for step in steps.values():
         if step.get("child_run"):
-            step["status"] = store.run(step["child_run"])["status"]
+            step["child_status"] = store.run(step["child_run"])["status"]
     result = {"run_id": run_id, "steps": list(steps.values())}
     return result

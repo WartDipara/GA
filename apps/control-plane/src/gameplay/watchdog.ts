@@ -3,7 +3,7 @@ import { ErrorCode, FrameworkError } from '@game-automation/contracts/errors';
 import { integer, type Fields } from '../storage/values.js';
 import { checkpointHash } from './knowledge.js';
 import type { Runtime } from './runtime.js';
-import type { Decision, Observation, Progress } from './types.js';
+import type { Decision, Observation, Pending, Progress } from './types.js';
 
 export class Watchdog {
   readonly data: NonNullable<Progress['watchdog']>;
@@ -37,11 +37,10 @@ export class Watchdog {
       this.block('no-verified-progress');
   }
 
-  review(decision: Decision, observation: Observation): void {
+  review(decision: Decision, observation: Observation, pending: Pending | null): void {
     this.check();
     this.data.rounds += 1;
     const state = decision.state_key || 'unknown';
-    const pending = this.runtime.progress.data.pending;
     const assessment = decision.previous_outcome;
     const verified =
       pending &&

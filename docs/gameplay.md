@@ -93,6 +93,13 @@ separate data. Unknown resource-consuming actions are never replayed. Observed d
 reconciled without claiming the expectation succeeded. The original small account, server and role
 remain bound across batches; identity changes require attention.
 
+Pending actions follow the kernel ledger. A failure before dispatch clears the pending proposal
+only when no intent was created or the new intent was rejected. Unknown/executed intents retain
+their action IDs for reconciliation, including failed cached routines. No new proposal may replace
+an unresolved one. Accepted semantic outcomes commit before the progress watchdog can stop the
+next action; a stop must not discard an already available verification. Unresolved installation
+intents return to device preparation instead of being decoded as gameplay actions.
+
 ```powershell
 uv run game-auto resume <run_id>
 uv run game-auto resume <run_id> --new-batch

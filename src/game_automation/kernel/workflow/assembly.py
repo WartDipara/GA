@@ -138,7 +138,7 @@ def build_workflow(names):
             launch_input,
             requires=("prepare",),
             per_apk=True,
-            capabilities=("device.capture", "device.execute", "device.logs"),
+            capabilities=("device.capture", "device.execute", "device.logs", "credential.prepare"),
         ),
         Stage(
             "play",
@@ -146,7 +146,7 @@ def build_workflow(names):
             play_input,
             requires=("prepare", "launch"),
             per_apk=True,
-            capabilities=("ai.decide", "perception.analyze"),
+            capabilities=("ai.decide", "perception.analyze", "planner.image"),
         ),
         Stage("report", None, report_output),
     )
