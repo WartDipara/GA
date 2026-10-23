@@ -7,6 +7,8 @@ host and sole state writer directly. Python handles image processing, DPAPI and 
 through independent plugins; it no longer runs a gameplay loop. Stored checkpoints are decoded
 against `gameplay-progress` before reuse. The language migration has compilation verification only;
 historical device evidence does not establish acceptance of the migrated runtime.
+Each planning turn rechecks the manifest digest, pinned implementation files, shared Skills and
+their references, and contracts. Changed or missing dependencies block that batch before inference.
 
 | Component | Boundary |
 | --- | --- |
