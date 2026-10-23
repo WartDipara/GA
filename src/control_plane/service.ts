@@ -1,5 +1,6 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { readFileSync } from 'node:fs';
+import { once } from 'node:events';
 import { createServer, type Socket } from 'node:net';
 import { resolve, join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -31,9 +32,12 @@ const lease = createServer((socket) => {
 });
 
 // Acquire an OS-owned singleton before opening SQLite. A losing starter never becomes a writer.
-await new Promise<void>((resolveLease, reject) => {
-  lease.once('error', reject);
-  lease.listen({ path: pipe, exclusive: true }, resolveLease);
+const acquired = once(lease, 'listening');
+lease.listen({ path: pipe, exclusive: true });
+await acquired;
+lease.on('error', (error: Error) => {
+  // Ownership errors must reach the fatal boundary, never a settled startup promise.
+  throw error;
 });
 const store = new Store(root);
 const calls = new Map<string, AbortController>();
