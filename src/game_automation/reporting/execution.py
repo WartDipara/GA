@@ -1,8 +1,6 @@
-"""Minimal outcome report and publication status, independent of rich evidence renderers."""
+"""Read-only outcome snapshot and publication-status projections."""
 
-import html
-
-from game_automation.common import FrameworkError, atomic_json, atomic_text, json_text, now, within
+from game_automation.common import FrameworkError, now, within
 
 SETTLED_STATUSES = ("succeeded", "failed", "cancelled", "blocked")
 
@@ -73,41 +71,3 @@ def publication_status(store, run_id):
     if store.run(run_id)["status"] not in SETTLED_STATUSES:
         result["status"] = "in_progress"
     return result
-
-
-def write_execution_report(store, run_id, snapshot):
-    run = store.run(run_id)
-    states = store.events(run_id, kinds=("run.state",), limit=1)
-    failures = store.events(run_id, kinds=("call.failed", "call.incomplete"), limit=20)
-    report = {
-        "run_id": run_id,
-        "task_id": run["task_id"],
-        "mode": run["mode"],
-        "snapshot": snapshot,
-        "reason": states[0]["payload"].get("reason") if states else None,
-        "recent_call_failures": failures,
-        "unresolved_actions": [
-            {"action_id": action["action_id"], "status": action["status"]}
-            for action in store.action_records(run_id)
-            if action["status"] in ("prepared", "unknown", "executed")
-        ],
-        "scope": "Recorded outcome only; absent evidence does not establish success or coverage",
-    }
-    directory = store.run_dir(run_id) / "reports"
-    atomic_json(directory / "execution.json", report)
-    escaped = html.escape(json_text(report))
-    document = (
-        '<!doctype html><html lang="en"><meta charset="utf-8">'
-        '<meta name="viewport" content="width=device-width,initial-scale=1">'
-        '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; '
-        "style-src 'unsafe-inline'\"><title>Execution outcome</title>"
-        "<style>body{font:16px system-ui;max-width:1100px;margin:32px auto;padding:20px}"
-        "pre{white-space:pre-wrap;overflow-wrap:anywhere}</style>"
-        f"<h1>Execution outcome: {html.escape(run['status'])}</h1>"
-        "<p>This is recorded evidence, including failures and interruptions. "
-        "Rich report failures do not change the business outcome.</p>"
-        '<p><a href="trace.html">Call trace</a> · <a href="execution.json">Outcome JSON</a> · '
-        '<a href="publication.json">Report publication status</a></p>'
-        f"<pre>{escaped}</pre></html>"
-    )
-    atomic_text(directory / "execution.html", document)

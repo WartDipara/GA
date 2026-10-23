@@ -62,6 +62,10 @@ The executor preserves stage keys, child ownership, continued-from links, explic
 actual duration fields, atomic settlement/report requests and report-only recovery. A broken bridge
 can produce a minimal degraded outcome report without replaying business operations.
 
+Report publication also belongs to TypeScript, including measured component spans, receipt files,
+report-only repair and the minimal execution report. Rich Python rendering uses a read-only store
+and returns component results; it cannot write business states or publish report events.
+
 Use the pinned Node built-in SQLite implementation behind a single database module, preserving the
 existing schema, WAL/FULL durability and event-byte triggers. Its API is experimental in this Node
 release; pinning and compilation reduce compatibility risk but do not prove runtime correctness.

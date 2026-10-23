@@ -1,17 +1,9 @@
+import { publish } from '../reporting/publication.js';
 import { existsSync, statSync } from 'node:fs';
-import { join } from 'node:path';
 import { object, text } from '@game-automation/contracts';
 import { ErrorCode, FrameworkError, frameworkError } from '@game-automation/contracts/errors';
 import { Store } from '../storage/store.js';
-import {
-  atomicJson,
-  atomicText,
-  integer,
-  optionalText,
-  uid,
-  within,
-  type Fields,
-} from '../storage/values.js';
+import { integer, optionalText, within, type Fields } from '../storage/values.js';
 import { requireDiskSpace } from '../storage/disk.js';
 import { Scheduler } from './scheduler.js';
 import { play } from '../gameplay/play.js';
@@ -152,6 +144,13 @@ export class Execution {
               )
                 complete = false;
             }
+          const taskDirectory = within(
+            this.store.root,
+            `var/tasks/${text(this.store.run(runId)['task_id'])}`,
+          );
+          for (const reference of ['reports/task.json', 'reports/task.html', 'apks/index.json']) {
+            if (!existsSync(within(taskDirectory, reference))) complete = false;
+          }
         } catch {
           complete = false;
         }
@@ -161,69 +160,8 @@ export class Execution {
     return repaired;
   }
 
-  async publish(runId: string): Promise<unknown> {
-    if (!settledStatuses.has(text(this.store.run(runId)['status'])))
-      throw new FrameworkError(ErrorCode.REPORT_NOT_READY);
-    const state = this.store.events(runId, { kinds: ['run.state'], limit: 1 }).at(-1);
-    const previous = this.store.events(runId, { kinds: ['report.requested'], limit: 1 }).at(-1);
-    if (!previous || previous.payload['state_event_id'] !== (state?.event_id ?? null)) {
-      const request = {
-        request_id: uid('report'),
-        state_event_id: state?.event_id ?? null,
-        business_status: this.store.run(runId)['status'],
-      };
-      this.store.event(runId, 'report.requested', request);
-    }
-    try {
-      return await this.tool('report', runId, {});
-    } catch (error) {
-      // A disconnected client or failed renderer cannot discard the already committed outcome.
-      const request =
-        this.store.events(runId, { kinds: ['report.requested'], limit: 1 }).at(-1)?.payload ?? {};
-      const run = this.store.run(runId);
-      const publicationId = uid('publication');
-      const snapshot = {
-        generated_at: new Date().toISOString(),
-        business_status: run['status'],
-        stage: run['stage'],
-        source_event_seq: this.store.watermark(runId),
-        kind: run['status'] === 'blocked' ? 'checkpoint' : 'final',
-      };
-      const receipt: Fields = {
-        ...request,
-        publication_id: publicationId,
-        snapshot,
-        status: 'degraded',
-        error: frameworkError(error).details(),
-        components: {},
-        files: [],
-      };
-      try {
-        const directory = join(this.store.runDirectory(runId), 'reports');
-        const outcome = {
-          run,
-          snapshot,
-          report_status: 'degraded',
-          reason:
-            this.store.events(runId, { kinds: ['run.state'], limit: 1 }).at(-1)?.payload[
-              'reason'
-            ] ?? null,
-        };
-        atomicJson(join(directory, 'execution.json'), outcome);
-        const contents = JSON.stringify(outcome, null, 2)
-          .replaceAll('&', '&amp;')
-          .replaceAll('<', '&lt;')
-          .replaceAll('>', '&gt;');
-        const document = `<!doctype html><meta charset="utf-8"><title>Execution outcome</title><h1>Execution outcome</h1><p>Rich report rendering is unavailable. Recorded outcomes remain authoritative.</p><pre>${contents}</pre>`;
-        atomicText(join(directory, 'execution.html'), document);
-        atomicText(join(directory, 'trace.html'), document);
-        atomicJson(join(directory, 'publication.json'), receipt);
-      } catch (failure) {
-        receipt['fallback_error'] = frameworkError(failure).details();
-      }
-      this.store.event(runId, 'report.finished', receipt);
-      return receipt;
-    }
+  async publish(runId: string): Promise<Fields> {
+    return publish(this, runId);
   }
 
   async run(runId: string, sourceFile: string | null): Promise<Fields> {

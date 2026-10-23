@@ -10,7 +10,13 @@ docs/                           Architecture, commands and decisions
 plugins/<capability>/           Independent stdio process implementations and manifests
 skills/<skill>/                 Shared runtime AI instructions and reference material
 tools/                          Maintained build and contract-generation tools
-apps/control-plane/src/         TypeScript service, plugin host and authoritative storage
+apps/control-plane/src/
+  service.ts                    TypeScript execution service
+  kernel/                       Plugin host and device authorization
+  storage/                      Sole SQLite writer and event persistence
+  workflow/                     Batch scheduler, lifecycle and recovery
+  gameplay/                     Planning, routines, progress and outcome verification
+  reporting/                    Publication policy, component timing and minimal outcome reports
 packages/contracts/src/         Shared generated contract validation and structured errors
 packages/plugin-sdk/src/        Bounded JSON-RPC streams and child-process lifecycle
 src/game_automation/
@@ -26,8 +32,7 @@ src/game_automation/
     capability_router.py        Plugin registration and dependency routing
     plugin_host.py              Transitional client of the TypeScript plugin host
     storage_policy.py           Storage budget configuration rules
-    workflow/                   Stage orchestration and execution lifecycle
-    gameplay/                   Planning, local routing, routines, progress and verification
+    workflow/                   CLI inputs and remaining stage compatibility tools
   plugin_sdk/                   JSON-RPC, bounded commands, images and credential/privacy helpers
   prompting/                    Shared resource resolution and version-pinned AI inputs
   reporting/
@@ -40,7 +45,7 @@ src/game_automation/
       trace.template.html       Source template, distinct from generated trace.html reports
       dashboard.css
       dashboard.js
-  storage/                      SQLite ownership, layout migration and task cleanup
+  storage/                      Read-only projections, writer client and task cleanup
 var/                            Ignored local state, credentials, task artifacts and maintenance data
 ```
 
