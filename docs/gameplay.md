@@ -37,6 +37,18 @@ workflow. Gameplay planning receives the task's append-only supplements, includi
 events, across child stages and new batches. Clarifications remain scoped to their stated target;
 they cannot override kernel action restrictions or apply to another business task.
 
+The project owner separately authorizes mandatory game/SDK entry terms for the configured test
+account across game-testing tasks. The shared game-exploration Skill directs the planner to accept
+required User Agreement/Privacy Policy controls when unchecked, verify the resulting state, and
+continue entry without treating acceptance as successful login. Already accepted controls are not
+toggled again. Optional marketing consent and unrelated contracts are outside this authorization;
+explicit task restrictions may narrow or withdraw it.
+
+Both exploration and battle planning explicitly load this shared Skill on each turn. Submitted
+requests retain its pinned reference and instruction text as trace evidence. Changed Skill content
+requires a new execution batch; existing batch evidence and historical agreement blockers remain
+unchanged.
+
 ## Prepare and run
 
 Choose an already-running dedicated MuMu instance from `game-auto emulators`. Its index identifies
