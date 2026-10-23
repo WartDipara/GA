@@ -25,8 +25,14 @@
   documentation links are allowed.
 - This release provides framework infrastructure. Mark Android control, perception, exploration, and
   game acceptance as available only after dedicated device evidence exists.
-- Use Python 3.12 and uv. Verification is compilation only: compile maintained Python sources and
-  syntax-check maintained JavaScript. Do not add or run mock tests, smoke tests, synthetic inference
+- Use TypeScript for the control plane and Python 3.12 with uv for capability plugins. Migrate the
+  existing Python kernel incrementally; never introduce two state or event writers. Pin Node and npm
+  dependencies. Enable strict TypeScript checking, checked indexed access and exact optional fields.
+  External data starts as unknown and must pass runtime schema validation. Do not bypass checking
+  with any, unchecked type assertions, non-null assertions or ignored compiler errors. Await or
+  explicitly supervise every promise. Generate protocol types from contracts/v1, never mirror them.
+- Verification is compilation only: type-check maintained TypeScript, compile maintained Python
+  sources and syntax-check maintained JavaScript. Do not add or run mock tests, smoke tests, synthetic inference
   calls, or test-only plugins. Formatting tools may be used to enforce source readability.
   Compilation does not establish runtime correctness or game coverage.
 - Plugins communicate over JSON-RPC 2.0 / stdio. Never import another plugin's private code or

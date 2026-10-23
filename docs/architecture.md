@@ -1,5 +1,9 @@
 # Architecture and state
 
+The target control plane is TypeScript with Python capability plugins. Migration is incremental;
+the existing Python scheduler and SQLite owner remain active until explicitly replaced. See
+[ADR 0002](decisions/0002-typescript-control-plane.md) for ownership and compatibility requirements.
+
 ## Boundaries
 
 CLI -> kernel -> independent process plugins. Plugins use host.call for declared dependencies; the

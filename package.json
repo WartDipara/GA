@@ -1,0 +1,23 @@
+{
+  "name": "game-automation-control-plane",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": "22.19.0" },
+  "scripts": {
+    "generate": "node tools/generate-contracts.mjs",
+    "check": "npm run generate && tsc --noEmit && eslint src/control_plane --max-warnings 0",
+    "build": "npm run check && node tools/build.mjs"
+  },
+  "dependencies": {
+    "ajv": "8.20.0"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.5",
+    "esbuild": "0.28.2",
+    "json-schema-to-typescript": "16.0.0",
+    "typescript": "5.9.3",
+    "eslint": "10.13.0",
+    "typescript-eslint": "8.72.0"
+  }
+}

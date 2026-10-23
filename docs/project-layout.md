@@ -9,6 +9,8 @@ contracts/v1/                   Shared JSON schemas and input examples
 docs/                           Architecture, commands and decisions
 plugins/<capability>/           Independent stdio process implementations and manifests
 skills/<skill>/                 Shared runtime AI instructions and reference material
+tools/                          Maintained build and contract-generation tools
+src/control_plane/              Strict TypeScript control plane during incremental migration
 src/game_automation/
   __init__.py                   Package version metadata only
   __main__.py                   python -m game_automation entry
@@ -73,3 +75,7 @@ implementation update. This organization change does not rewrite task records, c
 evidence. See [task workspaces](task-workspaces.md) and [cleanup](cleanup.md) for local runtime data.
 The [runtime data layout](runtime-data.md) separates shared operational logs, inputs, caches and
 temporary developer output from persistent task state.
+
+TypeScript is checked with `npm run check`; `npm run build` also creates shared bundles under
+`var/cache/typescript/`. `contracts/v1` remains authoritative. Generated types, installed npm
+dependencies and bundles are not task-local copies. Python remains managed by uv.
