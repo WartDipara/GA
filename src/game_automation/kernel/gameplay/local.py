@@ -80,6 +80,11 @@ class Perception:
 
 
 async def execute_routine(runtime, observation, steps):
+    with runtime.step_lifecycle():
+        return await _execute_routine(runtime, observation, steps)
+
+
+async def _execute_routine(runtime, observation, steps):
     runtime.begin_step("guarded-routine")
     perception = Perception(runtime)
     routine = RoutineExecutor(steps)

@@ -120,6 +120,7 @@ async def execute_locked(store, run_id, source_file=None):
         "observation",
         "gameplay",
         "workflow",
+        "analysis",
     ):
         raise FrameworkError(ErrorCode.RUN_MODE_REMOVED)
     try:
@@ -159,7 +160,14 @@ async def execute_locked(store, run_id, source_file=None):
         require_disk_space(store.run_dir(run_id), storage["reserve_bytes"])
         host = Host(store, run_id, Router(manifest["plugins"]), manifest)
         task = store.run_task(run_id)
-        if run["mode"] in ("emulators", "device", "observation", "gameplay", "workflow"):
+        if run["mode"] in (
+            "emulators",
+            "device",
+            "observation",
+            "gameplay",
+            "workflow",
+            "analysis",
+        ):
             timeout = 0
         elif run["mode"] == "preprocessing":
             timeout = manifest["application"]["preprocessing"]["batch_timeout_seconds"]
@@ -172,6 +180,11 @@ async def execute_locked(store, run_id, source_file=None):
                 from .scheduler import schedule
 
                 await schedule(store, run_id, host, task, source_file)
+            elif run["mode"] == "analysis":
+                from .trace_analysis import analyze_trace
+
+                store.transition(run_id, "running", "observability")
+                await analyze_trace(store, run_id, host, manifest, task)
             elif run["mode"] == "emulators":
                 store.transition(run_id, "running", "environment")
                 await discover_emulators(store, run_id, host, manifest, task)
@@ -204,6 +217,7 @@ async def execute_locked(store, run_id, source_file=None):
             "device": "environment",
             "observation": "environment",
             "gameplay": "exploration",
+            "analysis": "observability",
         }
         stage = (
             store.run(run_id)["stage"]

@@ -38,12 +38,15 @@ class Host:
         self.workflow_run = store.run_task(run_id).get("workflow_run")
         self.contracts = resource_root(store, run_id, "contracts", manifest=manifest)
         self.failure = None
+        self.context_span_id = None
 
     def stop(self, error):
         if self.failure is None:
             self.failure = error
 
     def record(self, kind, payload, **trace_ids):
+        if "span_id" not in trace_ids and self.context_span_id is not None:
+            trace_ids["span_id"] = self.context_span_id
         try:
             return self.store.event(self.run_id, kind, payload, **trace_ids)
         except Exception as exc:
@@ -77,6 +80,7 @@ class Host:
         _action_id=None,
     ):
         self.check_cancel()
+        parent_span_id = parent_span_id or self.context_span_id
         if capability in ancestry or len(ancestry) >= 8:
             raise FrameworkError(ErrorCode.DEPENDENCY_CYCLE)
         plugin = self.router.resolve(capability)
@@ -111,6 +115,7 @@ class Host:
         elif timeout == 0:
             timeout = None
         initial_span_id = span_id
+        retry_of = None
         for attempt in range(1, retries + 1):
             self.check_cancel()
             span_id = initial_span_id if initial_span_id and attempt == 1 else uid("span")
@@ -131,6 +136,7 @@ class Host:
                 "capability": capability,
                 "plugin": plugin["name"],
                 "attempt": attempt,
+                "retry_of": retry_of,
                 "input_ref": input_ref,
                 "unavailable_optional_capabilities": unavailable_capabilities,
             }
@@ -180,6 +186,7 @@ class Host:
                 if isinstance(exc, asyncio.CancelledError):
                     raise
                 if attempt < retries and error.retryable:
+                    retry_of = span_id
                     self.record(
                         "call.retry",
                         {"previous_span_id": span_id, "next_attempt": attempt + 1},

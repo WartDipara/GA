@@ -229,6 +229,7 @@ class ErrorCode(StrEnum):
     SNAPSHOT_MISSING = ("SNAPSHOT_MISSING", "Run has no completed snapshot; create a new run")
     TIMEOUT = ("TIMEOUT", "Operation timed out")
     TRACE_UNAVAILABLE = ("TRACE_UNAVAILABLE", "Cannot persist trace; execution halted")
+    OBSERVABILITY_INVALID = ("OBSERVABILITY_INVALID", "Invalid observability scope or evidence")
     WORKSPACE_CONFLICT = (
         "WORKSPACE_CONFLICT",
         "Workspace relocation found conflicting directories; no files were overwritten",

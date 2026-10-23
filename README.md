@@ -40,6 +40,11 @@ It includes child executions, event search, duration records, pause/resume and m
 It reads SQLite without modifying the workflow or invoking devices. Run it in a separate terminal;
 use `--interval` and `--port` to adjust polling and the loopback port. See [debugging](docs/debugging.md).
 
+Execution traces provide an expandable call waterfall, retained input/output and event evidence,
+session replay, screenshot target markers and measured performance. Human reviews, dataset export,
+version comparison and explicitly requested natural-language analysis share the same event store.
+See [Agent observability](docs/agent-observability.md) for evidence boundaries and CLI commands.
+
 Missing information blocks intake and produces questions. Supplements are append-only. Accepted
 requirements are immutable; submit a new task to change them. `run <task_id>` starts intake and
 environment checks, then blocks at the unimplemented game-launch stage if prerequisites pass.

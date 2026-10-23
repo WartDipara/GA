@@ -13,7 +13,8 @@ from game_automation.common import FrameworkError, within
 from game_automation.errors import ErrorCode
 from game_automation.storage.store import Store
 
-from .trace import render_trace
+from .agent_trace import agent_view
+from .trace import render_context, render_trace
 
 
 def trace_url(task_id, run_id):
@@ -156,6 +157,42 @@ class TraceHandler(BaseHTTPRequestHandler):
             document, _ = render_trace(store, run_id)
             self.respond(200, document, "text/html; charset=utf-8")
             return
+        if relative == "reports/context.html":
+            document, _ = render_context(store, run_id)
+            self.respond(200, document, "text/html; charset=utf-8")
+            return
+        if relative == "reports/agent-trace.json":
+            row = store.db.execute(
+                "SELECT COALESCE(MAX(e.seq),0) FROM events e JOIN runs r ON r.id=e.run_id "
+                "WHERE r.task_id=?",
+                (self.server.task_id,),
+            ).fetchone()
+            if query.get("after") == [str(row[0])]:
+                self.respond(204, b"", "application/json")
+                return
+            view = agent_view(store, run_id)
+            view["revision"] = row[0]
+            self.respond(200, json.dumps(view, ensure_ascii=False), "application/json")
+            return
+        if relative == "reports/events.json":
+            span_id = query.get("span", [None])[0]
+            after = int(query.get("after", ["0"])[0])
+            if not span_id or after < 0:
+                raise FrameworkError(ErrorCode.NOT_FOUND)
+            events = []
+            for event in store.iter_events(
+                run_id, after=after, span=None if span_id == run_id else span_id
+            ):
+                events.append(event)
+                if len(events) == 501:
+                    break
+            page = {
+                "events": events[:500],
+                "has_more": len(events) > 500,
+                "next_after": events[min(499, len(events) - 1)]["seq"] if events else after,
+            }
+            self.respond(200, json.dumps(page, ensure_ascii=False), "application/json")
+            return
         allowed_reports = {"reports/gameplay.html", "reports/context.json", "reports/gameplay.json"}
         evidence_types = {
             ".png": "image/png",
@@ -172,7 +209,11 @@ class TraceHandler(BaseHTTPRequestHandler):
             content_type = (
                 "text/html; charset=utf-8" if relative.endswith(".html") else "application/json"
             )
-        elif evidence_type and file_path.is_relative_to(store.run_dir(run_id) / "artifacts"):
+        elif (evidence_type and file_path.is_relative_to(store.run_dir(run_id) / "artifacts")) or (
+            file_path.is_relative_to(store.run_dir(run_id) / "calls")
+            and file_path.name in ("input.json", "output.json")
+        ):
+            evidence_type = evidence_type or "application/json"
             content_type = evidence_type
         else:
             raise FrameworkError(ErrorCode.NOT_FOUND)

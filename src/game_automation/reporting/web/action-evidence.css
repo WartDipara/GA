@@ -1,0 +1,71 @@
+.evidence-pair {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: flex-start;
+}
+.action-evidence {
+  margin: 0;
+  width: min(100%, 300px);
+  min-width: 0;
+}
+.evidence-frame {
+  position: relative;
+  overflow: hidden;
+  border-radius: 10px;
+  background: #111b2a;
+}
+.evidence-frame img {
+  display: block;
+  width: 100%;
+  max-width: none;
+  height: 100%;
+}
+.action-overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.action-overlay .target-bounds {
+  fill: #ffc85720;
+  stroke: #ffc857;
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+.action-overlay .touch-ring {
+  fill: #ff547025;
+  stroke: white;
+  stroke-width: 3;
+  vector-effect: non-scaling-stroke;
+}
+.action-overlay .touch-point {
+  fill: #ff274f;
+  stroke: white;
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+.action-overlay .hold-ring {
+  fill: none;
+  stroke: #ff5470;
+}
+.action-overlay .gesture-path {
+  stroke: #ff5470;
+  stroke-width: 4;
+  vector-effect: non-scaling-stroke;
+  fill: none;
+}
+.not-dispatched .target-bounds,
+.not-dispatched .touch-ring {
+  stroke-dasharray: 5 4;
+}
+.action-evidence figcaption {
+  font-size: 12px;
+  line-height: 1.6;
+  color: #aebed3;
+  margin-top: 8px;
+}
+.evidence-note {
+  color: #ffc857;
+}

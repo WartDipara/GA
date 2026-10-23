@@ -47,6 +47,12 @@ and module results out of the live window. Completed AI items retain their publi
 available reasoning summary. Search and execution filters apply to that bounded window; open a
 stage trace for earlier evidence and full model context.
 
+Stage traces now open the Agent call waterfall, with on-demand node input/output and paginated
+event evidence. Session replay, screenshot target markers and performance are separate views.
+Historical missing endings remain incomplete. The prior context dashboard remains available through
+the Context details link. See [Agent observability](agent-observability.md) for analysis, annotations,
+dataset export and version comparison commands.
+
 The page provides pause/resume, manual refresh and interval selection. Polls do not overlap. A
 revision check avoids transferring the same events again, and the selected event and filters survive
 updates. Failed refreshes preserve the previous snapshot and show a retry notice. Removing the task

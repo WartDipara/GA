@@ -3,9 +3,12 @@
 import html
 import json
 from collections import Counter
+from pathlib import Path
 
 from game_automation.common import FrameworkError, within
 from game_automation.errors import ErrorCode
+
+from .action_evidence import action_figures
 
 REPORT_KINDS = (
     "call.started",
@@ -32,6 +35,11 @@ def action_path(store, run_id):
     directory = store.run_dir(run_id)
     terminal_kinds = ("call.completed", "call.failed", "call.incomplete")
     timings = {event["span_id"]: event for event in store.iter_events(run_id, kinds=terminal_kinds)}
+    dispatched = {
+        event["payload"]["action_id"]
+        for event in store.iter_events(run_id, kinds=("action.dispatched",))
+    }
+    observations = {}
     path = []
     for action in store.action_records(run_id):
         request = json.loads(within(directory, action["input_ref"]).read_text(encoding="utf-8"))
@@ -39,6 +47,7 @@ def action_path(store, run_id):
         item = {
             "action_id": action["action_id"],
             "status": action["status"],
+            "dispatched": action["action_id"] in dispatched,
             "proposal": request.get("action"),
             "span_id": action["span_id"],
             "input_ref": action["input_ref"],
@@ -52,6 +61,18 @@ def action_path(store, run_id):
                 .relative_to(directory)
                 .as_posix()
             )
+        outcome = action.get("result") or {}
+        after_run = outcome.get("observation_run") or run_id
+        if store.run(after_run)["task_id"] == store.run(run_id)["task_id"]:
+            if after_run not in observations:
+                observations[after_run] = {
+                    event["payload"]["observation_id"]: event["payload"]["evidence_ref"]
+                    for event in store.iter_events(after_run, kinds=("gameplay.observation",))
+                }
+            after_image = observations[after_run].get(outcome.get("observation_id"))
+            if after_image:
+                item["after_image"] = after_image
+                item["after_run"] = after_run
         path.append(item)
     return path
 
@@ -76,15 +97,8 @@ def write_html(store, run_id, report):
             f"<td>{action_type}</td><td>{duration} ms</td>"
             f"<td>{escaped(action['execution_status'])}</td></tr>"
         )
-    images = {item["observation_id"]: item["evidence_ref"] for item in report["observations"]}
     for action in report["action_path"][-2000:]:
-        image = action.get("before_image")
-        picture = (
-            f'<img loading="lazy" src="../{escaped(image)}" alt="Before action">' if image else ""
-        )
-        after = images.get((action.get("result") or {}).get("observation_id"))
-        if after:
-            picture += f'<img loading="lazy" src="../{escaped(after)}" alt="After action">'
+        picture = action_figures(store, run_id, action)
         payload = json.dumps(action, ensure_ascii=False, indent=2)
         duration = action["execution_duration_ms"]
         execution_time = f"{duration} ms" if duration is not None else "Unknown"
@@ -115,6 +129,7 @@ def write_html(store, run_id, report):
             "stage_advances",
         )
     }
+    evidence_style = (Path(__file__).parent / "web/action-evidence.css").read_text(encoding="utf-8")
     document = (
         '<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width">'
         '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; '
@@ -124,7 +139,8 @@ def write_html(store, run_id, report):
         "article{background:#1c2833;padding:20px;margin:16px 0;border-radius:10px}"
         "pre{white-space:pre-wrap;overflow-wrap:anywhere}img{max-width:280px}a{color:#84caff}"
         "table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:8px;"
-        "border-bottom:1px solid #364655;overflow-wrap:anywhere}</style>"
+        "border-bottom:1px solid #364655;overflow-wrap:anywhere}"
+        f"{evidence_style}</style>"
         f"<h1>Gameplay evidence</h1><p>{escaped(run_id)}</p>"
         "<p>AI proposals, dispatched actions and verified outcomes are separate records. "
         "A local predicate verifies only its stated condition.</p>"

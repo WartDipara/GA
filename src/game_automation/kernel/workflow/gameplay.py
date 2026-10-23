@@ -2,6 +2,8 @@
 
 import asyncio
 import json
+import time
+from contextlib import contextmanager
 
 from game_automation.common import FrameworkError, digest, uid, within
 from game_automation.contracts import validate
@@ -77,6 +79,7 @@ class DeviceRuntime:
         self.recorder = recorder
         self.progress = progress
         self.step_id = None
+        self.step_started = None
         profile = profile_path(store.root, task["credential_profile"])
         frozen = store.run_dir(run_id) / "credentials" / profile.name
         data = frozen.read_bytes() if frozen.exists() else profile.read_bytes()
@@ -88,12 +91,45 @@ class DeviceRuntime:
         self.credential_path = str(frozen)
 
     def begin_step(self, reason):
+        self.finish_step()
         self.step_id = uid("span")
+        self.host.context_span_id = self.step_id
+        self.step_started = time.monotonic()
         self.host.record(
             "gameplay.step.started",
             {"capability": "gameplay.step", "reason": reason},
             span_id=self.step_id,
         )
+
+    def finish_step(self, status="completed", error=None):
+        if self.step_id is None:
+            return
+        payload = {"duration_ms": round((time.monotonic() - self.step_started) * 1000)}
+        if error is not None:
+            payload["error"] = error
+        span_id = self.step_id
+        self.step_id = None
+        self.step_started = None
+        self.host.context_span_id = None
+        if self.host.failure is None:
+            self.host.record(f"gameplay.step.{status}", payload, span_id=span_id)
+
+    @contextmanager
+    def step_lifecycle(self):
+        try:
+            yield
+        except BaseException as exc:
+            if isinstance(exc, FrameworkError):
+                error = exc.as_dict()
+            else:
+                error = {"code": ErrorCode.CALL_FAILED, "message": type(exc).__name__}
+            incomplete = isinstance(exc, (asyncio.CancelledError, KeyboardInterrupt)) or (
+                isinstance(exc, FrameworkError) and exc.code == ErrorCode.CANCELLED
+            )
+            self.finish_step("incomplete" if incomplete else "failed", error)
+            raise
+        else:
+            self.finish_step()
 
     async def observe(self):
         for attempt in range(3):

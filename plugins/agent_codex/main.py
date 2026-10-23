@@ -242,7 +242,12 @@ class CodexAdapter:
                 "thread_id": thread_id,
             }
             await self.emit("ai.runtime", runtime_payload)
-            await self.emit("ai.session", {"role": params["role"], "thread_id": thread_id})
+            session_payload = {
+                "role": params["role"],
+                "thread_id": thread_id,
+                "fresh": params.get("thread_id") is None,
+            }
+            await self.emit("ai.session", session_payload)
             turn_request = dict(params["turn"])
             turn_request["threadId"] = thread_id
             turn_request["outputSchema"] = strict_schema(params["turn"]["outputSchema"])

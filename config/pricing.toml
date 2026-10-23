@@ -1,0 +1,11 @@
+version = "2026-10-23"
+currency = "USD"
+source = "https://developers.openai.com/api/docs/pricing"
+model_source = "https://developers.openai.com/api/docs/models/gpt-6-luna"
+scenario = "Standard short-context API rates, 30-minute cache writes, no regional premium"
+
+[models.gpt-6-luna]
+input_per_million = 0.10
+cached_input_per_million = 0.01
+cache_write_per_million = 0.125
+output_per_million = 0.50
