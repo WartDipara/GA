@@ -21,9 +21,18 @@
         "adb_executable": {
           "type": "string",
           "minLength": 1
+        },
+        "manager_executable": {
+          "type": "string",
+          "minLength": 1
         }
       },
-      "required": ["instance_index", "instance_id", "serial", "adb_executable"],
+      "required": [
+        "instance_index",
+        "instance_id",
+        "serial",
+        "adb_executable"
+      ],
       "additionalProperties": false
     },
     "display": {
@@ -34,7 +43,12 @@
           "minimum": 0
         },
         "rotation_degrees": {
-          "enum": [0, 90, 180, 270]
+          "enum": [
+            0,
+            90,
+            180,
+            270
+          ]
         },
         "width": {
           "type": "integer",
@@ -55,7 +69,14 @@
           "minLength": 1
         }
       },
-      "required": ["display_id", "rotation_degrees", "width", "height", "package_name", "activity"],
+      "required": [
+        "display_id",
+        "rotation_degrees",
+        "width",
+        "height",
+        "package_name",
+        "activity"
+      ],
       "additionalProperties": false
     },
     "screenshot": {
@@ -84,10 +105,20 @@
           "maximum": 16384
         }
       },
-      "required": ["file_name", "size_bytes", "sha256", "width", "height"],
+      "required": [
+        "file_name",
+        "size_bytes",
+        "sha256",
+        "width",
+        "height"
+      ],
       "additionalProperties": false
     }
   },
-  "required": ["session", "display", "screenshot"],
+  "required": [
+    "session",
+    "display",
+    "screenshot"
+  ],
   "additionalProperties": false
 }

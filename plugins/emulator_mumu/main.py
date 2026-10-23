@@ -147,6 +147,7 @@ async def session(peer, request):
         "instance_id": instance_id,
         "serial": serial,
         "adb_executable": tools["adb"],
+        "manager_executable": tools["manager"],
     }
     return result
 
