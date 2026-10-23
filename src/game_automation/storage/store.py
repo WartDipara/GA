@@ -333,6 +333,9 @@ class Store:
             capability=capability,
         )
 
+    def release_device(self, reservation_run, *, apply=False):
+        return self._write("release_device", run_id=reservation_run, apply=apply)
+
     def dispatch_device_action(self, run_id, action_id):
         self._write("dispatch_device_action", run_id=run_id, action_id=action_id)
 
@@ -342,7 +345,11 @@ class Store:
         row = self.db.execute(
             "SELECT a.run_id,a.action_id,a.status,a.result FROM actions a "
             "JOIN device_bindings b ON json_extract(a.result,'$.instance_id')=b.instance_id "
-            "WHERE b.apk_key=? AND (?='gameplay' OR "
+            "JOIN run_inputs i ON i.run_id=a.run_id "
+            "WHERE b.apk_key=? AND "
+            "json_extract(i.spec,'$.source_run')||':'||"
+            "json_extract(i.spec,'$.apk_index')=b.apk_key "
+            "AND (?='gameplay' OR "
             "json_extract(a.result,'$.capability')='device.install') "
             "ORDER BY a.rowid DESC LIMIT 1",
             (apk_key, task.get("kind")),

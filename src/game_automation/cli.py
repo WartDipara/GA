@@ -91,6 +91,13 @@ def parser():
     device.add_argument("--from-run", required=True, help="Preprocessing run ID")
     device.add_argument("--apk-index", type=int, required=True, help="Zero-based APK list index")
     device.add_argument("--instance", type=int, required=True, help="Dedicated MuMu instance index")
+    release = commands.add_parser(
+        "release-device", help="Release a settled reservation without deleting evidence or app data"
+    )
+    release.add_argument("reservation_run", help="Execution that originally reserved the instance")
+    release.add_argument(
+        "--apply", action="store_true", help="Apply the release; otherwise preview"
+    )
     device.add_argument(
         "--adopt-existing",
         action="store_true",
@@ -305,6 +312,14 @@ def main(argv=None):
             print_json({"task_id": task_id, "run_id": run_id})
             asyncio.run(execute(store, run_id))
             return execution_result(store, run_id)
+        elif args.command == "release-device":
+            from game_automation.kernel.report_finalization import finalize_reports
+
+            with FileLock(store.var / "execution.lock"):
+                result = store.release_device(args.reservation_run, apply=args.apply)
+                if args.apply:
+                    result["publication"] = finalize_reports(store, args.reservation_run)
+            print_json(result)
         elif args.command == "submit":
             task = (
                 read_document(args.document)

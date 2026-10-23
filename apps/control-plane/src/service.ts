@@ -224,6 +224,8 @@ const server = createServer((socket) => {
       await drainCalls();
       return null;
     }
+    if (method === 'storage.release_device' && (calls.size || executions.size))
+      throw new FrameworkError(ErrorCode.RUN_BUSY);
     if (method.startsWith('storage.')) {
       const command = { method: method.slice('storage.'.length), input: params };
       return store.accept(command);
