@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    "target": "ES2023",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "useUnknownInCatchVariables": true,
+    "verbatimModuleSyntax": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "types": ["node"]
+  },
+  "include": ["src/control_plane/**/*.ts", "plugins/agent_codex/**/*.ts", "var/cache/typescript/generated/**/*.ts"]
+}

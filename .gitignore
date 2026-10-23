@@ -7,3 +7,4 @@ dist/
 build/
 var/
 .env
+node_modules/
