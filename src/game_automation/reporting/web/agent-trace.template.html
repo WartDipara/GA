@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; img-src 'self' file: data:; style-src 'unsafe-inline'; script-src 'sha256-${script_hash}'; connect-src 'self'; base-uri 'none'; form-action 'none'"
+    />
+    <title>Agent observability · ${title}</title>
+    <style>
+      ${style}
+    </style>
+  </head>
+  <body>
+    <header>
+      <a class="brand" href="../../../../../">G<span>Game Automation</span></a
+      ><span class="eyebrow">AGENT OBSERVABILITY</span
+      ><span id="connection" class="muted">Recorded evidence</span>
+    </header>
+    <main>
+      <div class="page-heading">
+        <div>
+          <p class="eyebrow">EXECUTION TRACE</p>
+          <h1 id="execution-name">Agent execution</h1>
+          <p id="identity" class="muted"></p>
+        </div>
+        <div class="heading-links">
+          <a href="agent-trace.json">Trace JSON</a><a href="context.html">Context details</a
+          ><button id="refresh">Refresh</button>
+        </div>
+      </div>
+      <div id="metrics" class="metrics"></div>
+      <p id="trace-limit" class="footnote" hidden>
+        The semantic window reached 20,000 events. Use CLI trace or Context details for earlier
+        evidence.
+      </p>
+      <nav aria-label="Observability views">
+        <button data-view="calls" class="active">Call trace</button
+        ><button data-view="sessions">Session replay</button
+        ><button data-view="actions">Action evidence</button
+        ><button data-view="performance">Performance</button
+        ><button data-view="quality">Quality & evolution</button
+        ><button data-view="insights">Ask about this trace</button>
+      </nav>
+      <section id="calls" class="view active">
+        <div class="toolbar">
+          <input
+            id="span-search"
+            type="search"
+            placeholder="Search operations, errors or span IDs"
+            aria-label="Search spans"
+          /><select id="span-kind" aria-label="Span kind">
+            <option value="all">All kinds</option>
+            <option value="step">ReAct steps</option>
+            <option value="chat">Model turns</option>
+            <option value="tool">Tools</option>
+            <option value="chain">Workflow stages</option></select
+          ><select id="span-state" aria-label="Span status">
+            <option value="all">All states</option>
+            <option value="error">Errors</option>
+            <option value="incomplete">Unclosed / incomplete</option></select
+          ><button id="expand-all">Expand all</button
+          ><button id="collapse-all">Collapse steps</button>
+        </div>
+        <div class="trace-layout">
+          <article class="panel">
+            <div class="panel-title">
+              <h2>Execution waterfall</h2>
+              <span class="muted">Operation · recorded time</span>
+            </div>
+            <div id="waterfall" class="waterfall" role="tree" aria-label="Call hierarchy"></div>
+          </article>
+          <aside class="panel inspector">
+            <div class="panel-title"><h2>Span inspector</h2></div>
+            <div id="span-inspector"></div>
+          </aside>
+        </div>
+        <p class="footnote">
+          Bars show recorded boundaries. Only measured duration fields are execution timings.
+          Missing endings remain unclosed; proposals, dispatches and verified outcomes are distinct.
+        </p>
+      </section>
+      <section id="sessions" class="view">
+        <h2>Session replay</h2>
+        <p class="muted">
+          Application-submitted input, public model items and related framework tools. Expanding
+          records never reissues a call. Hidden provider context is unavailable.
+        </p>
+        <div id="session-list"></div>
+      </section>
+      <section id="actions" class="view">
+        <div class="panel-title">
+          <h2>Action evidence</h2>
+          <label><input id="show-markers" type="checkbox" checked /> Show target markers</label>
+        </div>
+        <p class="muted">
+          White ring / red center: input point. Gold rectangle: checked target bounds. Dashed
+          markers: not dispatched. Swipe arrows show direction. After images have no reused
+          coordinate markers.
+        </p>
+        <div id="action-list">${actions}</div>
+      </section>
+      <section id="performance" class="view">
+        <h2>Performance</h2>
+        <div class="toolbar">
+          <select id="model-filter" aria-label="Filter model"></select
+          ><select id="actor-filter" aria-label="Filter actor"></select>
+        </div>
+        <div id="performance-table"></div>
+        <p class="footnote" id="metric-basis"></p>
+        <details class="panel">
+          <summary>Optional API reference estimate</summary>
+          <p class="muted">
+            Codex CLI account charges are unavailable here. API estimates are a separate reference
+            scenario.
+          </p>
+          <div id="price-detail"></div>
+        </details>
+      </section>
+      <section id="quality" class="view">
+        <h2>Quality & evolution</h2>
+        <p class="muted">
+          Recorded execution outcomes and human-reviewed correctness have separate denominators. No
+          labeled ground truth means unknown accuracy.
+        </p>
+        <div id="quality-content"></div>
+      </section>
+      <section id="insights" class="view">
+        <h2>Ask about recorded execution</h2>
+        <p class="muted">
+          Use the CLI / JSON analysis entry to create a separately traced analysis. The viewer
+          remains read-only.
+        </p>
+        <form id="analysis-form">
+          <label for="analysis-question">Your question</label
+          ><textarea
+            id="analysis-question"
+            rows="3"
+            placeholder="Which operations caused most delay, and what evidence supports improving them?"
+            required
+          ></textarea
+          ><button type="submit">Prepare analysis command</button>
+        </form>
+        <pre id="analysis-command"></pre>
+        <div id="analysis-results"></div>
+      </section>
+      <footer>
+        Local evidence only · Public model output · Recorded inputs, actions and outcomes
+      </footer>
+    </main>
+    <script type="application/json" id="trace-data">
+      ${data}
+    </script>
+    ${script_element}
+  </body>
+</html>

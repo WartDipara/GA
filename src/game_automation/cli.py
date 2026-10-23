@@ -166,6 +166,9 @@ def parser():
     viewer.add_argument(
         "--interval", type=int, default=3, help="Polling interval, 1 through 60 seconds"
     )
+    from game_automation.cli_observability import add_commands
+
+    add_commands(commands)
     return cli
 
 
@@ -410,6 +413,20 @@ def main(argv=None):
         elif args.command == "cancel":
             store.cancel(args.run_id)
             print_json({"cancel_requested": True, "run_id": args.run_id})
+        elif args.command in (
+            "agent-trace",
+            "analyze-trace",
+            "review",
+            "export-dataset",
+            "compare-traces",
+            "trace-owner",
+        ):
+            from game_automation.cli_observability import handle
+
+            result = handle(store, args)
+            print_json(result)
+            if args.command == "analyze-trace" and result["status"] != "succeeded":
+                return 2
         elif args.command == "inspect":
             events = store.events(args.run_id, span=args.span)
             if not events:

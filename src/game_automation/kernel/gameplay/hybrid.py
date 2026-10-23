@@ -11,6 +11,11 @@ from .routing import DecisionRouter
 
 
 async def run_hybrid(runtime, manifest, observation):
+    with runtime.step_lifecycle():
+        return await _run_hybrid(runtime, manifest, observation)
+
+
+async def _run_hybrid(runtime, manifest, observation):
     perception = Perception(runtime)
     planner = Planner(runtime, manifest)
     router = DecisionRouter()

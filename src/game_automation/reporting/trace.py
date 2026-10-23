@@ -12,16 +12,25 @@ from game_automation.observability import build_insights
 
 def export_trace(store, run_id):
     """Offline context dashboard and raw evidence viewer; no network or device calls."""
-    document, insights = render_trace(store, run_id)
+    document, view = render_trace(store, run_id)
     path = store.run_dir(run_id) / "reports/trace.html"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(document, encoding="utf-8", newline="\n")
+    atomic_json(path.with_name("agent-trace.json"), view)
+    context, insights = render_context(store, run_id)
+    path.with_name("context.html").write_text(context, encoding="utf-8", newline="\n")
     if insights is not None:
         atomic_json(path.with_name("context.json"), insights)
     return path
 
 
 def render_trace(store, run_id):
+    from .agent_trace import render_agent_trace
+
+    return render_agent_trace(store, run_id)
+
+
+def render_context(store, run_id):
     """Render current committed evidence without changing files or database state."""
     if store.event_bytes(run_id) > 16 * 1024**2:
         from game_automation.reporting.compact_trace import render_compact

@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://game-automation.local/contracts/v1/trace-analysis",
+  "type": "object",
+  "properties": {
+    "summary": {
+      "type": "string",
+      "maxLength": 8000
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 4000
+          },
+          "explanation": {
+            "type": "string",
+            "maxLength": 4000
+          },
+          "recommendation": {
+            "type": "string",
+            "maxLength": 4000
+          },
+          "validation_plan": {
+            "type": "string",
+            "maxLength": 4000
+          },
+          "candidate_change": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 8000
+          },
+          "evidence_refs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "maxItems": 50
+          }
+        },
+        "required": [
+          "title",
+          "explanation",
+          "recommendation",
+          "validation_plan",
+          "candidate_change",
+          "evidence_refs"
+        ],
+        "additionalProperties": false
+      },
+      "maxItems": 30
+    },
+    "limitations": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 30
+    }
+  },
+  "required": [
+    "summary",
+    "findings",
+    "limitations"
+  ],
+  "additionalProperties": false
+}

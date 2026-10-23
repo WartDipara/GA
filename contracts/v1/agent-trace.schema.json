@@ -1,0 +1,188 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://game-automation.local/contracts/v1/agent-trace",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": "1.0"
+    },
+    "trace_id": {
+      "type": "string"
+    },
+    "run_id": {
+      "type": "string"
+    },
+    "resource": {
+      "type": "object"
+    },
+    "scope": {
+      "const": "recorded_application_boundaries"
+    },
+    "event_limit_reached": {
+      "type": "boolean"
+    },
+    "spans": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "span_id": {
+            "type": "string"
+          },
+          "run_id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "parent_span_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "kind": {
+            "enum": [
+              "entry",
+              "agent",
+              "chain",
+              "step",
+              "chat",
+              "tool"
+            ]
+          },
+          "start_time": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "end_time": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "duration_ms": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "status": {
+            "enum": [
+              "unknown",
+              "running",
+              "ok",
+              "error",
+              "incomplete"
+            ]
+          },
+          "attributes": {
+            "type": "object"
+          },
+          "links": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "event_id": {
+                  "type": "string"
+                },
+                "seq": {
+                  "type": "integer"
+                },
+                "kind": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "event_id",
+                "seq",
+                "kind"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "usage": {
+            "type": "object"
+          },
+          "cost": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "span_id",
+          "run_id",
+          "name",
+          "parent_span_id",
+          "kind",
+          "start_time",
+          "end_time",
+          "duration_ms",
+          "status",
+          "attributes",
+          "links",
+          "events"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "actor_ref": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "version": {
+      "type": "object"
+    },
+    "metrics": {
+      "type": "object"
+    },
+    "quality": {
+      "type": "object"
+    },
+    "replay": {
+      "type": "object"
+    },
+    "actions": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "action_cards": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "analyses": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "revision": {
+      "type": "integer"
+    }
+  },
+  "required": [
+    "schema_version",
+    "trace_id",
+    "run_id",
+    "resource",
+    "scope",
+    "event_limit_reached",
+    "spans"
+  ],
+  "additionalProperties": false
+}

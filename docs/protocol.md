@@ -1,5 +1,11 @@
 # Plugin protocol v1.0
 
+`agent-trace.schema.json` defines the read-only application span projection. It retains native
+span/request IDs, actual timing and usage evidence, retry/execution links and explicit unknowns.
+`trace-analysis.schema.json` defines evidence-cited analysis proposals, not executable actions.
+Neither format replaces the authoritative event envelope or the plugin transport. See
+[Agent observability](agent-observability.md) for replay, metrics and label semantics.
+
 Transport: UTF-8 JSON-RPC 2.0 over stdio, one JSON object per line, maximum 8 MiB per message.
 stdout is protocol-only; stderr carries diagnostics. Use artifact references for large payloads.
 
