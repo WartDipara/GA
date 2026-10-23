@@ -4,6 +4,13 @@ SQLite events and action records are authoritative. HTML and JSON reports are re
 projections. A renderer failure must not convert a completed game operation into a business failure,
 cause the scheduler to repeat it, or prevent another report component from being attempted.
 
+TypeScript owns publication order, component boundaries, receipts, pending-request repair and the
+minimal outcome report. Python rich renderers are read-only projection tools: they may write report
+files, but cannot publish states or events. Their temporary compatibility bridge is separate from
+the gameplay loop. If that bridge disconnects, the kernel still writes the minimal outcome and a
+degraded receipt. Report components have spans and measured durations; interrupted publications
+close unfinished components as incomplete before a new publication attempt.
+
 ## Publication order
 
 1. Commit the business outcome and `report.requested` in the same SQLite transaction.

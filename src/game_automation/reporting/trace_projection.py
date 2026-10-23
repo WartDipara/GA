@@ -8,6 +8,7 @@ STARTS = {
     "call.started": "tool",
     "gameplay.step.started": "step",
     "workflow.stage.started": "chain",
+    "report.component.started": "chain",
 }
 ENDS = {
     "call.completed": "ok",
@@ -19,6 +20,8 @@ ENDS = {
     "workflow.stage.completed": "ok",
     "workflow.stage.failed": "error",
     "workflow.stage.incomplete": "incomplete",
+    "report.component.finished": "ok",
+    "report.component.incomplete": "incomplete",
 }
 DETAILS = (
     "workflow.stage.bound",
@@ -101,6 +104,8 @@ def enrich_span(span, event):
         span["links"].append({"span_id": payload["retry_of"], "relation": "retry_of"})
     if kind in ENDS:
         span["status"] = ENDS[kind]
+        if kind == "report.component.finished" and payload.get("status") != "complete":
+            span["status"] = "error"
         span["end_time"] = event["timestamp"]
         duration = payload.get("duration_ms")
         span["duration_ms"] = duration if type(duration) in (int, float) and duration >= 0 else None

@@ -18,7 +18,6 @@ export class Perception {
         observation_id: observation.observation_id,
         source_event_id: cached.event,
       });
-      this.runtime.latest = { observation: observation.observation_id, facts: cached.facts };
       return cached.facts;
     }
     const request = {
@@ -39,7 +38,6 @@ export class Perception {
     this.runtime.cache.set(key, { facts, event });
     const oldest = this.runtime.cache.keys().next().value;
     if (this.runtime.cache.size > 4 && oldest) this.runtime.cache.delete(oldest);
-    this.runtime.latest = { observation: observation.observation_id, facts };
     return facts;
   }
 

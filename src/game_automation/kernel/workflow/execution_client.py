@@ -37,7 +37,7 @@ async def invoke_async(root, operation, **request):
 def handle_tool(root, method, params):
     if method != "execution.tool":
         raise FrameworkError(ErrorCode.METHOD_NOT_FOUND)
-    store = Store(root)
+    store = Store.open_readonly(root) if params["operation"] == "render" else Store(root)
     try:
         return tool(store, params["run_id"], params["operation"], params["input"])
     finally:
@@ -51,10 +51,10 @@ def tool(store, run_id, operation, inputs):
         if operation == "freeze":
             return freeze(store, run_id, parent_run=inputs.get("parent_run"))
         return load(store, run_id)
-    if operation == "report":
-        from game_automation.kernel.report_finalization import render_reports
+    if operation == "render":
+        from game_automation.reporting.components import render_component
 
-        return render_reports(store, run_id)
+        return render_component(store, run_id, inputs["component"])
     if operation in ("workflow_validate", "workflow_input"):
         from .assembly import build_workflow
         from .scheduler import WorkflowContext, validate_workflow

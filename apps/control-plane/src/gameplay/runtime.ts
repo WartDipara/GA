@@ -20,7 +20,6 @@ export class Runtime {
   readonly diagnostics: Diagnostics;
   readonly usage: FileUsage;
   readonly cache = new Map<string, { facts: Facts; event: string }>();
-  latest: { observation: string; facts: Facts } | null = null;
   step: string | null = null;
   private started = 0;
   watchdog: { check(): void } | null = null;
