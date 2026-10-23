@@ -1,4 +1,5 @@
 import { existsSync, mkdirSync } from 'node:fs';
+import type { SQLInputValue } from 'node:sqlite';
 import { join, relative } from 'node:path';
 import { decode, object, text, type ContractMap } from '@game-automation/contracts';
 import { ErrorCode, FrameworkError } from '@game-automation/contracts/errors';
@@ -24,6 +25,14 @@ export interface TraceIds {
 }
 
 type StorageMethod = ContractMap['kernel-command']['method'];
+export type Event = ContractMap['trace'] & { seq: number };
+export interface EventQuery {
+  after?: number;
+  span?: string;
+  kinds?: string[];
+  limit?: number;
+  through?: number;
+}
 
 function subject(task: Fields): string {
   if (task['kind'] === 'apk_batch' || task['kind'] === 'apk_workflow')
@@ -52,6 +61,71 @@ export class Store {
     const row = this.database.one('SELECT spec FROM run_inputs WHERE run_id=?', runId);
     if (!row) throw new FrameworkError(ErrorCode.NOT_FOUND, 'Execution input not found');
     return parsed(row['spec']);
+  }
+
+  events(runId: string, query: EventQuery = {}): Event[] {
+    this.run(runId);
+    let sql = 'SELECT seq,data FROM events WHERE run_id=? AND seq>?';
+    const arguments_: SQLInputValue[] = [runId, query.after ?? 0];
+    if (query.through !== undefined) {
+      sql += ' AND seq<=?';
+      arguments_.push(query.through);
+    }
+    if (query.span) {
+      sql += ' AND span_id=?';
+      arguments_.push(query.span);
+    }
+    if (query.kinds?.length) {
+      sql += ` AND kind IN (${query.kinds.map(() => '?').join(',')})`;
+      arguments_.push(...query.kinds);
+    }
+    sql += query.limit ? ' ORDER BY seq DESC LIMIT ?' : ' ORDER BY seq';
+    if (query.limit) arguments_.push(query.limit);
+    const events = this.database.all(sql, ...arguments_).map((row) => {
+      const event = { ...decode('trace', parsed(row['data'])), seq: integer(row['seq']) };
+      return event;
+    });
+    if (query.limit) events.reverse();
+    return events;
+  }
+
+  taskRuns(taskId: string): Fields[] {
+    const rows = this.database.all('SELECT * FROM runs WHERE task_id=? ORDER BY rowid', taskId);
+    return rows;
+  }
+
+  watermark(runId: string): number {
+    return integer(
+      this.database.one('SELECT COALESCE(MAX(seq),0) AS seq FROM events WHERE run_id=?', runId)?.[
+        'seq'
+      ],
+    );
+  }
+
+  session(runId: string, role: string): string | null {
+    return optionalText(
+      this.database.one('SELECT thread_id FROM sessions WHERE run_id=? AND role=?', runId, role)?.[
+        'thread_id'
+      ],
+    );
+  }
+
+  progress(key: string): Fields | null {
+    const row = this.database.one(
+      'SELECT run_id,data FROM gameplay_progress WHERE workspace_key=?',
+      key,
+    );
+    if (!row) return null;
+    const progress = { run_id: text(row['run_id']), data: parsed(row['data']) };
+    return progress;
+  }
+
+  taskSupplements(taskId: string): Fields[] {
+    const rows = this.database.all(
+      "SELECT e.data FROM events e JOIN runs r ON r.id=e.run_id WHERE r.task_id=? AND e.kind='task.supplement' ORDER BY e.seq",
+      taskId,
+    );
+    return rows.map((row) => parsed(row['data']));
   }
 
   runDirectory(runId: string): string {

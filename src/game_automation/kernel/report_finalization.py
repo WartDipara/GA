@@ -9,7 +9,6 @@ from game_automation.errors import ErrorCode
 from game_automation.reporting.compact_trace import render_compact
 from game_automation.reporting.execution import (
     SETTLED_STATUSES,
-    publication_status,
     snapshot_metadata,
     write_execution_report,
 )
@@ -46,7 +45,7 @@ def ensure_report_request(store, run_id):
     return request
 
 
-def finalize_reports(store, run_id):
+def render_reports(store, run_id):
     """Caller owns execution.lock. A failed renderer must not fail a successful business stage."""
     run = store.run(run_id)
     if run["status"] not in SETTLED_STATUSES:
@@ -128,16 +127,14 @@ def write_workflow_report(store, run_id):
     atomic_json(store.run_dir(run_id) / "reports/workflow.json", checkpoint)
 
 
+def finalize_reports(store, run_id):
+    from game_automation.kernel.workflow.execution_client import invoke
+
+    receipts = invoke(store.root, "report", run_id=run_id, pending=False)
+    return receipts[0]
+
+
 def repair_pending_reports(store):
-    """Retry once per entry, never once per action and never replay business work."""
-    rows = store.db.execute(
-        "SELECT DISTINCT run_id FROM events WHERE kind='report.requested' ORDER BY run_id"
-    ).fetchall()
-    repaired = []
-    for row in rows:
-        run_id = row[0]
-        if store.run(run_id)["status"] not in SETTLED_STATUSES:
-            continue
-        if publication_status(store, run_id)["status"] != "complete":
-            repaired.append(finalize_reports(store, run_id))
-    return repaired
+    from game_automation.kernel.workflow.execution_client import invoke
+
+    return invoke(store.root, "report", pending=True)

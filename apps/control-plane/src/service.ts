@@ -5,12 +5,13 @@ import { createServer, type Socket } from 'node:net';
 import { resolve, join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { performance } from 'node:perf_hooks';
-import { object, text } from '@game-automation/contracts';
+import { decode, object, text } from '@game-automation/contracts';
 import { ErrorCode, FrameworkError, frameworkError } from '@game-automation/contracts/errors';
 import { Host } from './kernel/host.js';
 import { Peer } from '@game-automation/plugin-sdk/rpc';
 import { Store } from './storage/store.js';
 import { atomicJson, type Fields } from './storage/values.js';
+import { Execution } from './workflow/execution.js';
 
 const root = resolve(process.argv[2] ?? '.');
 const expectedVersion = readFileSync(join(root, '.node-version'), 'utf8').trim();
@@ -41,16 +42,17 @@ lease.on('error', (error: Error) => {
 });
 const store = new Store(root);
 const calls = new Map<string, AbortController>();
+const executions = new Map<string, AbortController>();
 const cancelled = new Set<string>();
 const sockets = new Set<Socket>();
 let idle: NodeJS.Timeout | undefined;
 let stopping = false;
 
 function stopWhenIdle(): void {
-  if (sockets.size || calls.size || stopping) return;
+  if (sockets.size || calls.size || executions.size || stopping) return;
   clearTimeout(idle);
   idle = setTimeout(() => {
-    if (sockets.size || calls.size || stopping) return;
+    if (sockets.size || calls.size || executions.size || stopping) return;
     stopping = true;
     // Close the database before releasing the singleton lease.
     store.database.close();
@@ -70,6 +72,7 @@ const server = createServer((socket) => {
   });
   sockets.add(socket);
   const owned = new Set<string>();
+  const ownedExecutions = new Set<string>();
   let authenticated = false;
   const handler = async (method: string, params: Fields): Promise<unknown> => {
     if (!authenticated) {
@@ -96,8 +99,64 @@ const server = createServer((socket) => {
       return null;
     }
     if (method === 'status') {
-      const status = { pid: process.pid, active_calls: calls.size };
+      const status = {
+        pid: process.pid,
+        active_calls: calls.size,
+        active_executions: executions.size,
+      };
       return status;
+    }
+    if (method.startsWith('execution.')) {
+      decode('execution-request', { operation: method.slice('execution.'.length), ...params });
+      if (executions.size) throw new FrameworkError(ErrorCode.RUN_BUSY);
+      const id = `execution_${randomBytes(16).toString('hex')}`;
+      const controller = new AbortController();
+      executions.set(id, controller);
+      ownedExecutions.add(id);
+      const tool = async (operation: string, runId: string, input: Fields): Promise<unknown> => {
+        const request = { operation, run_id: runId, input };
+        return peer.request('execution.tool', request, 0);
+      };
+      const execution = new Execution(store, tool, controller.signal, drainCalls);
+      try {
+        if (method === 'execution.create') {
+          await drainCalls();
+          return await execution.create(
+            text(params['task_id']),
+            text(params['mode']),
+            params['spec'] == null ? null : object(params['spec']),
+          );
+        }
+        if (method === 'execution.run') {
+          await execution.recover();
+          await execution.repairReports();
+          const runId = text(params['run_id']);
+          if (store.input(runId)['workflow_run'])
+            throw new FrameworkError(
+              ErrorCode.WORKFLOW_INVALID,
+              'Resume the owning workflow instead of its child',
+            );
+          return await execution.run(
+            runId,
+            params['source_file'] == null ? null : text(params['source_file']),
+          );
+        }
+        if (method === 'execution.recover') {
+          await execution.recover();
+          return null;
+        }
+        if (method === 'execution.report') {
+          await execution.recover();
+          if (params['pending'] === true) return await execution.repairReports();
+          const receipts = [await execution.publish(text(params['run_id']))];
+          return receipts;
+        }
+        throw new FrameworkError(ErrorCode.METHOD_NOT_FOUND, method);
+      } finally {
+        executions.delete(id);
+        ownedExecutions.delete(id);
+        stopWhenIdle();
+      }
     }
     if (method === 'host.execute') {
       const callId = text(params['call_id']);
@@ -113,6 +172,11 @@ const server = createServer((socket) => {
       try {
         store.checkCleanup();
         const runId = text(params['run_id']);
+        if (store.run(runId)['status'] !== 'running')
+          throw new FrameworkError(
+            ErrorCode.CANCELLED,
+            'The execution no longer accepts plugin calls',
+          );
         const eventId = `kernel_${callId}`;
         if (store.database.one('SELECT 1 FROM events WHERE event_id=?', eventId)) {
           throw new FrameworkError(ErrorCode.INVALID_STATE, 'A host request cannot be replayed');
@@ -148,7 +212,7 @@ const server = createServer((socket) => {
       }
     }
     if (method === 'storage.prepare_cleanup') {
-      if (calls.size)
+      if (calls.size || executions.size)
         throw new FrameworkError(
           ErrorCode.RUN_BUSY,
           'Wait for interrupted plugin calls to stop before cleanup',
@@ -156,16 +220,8 @@ const server = createServer((socket) => {
       return null;
     }
     if (method === 'storage.quiesce') {
-      for (const controller of calls.values()) controller.abort();
-      const deadline = performance.now() + 120_000;
-      while (calls.size) {
-        if (performance.now() >= deadline)
-          throw new FrameworkError(
-            ErrorCode.TIMEOUT,
-            'Interrupted plugin processes have not stopped',
-          );
-        await delay(50);
-      }
+      if (executions.size) throw new FrameworkError(ErrorCode.RUN_BUSY);
+      await drainCalls();
       return null;
     }
     if (method.startsWith('storage.')) {
@@ -177,6 +233,8 @@ const server = createServer((socket) => {
   const peer = new Peer(socket, socket, handler, undefined, false, false);
   const disconnect = (): void => {
     for (const id of owned) calls.get(id)?.abort();
+    for (const id of ownedExecutions)
+      executions.get(id)?.abort(new FrameworkError(ErrorCode.PREVIOUS_PROCESS_EXITED));
     sockets.delete(socket);
     stopWhenIdle();
   };
@@ -185,11 +243,22 @@ const server = createServer((socket) => {
     socket.destroy();
   });
 });
+
+async function drainCalls(): Promise<void> {
+  for (const controller of calls.values()) controller.abort();
+  const deadline = performance.now() + 120_000;
+  while (calls.size) {
+    if (performance.now() >= deadline)
+      throw new FrameworkError(ErrorCode.TIMEOUT, 'Interrupted plugin processes have not stopped');
+    await delay(50);
+  }
+}
 server.on('error', (error: Error) => {
   store.database.failure ??= new FrameworkError(ErrorCode.TRACE_UNAVAILABLE, undefined, false, {
     cause: error,
   });
   for (const controller of calls.values()) controller.abort();
+  for (const controller of executions.values()) controller.abort(error);
   for (const socket of sockets) socket.destroy();
   stopWhenIdle();
 });

@@ -36,6 +36,8 @@ class ControlClient:
         self.lock = threading.Lock()
         self.failure = None
         self.closed = False
+        self.handler = None
+        self.received = bytearray()
         self.fingerprint = digest((root / "var/cache/typescript/control_plane.mjs").read_bytes())
 
     def connect(self):
@@ -110,8 +112,14 @@ class ControlClient:
             try:
                 connection.settimeout(10)
                 connection.sendall(encoded)
-                line = self._receive(connection, timeout)
-                response = json.loads(line)
+                while True:
+                    line = self._receive(connection, timeout)
+                    response = json.loads(line)
+                    if not isinstance(response, dict) or "method" not in response:
+                        break
+                    if response.get("jsonrpc") != "2.0" or "id" not in response:
+                        raise ValueError
+                    self._handle(connection, response)
                 if (
                     not isinstance(response, dict)
                     or response.get("jsonrpc") != "2.0"
@@ -148,10 +156,42 @@ class ControlClient:
                 )
             return response.get("result")
 
+    def _handle(self, connection, message):
+        try:
+            if self.handler is None:
+                raise FrameworkError(ErrorCode.METHOD_NOT_FOUND)
+            result = self.handler(message["method"], message.get("params", {}))
+            response = {"jsonrpc": "2.0", "id": message["id"], "result": result}
+        except BaseException as exc:
+            failure = (
+                exc
+                if isinstance(exc, FrameworkError)
+                else FrameworkError(
+                    ErrorCode.CANCELLED
+                    if isinstance(exc, KeyboardInterrupt)
+                    else ErrorCode.INTERNAL_ERROR,
+                    type(exc).__name__,
+                )
+            )
+            details = {"code": -32000, "message": str(failure), "data": failure.as_dict()}
+            response = {"jsonrpc": "2.0", "id": message["id"], "error": details}
+        encoded = (json.dumps(response, ensure_ascii=False, allow_nan=False) + "\n").encode()
+        if len(encoded) > MAX_MESSAGE:
+            raise FrameworkError(ErrorCode.MESSAGE_TOO_LARGE)
+        connection.sendall(encoded)
+
     def _receive(self, connection, timeout):
         deadline = time.monotonic() + timeout if timeout is not None else None
-        received = bytearray()
         while True:
+            newline = self.received.find(b"\n")
+            if newline >= 0:
+                if newline >= MAX_MESSAGE:
+                    raise ValueError
+                line = bytes(self.received[: newline + 1])
+                del self.received[: newline + 1]
+                return line
+            if len(self.received) >= MAX_MESSAGE:
+                raise ValueError
             remaining = deadline - time.monotonic() if deadline is not None else 10
             if remaining <= 0:
                 raise TimeoutError
@@ -165,16 +205,10 @@ class ControlClient:
                     finally:
                         client.close()
                 continue
-            chunk = connection.recv(min(65_536, MAX_MESSAGE + 1 - len(received)))
+            chunk = connection.recv(65_536)
             if not chunk:
                 raise ConnectionError
-            received.extend(chunk)
-            if len(received) > MAX_MESSAGE:
-                raise ValueError
-            if b"\n" in received:
-                if not received.endswith(b"\n") or received.count(b"\n") != 1:
-                    raise ValueError
-                return received
+            self.received.extend(chunk)
 
     def close(self):
         self.closed = True
