@@ -1,7 +1,8 @@
 # Architecture and state
 
-The target control plane is TypeScript with Python capability plugins. Migration is incremental;
-the existing Python scheduler and SQLite owner remain active until explicitly replaced. See
+The control plane uses TypeScript for the Codex adapter, plugin host and authoritative SQLite
+writer. Migration is incremental; Python retains the scheduler, gameplay loop, CLI and read-only
+report projections. See
 [ADR 0002](decisions/0002-typescript-control-plane.md) for ownership and compatibility requirements.
 
 ## Boundaries
@@ -36,6 +37,25 @@ task ownership through explicit source-run references. Their directories live un
 SQLite WAL with synchronous=FULL stores state and events. Each state transition and its event commit
 together. An OS lock permits one local executor and is released by process exit. Query and
 cancellation commands may run concurrently. Plugins never receive database connections.
+
+The Windows control-plane process acquires an exclusive named-pipe lease before opening SQLite.
+All CLI processes share this owner through authenticated loopback JSON-RPC. Endpoint metadata stays
+in the ignored shared cache; this is a private kernel interface, not an HTTP submission service.
+The lease is released only after database close or process exit. Python connections use `mode=ro`
+and `query_only`; mutations, event batches, sessions, reservations, action states, checkpoints and
+cleanup commits are named kernel commands. No arbitrary SQL write endpoint or Python write fallback
+exists. Synchronous transactions cannot interleave across asynchronous plugin calls.
+
+Before recovering abandoned execution spans, the next execution-lock owner cancels and drains
+previous plugin calls. Connection loss aborts owned calls; unknown dispatched actions remain
+unknown. A durable request receipt rejects duplicate host request IDs even after owner restart.
+Long host requests check owner liveness without resending their original request. Idle owners close
+after the last client and call depart. A different bundle fingerprint requires the old owner to
+finish before a new build can connect.
+
+The Node SQLite API is isolated in `control_plane/storage/database.ts` and uses the pinned Node
+runtime. This API is experimental in the selected Node release; dependency upgrades require explicit
+review. Compilation does not establish runtime acceptance of the migrated path.
 
 ## Action uncertainty
 

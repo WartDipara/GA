@@ -1,5 +1,21 @@
 # Debugging a run
 
+The TypeScript control plane is the only SQLite writer. Run `npm run build` before using a changed
+build. Python workflow clients connect to its private local endpoint; the trace viewer stays
+read-only and can inspect historical records without starting a writer. A build-fingerprint mismatch
+means an old owner still has clients: finish those commands and let it exit before starting the new
+build. Do not kill a running game task merely to refresh code.
+
+Read-only CLI inspection and exports also open read-only connections, so historical traces remain
+available when Node is stopped or a new TypeScript build is pending.
+
+Control-plane bootstrap errors append to the local development log. Lost connections do not replay
+requests. Resume under the execution lock drains interrupted plugin processes, marks unfinished
+spans and reconciles unknown actions before further mutations. Report-only recovery continues to
+use committed outcome/report-request pairs and never dispatches game actions. Pending cleanup
+blocks new host calls and mutations until both filesystem deletion and the owner's database
+cleanup/compaction finish.
+
 List recent runs before opening a specific trace:
 
 ```powershell

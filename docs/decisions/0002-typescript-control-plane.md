@@ -42,6 +42,17 @@ Implemented increments:
 
 - Strict generated contracts, shared errors and TypeScript build/type-check gates.
 - TypeScript JSON-RPC/process support and the active Codex adapter, replacing its Python entry.
+- TypeScript plugin supervision, trace ingestion and the sole SQLite writer. Task creation, state
+  settlement, report requests, sessions, action authorization/uncertainty, checkpoints and cleanup
+  transactions now execute in this owner. Python database connections are read-only.
 
-The plugin host, scheduler, gameplay loop, SQLite writer and report service remain Python during
-this stage. Their later replacement is pending; installing TypeScript does not mark them migrated.
+The scheduler, gameplay loop, CLI and report rendering remain Python during this stage. Their
+compatibility clients delegate writes and plugin calls; they do not retain an alternative writer
+or supervisor. Later scheduler and gameplay migration remains pending.
+
+Use the pinned Node built-in SQLite implementation behind a single database module, preserving the
+existing schema, WAL/FULL durability and event-byte triggers. Its API is experimental in this Node
+release; pinning and compilation reduce compatibility risk but do not prove runtime correctness.
+Windows named-pipe exclusivity establishes writer ownership before opening the database. Private
+authenticated loopback RPC lets cancellation and queries coexist with long plugin calls without
+creating another writer. This adds no public HTTP task API and no independent business log system.

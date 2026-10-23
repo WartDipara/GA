@@ -2,6 +2,7 @@ import argparse
 import asyncio
 import getpass
 import json
+import sqlite3
 import sys
 import time
 from pathlib import Path
@@ -19,6 +20,21 @@ from game_automation.observability import build_insights
 from game_automation.plugin_sdk.credentials import save_profile
 from game_automation.reporting.trace import export_trace
 from game_automation.storage.store import Store
+
+READ_ONLY_COMMANDS = {
+    "status",
+    "runs",
+    "tasks",
+    "task-status",
+    "trace",
+    "inspect",
+    "context",
+    "agent-trace",
+    "compare-traces",
+    "compare-games",
+    "export-trace",
+    "export-dataset",
+}
 
 
 def parser():
@@ -256,7 +272,10 @@ def main(argv=None):
 
             serve_trace(root, args.run_id, port=args.port, interval=args.interval)
             return 0
-        store = Store(root, allow_cleanup=args.command == "cleanup")
+        if args.command in READ_ONLY_COMMANDS:
+            store = Store.open_readonly(root)
+        else:
+            store = Store(root, allow_cleanup=args.command == "cleanup")
         if args.command == "credentials":
             username = getpass.getpass("Username (hidden): ")
             password = getpass.getpass("Password (hidden): ")
@@ -498,7 +517,9 @@ def main(argv=None):
         return 0
     except KeyboardInterrupt:
         return 130
-    except (FrameworkError, OSError, ValueError) as exc:
+    except (FrameworkError, OSError, ValueError, sqlite3.Error) as exc:
+        if isinstance(exc, sqlite3.Error):
+            exc = FrameworkError(ErrorCode.TRACE_UNAVAILABLE)
         error = (
             exc.as_dict()
             if isinstance(exc, FrameworkError)

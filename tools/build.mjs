@@ -3,7 +3,10 @@ import { createHash } from 'node:crypto';
 import { readFile, readdir, writeFile } from 'node:fs/promises';
 
 await build({
-  entryPoints: { agent_codex: 'plugins/agent_codex/main.ts' },
+  entryPoints: {
+    agent_codex: 'plugins/agent_codex/main.ts',
+    control_plane: 'src/control_plane/main.ts',
+  },
   outdir: 'var/cache/typescript',
   outExtension: { '.js': '.mjs' },
   bundle: true,
@@ -23,6 +26,7 @@ const files = [
   'plugins/agent_codex/plugin.toml',
   'src/game_automation/errors.py',
   'var/cache/typescript/agent_codex.mjs',
+  'var/cache/typescript/control_plane.mjs',
 ];
 async function sources(directory) {
   for (const entry of await readdir(directory, { withFileTypes: true })) {

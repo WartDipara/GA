@@ -1,5 +1,6 @@
 import json
 import re
+import shutil
 import subprocess
 import sys
 import tomllib
@@ -9,6 +10,7 @@ from game_automation import __version__
 from game_automation.common import FrameworkError, atomic_json, digest, now, redact, skill_prefix
 from game_automation.errors import ErrorCode
 from game_automation.kernel.capability_router import load_plugins
+from game_automation.storage.control_client import verify_build
 
 from .resources import read_manifest, resource_root
 
@@ -28,7 +30,7 @@ def implementation_hashes(root, plugins):
     hashes = code_hashes(root / "src/game_automation")
     for plugin in plugins.values():
         hashes.update(code_hashes(Path(plugin["cwd"])))
-    if any(plugin.get("runtime") == "node" for plugin in plugins.values()):
+    if (root / "src/control_plane").is_dir():
         hashes.update(code_hashes(root / "src/control_plane"))
         hashes.update(code_hashes(root / "tools"))
         files = [
@@ -40,6 +42,7 @@ def implementation_hashes(root, plugins):
                 "eslint.config.mjs",
                 ".node-version",
                 "var/cache/typescript/build.json",
+                "var/cache/typescript/control_plane.mjs",
             )
         ]
         for plugin in plugins.values():
@@ -52,31 +55,14 @@ def implementation_hashes(root, plugins):
     return hashes
 
 
-def verify_typescript_build(root, plugins):
-    if not any(plugin.get("runtime") == "node" for plugin in plugins.values()):
-        return
-    try:
-        proof = json.loads((root / "var/cache/typescript/build.json").read_text(encoding="utf-8"))
-        if (
-            not isinstance(proof, dict)
-            or not isinstance(proof.get("files"), dict)
-            or not proof["files"]
-        ):
-            raise ValueError
-        for relative, expected in proof["files"].items():
-            path = (root / relative).resolve()
-            if not path.is_relative_to(root) or digest(path.read_bytes()) != expected:
-                raise ValueError
-    except (OSError, ValueError, KeyError, TypeError) as exc:
-        raise FrameworkError(ErrorCode.TYPESCRIPT_BUILD_REQUIRED) from exc
-
-
 def node_runtime(root, plugins):
     binaries = {
         plugin["command"][0] for plugin in plugins.values() if plugin.get("runtime") == "node"
     }
-    if not binaries:
-        return None
+    executable = shutil.which("node")
+    if not executable:
+        raise FrameworkError(ErrorCode.NODE_UNAVAILABLE)
+    binaries.add(executable)
     if len(binaries) != 1:
         raise FrameworkError(ErrorCode.NODE_RUNTIME_MISMATCH)
     executable = next(iter(binaries))
@@ -159,7 +145,7 @@ def freeze(store, run_id, *, parent_run=None):
                     relative = file_path.relative_to(resource_roots[kind]).as_posix()
                     files[f"{kind}/{relative}"] = digest(file_path.read_bytes())
     plugins = load_plugins(root)
-    verify_typescript_build(root, plugins)
+    verify_build(root)
     source_hashes = implementation_hashes(root, plugins)
     manifest = {
         "framework_version": __version__,
