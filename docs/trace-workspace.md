@@ -52,6 +52,18 @@ The doctor scans committed call boundaries and referenced files with a bounded f
 counts include findings beyond that limit. Open or incomplete calls and unresolved actions remain
 explicit. Its report links identify the corresponding spans; it never repairs or replays actions.
 
+Codex text and public-summary deltas use a bounded buffer: up to 16 events or 256 KiB, flushed
+after at most 50 ms while the writer is available. A single larger event is flushed on its own,
+up to 4 MiB. Backpressure waits for persistence rather than growing the queue. Original fragments,
+capture timestamps and provider sequence numbers are retained; batching does not sample content.
+Consecutive normalized deltas for the same item are combined within a batch, with references to
+every original wire event; the wire messages themselves remain unchanged.
+Outbound requests and non-streaming boundaries flush queued fragments before proceeding. Turn
+completion and adapter shutdown also flush, and persistence failure prevents a decision from
+returning successfully. An abrupt process crash can leave the last uncommitted fragments unknown;
+recovery must not fabricate them. `ai.trace.buffer` records actual batch and queue measurements.
+The JSON-RPC peer also bounds queued bytes, pending requests and active handlers.
+
 ## Find a game or task
 
 The task-history table has a sticky search field. Type any part of a recorded game name, package
