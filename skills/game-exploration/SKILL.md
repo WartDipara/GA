@@ -96,6 +96,17 @@ milestones describe prior observations, not authoritative current server state. 
 the current screen and identity with the restored checkpoint before continuing. Prefer unverified
 reachable entries over repeating a verified path. Reuse normal cached login when still valid.
 
+For explore, include exploration on every planning turn. Before authenticated gameplay, set
+authenticated false. After entry, enumerate all currently visible interaction candidates and
+scrollable containers, including canvas icons missing from the Android control tree. Use short,
+stable English page_key, variant, layout and element keys. Ignore animated backgrounds, cooldown
+ticks and changing resource counters when naming the page. Preserve meaningful item names and
+numbers. Identify repeated controls by container plus item, not by label or coordinates alone.
+Use image coordinates for every inventory rectangle. Anchors must be stable visible landmarks;
+do not choose countdowns, particles, moving characters or transient badges. Record unknown or
+ambiguous targets instead of guessing. inventory_complete describes this visible viewport only.
+Memory is historical evidence. Re-locate each target in the current image before proposing input.
+
 If a session-expired or other-device-login notice is visible, one normal reauthentication attempt
 is allowed using the same bound identity. Dismiss the notice, follow the visible login flow and
 reuse the credential reference if necessary. Do not clear application data, change accounts,

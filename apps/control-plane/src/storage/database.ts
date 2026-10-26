@@ -18,12 +18,13 @@ export class Database {
       'PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA foreign_keys=ON;',
     );
     const version = this.one('PRAGMA user_version')?.['user_version'];
-    if (typeof version !== 'number' || ![0, 1, 2, 3, 4].includes(version)) {
+    if (typeof version !== 'number' || ![0, 1, 2, 3, 4, 5].includes(version)) {
       this.connection.close();
       throw new FrameworkError(ErrorCode.SCHEMA_VERSION);
     }
     this.connection.exec(schema);
-    if (version !== 4) this.upgrade(version);
+    if (version < 4) this.upgrade(version);
+    if (version < 5) this.connection.exec('PRAGMA user_version=5');
     if (!this.one("SELECT 1 FROM sqlite_master WHERE name='event_usage'")) {
       this.connection.exec(counters);
     }

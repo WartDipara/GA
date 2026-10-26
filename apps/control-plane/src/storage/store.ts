@@ -120,6 +120,32 @@ export class Store {
     return progress;
   }
 
+  exploration(key: string): ContractMap['exploration-record'][] {
+    const rows = this.database.all(
+      'SELECT data FROM exploration_records WHERE workspace_key=? ORDER BY rowid', key,
+    );
+    const records = rows.map((row) => decode('exploration-record', parsed(row['data'])));
+    return records;
+  }
+
+  private commitExploration(runId: string, params: Fields, ids: TraceIds): void {
+    const key = text(params['workspace_key']);
+    const taskId = text(this.run(runId)['task_id']);
+    if (!key.startsWith(`${taskId}:`)) throw new FrameworkError(ErrorCode.INVALID_PATH);
+    const values = params['records'];
+    if (!Array.isArray(values)) throw new FrameworkError(ErrorCode.INVALID_CONTRACT);
+    for (const value of values) {
+      const record = decode('exploration-record', value);
+      this.database.execute(
+        'INSERT INTO exploration_records VALUES(?,?,?,?,?,?) ON CONFLICT(workspace_key,kind,id) DO UPDATE SET run_id=excluded.run_id,data=excluded.data',
+        key, record.kind, record.id, taskId, runId, JSON.stringify(record),
+      );
+      this.event(runId, `exploration.${record.kind}.updated`, {
+        workspace_key: key, record,
+      }, ids);
+    }
+  }
+
   taskSupplements(taskId: string): Fields[] {
     const rows = this.database.all(
       "SELECT e.data FROM events e JOIN runs r ON r.id=e.run_id WHERE r.task_id=? AND e.kind='task.supplement' ORDER BY e.seq",
@@ -566,6 +592,9 @@ export class Store {
         throw new FrameworkError(ErrorCode.CLEANUP_DEPENDENCY);
     }
     const encoded = JSON.stringify(taskIds);
+    this.database.execute(
+      'DELETE FROM exploration_records WHERE task_id IN (SELECT value FROM json_each(?))', encoded,
+    );
     const runs = 'SELECT id FROM runs WHERE task_id IN (SELECT value FROM json_each(?))';
     for (const table of [
       'events',
@@ -692,6 +721,9 @@ export class Store {
           this.event(runId, 'gameplay.checkpoint', { workspace_key: key, progress: data });
           break;
         }
+        case 'exploration_commit':
+          this.commitExploration(runId, params, ids);
+          break;
         default: {
           const unsupported: never = method;
           throw new FrameworkError(ErrorCode.METHOD_NOT_FOUND, unsupported);

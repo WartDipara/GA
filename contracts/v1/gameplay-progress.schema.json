@@ -192,6 +192,56 @@
                 "maxItems": 4
               },
               "maxItems": 30
+            },
+            "exploration": {
+              "type": "object",
+              "properties": {
+                "workspace_key": {
+                  "type": "string",
+                  "maxLength": 2000
+                },
+                "element_id": {
+                  "type": "string",
+                  "maxLength": 2000
+                },
+                "from_page": {
+                  "type": "string",
+                  "maxLength": 2000
+                },
+                "locator_id": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 2000
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "viewport": {
+                  "type": "string",
+                  "maxLength": 2000
+                },
+                "mode": {
+                  "enum": [
+                    "target",
+                    "navigate",
+                    "scroll",
+                    "external_close",
+                    "return"
+                  ]
+                }
+              },
+              "required": [
+                "workspace_key",
+                "element_id",
+                "from_page",
+                "locator_id",
+                "viewport",
+                "mode"
+              ],
+              "additionalProperties": false
             }
           },
           "required": [
