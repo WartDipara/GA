@@ -64,6 +64,8 @@ export class TraceBuffer {
   private peakBytes = 0;
   private peakEvents = 0;
   private persistMs = 0;
+  private firstQueuedAt = performance.now();
+  private peakQueueWaitMs = 0;
 
   constructor(
     private readonly persist: (batch: ContractMap['plugin-event-batch']) => Promise<void>,
@@ -81,6 +83,7 @@ export class TraceBuffer {
         (this.bytes + bytes > MAX_BYTES || this.entries.length >= MAX_EVENTS)
       )
         await this.flush();
+      if (!this.entries.length) this.firstQueuedAt = performance.now();
       this.entries.push(entry);
       this.bytes += bytes;
       this.peakBytes = Math.max(this.peakBytes, this.bytes);
@@ -101,11 +104,13 @@ export class TraceBuffer {
     if (!this.entries.length) return this.writing;
     const entries = this.entries;
     const bytes = this.bytes;
+    const queuedAt = this.firstQueuedAt;
     this.entries = [];
     this.bytes = 0;
     const write = this.writing.then(async () => {
       if (this.failure) throw this.failure;
       const started = performance.now();
+      this.peakQueueWaitMs = Math.max(this.peakQueueWaitMs, started - queuedAt);
       const batch = decode('plugin-event-batch', coalesce(entries));
       await this.persist(batch);
       this.persistMs += performance.now() - started;
@@ -128,6 +133,7 @@ export class TraceBuffer {
       peak_buffer_bytes: this.peakBytes,
       peak_buffer_events: this.peakEvents,
       flush_duration_ms: this.persistMs,
+      peak_queue_wait_ms: this.peakQueueWaitMs,
       flush_interval_ms: FLUSH_INTERVAL_MS,
       max_batch_bytes: MAX_BYTES,
       max_single_event_bytes: MAX_EVENT_BYTES,

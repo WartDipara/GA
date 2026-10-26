@@ -64,6 +64,24 @@ export class Store {
   beginSegment(runId: string): void {
     if (this.segments.has(runId)) throw new FrameworkError(ErrorCode.RUN_BUSY);
     const previous = this.events(runId, { kinds: ['execution.segment.started'], limit: 1 }).at(-1);
+    if (previous?.span_id) {
+      const endings = this.events(runId, {
+        kinds: ['execution.segment.finished', 'execution.segment.incomplete'],
+        span: previous.span_id,
+        limit: 1,
+      });
+      if (!endings.length) {
+        const interrupted = decode('execution-segment', {
+          ...previous.payload,
+          status: 'unknown',
+          duration_ms: null,
+          error: { code: ErrorCode.PREVIOUS_PROCESS_EXITED },
+        });
+        this.event(runId, 'execution.segment.incomplete', object(interrupted), {
+          span_id: previous.span_id,
+        });
+      }
+    }
     const payload = decode('execution-segment', {
       capability: 'workflow.attempt',
       attempt_id: uid('attempt'),

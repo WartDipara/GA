@@ -184,9 +184,14 @@
     const kind = byId('span-kind').value;
     const state = byId('span-state').value;
     const children = new Map();
-    const origins = data.spans.map((span) => Date.parse(span.start_time)).filter(Number.isFinite);
-    const origin = Math.min(...origins);
-    const end = Math.max(...data.spans.map((span) => Date.parse(span.end_time || span.start_time)));
+    const origin = data.spans.reduce((value, span) => {
+      const start = Date.parse(span.start_time);
+      return Number.isFinite(start) ? Math.min(value, start) : value;
+    }, Infinity);
+    const end = data.spans.reduce((value, span) => {
+      const finish = Date.parse(span.end_time || span.start_time);
+      return Number.isFinite(finish) ? Math.max(value, finish) : value;
+    }, origin);
     const extent = Math.max(1, end - origin);
     data.spans.forEach((span) => {
       const parent = span.parent_span_id || '';
