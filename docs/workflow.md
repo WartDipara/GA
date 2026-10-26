@@ -22,7 +22,14 @@ The default goal for new workflows is `explore`, using the encrypted local `defa
 profile. It proceeds from login into reachable-content exploration. Use `--credentials <profile>`
 and `--goal login-and-interact` or `--goal advance-battle` for an explicit alternative.
 Existing submissions retain their recorded goal across resume and new batches.
-`--max-turns <count>` sets an optional per-invocation planning boundary; zero leaves it unlimited.
+`[gameplay].max_turns` in `config/application.toml` sets the default planning boundary for new
+`workflow` and `play` submissions. Zero leaves planning unlimited; a positive integer bounds each
+gameplay invocation. `--max-turns <count>` overrides that default, including `--max-turns 0`.
+The resolved limit is recorded in the task input. Existing runs and new batches keep that recorded
+value; editing the default does not rewrite historical inputs. A resume starts a fresh invocation
+with the same limit, rather than granting a lifetime quota for the entire task. To change the limit
+for prepared gameplay, start another `play --prepared-run <run_id> --goal explore` execution under
+the same task, with the desired override; its verified progress and element catalog are retained.
 There is no new overall workflow deadline. `--adopt-existing` requires the installed APK fingerprint
 to match, and preserves application data. Default preparation follows the existing guarded install
 policy. Completing the selected goal does not establish whole-game coverage or battle settlement.

@@ -36,6 +36,8 @@ model = "gpt-6-luna"
 reasoning_effort = "medium"
 
 [gameplay]
+# Planning calls per gameplay invocation; zero disables this limit.
+max_turns = 0
 no_progress_rounds = 24
 no_progress_seconds = 900
 evidence_budget_bytes = 4294967296

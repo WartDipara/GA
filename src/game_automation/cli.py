@@ -5,6 +5,7 @@ import json
 import sqlite3
 import sys
 import time
+import tomllib
 from pathlib import Path
 
 from game_automation.common import FileLock, FrameworkError, json_text, redact
@@ -76,7 +77,11 @@ def parser():
         default="explore",
         choices=["login-and-interact", "explore", "advance-battle"],
     )
-    workflow.add_argument("--max-turns", type=int, default=0)
+    workflow.add_argument(
+        "--max-turns",
+        type=int,
+        help="Override gameplay.max_turns in config/application.toml; zero means unlimited",
+    )
     workflow.add_argument("--stages", nargs="+", help="Override the configured stage composition")
     workflow.add_argument("--adopt-existing", action="store_true")
     workflow.add_argument("--key", help="Idempotency key for submission")
@@ -131,8 +136,7 @@ def parser():
     play.add_argument(
         "--max-turns",
         type=int,
-        default=0,
-        help="Optional planning-turn boundary per invocation; zero means unlimited",
+        help="Override gameplay.max_turns in config/application.toml; zero means unlimited",
     )
     runs = commands.add_parser("runs", help="List recent runs with their task subjects and states")
     runs.add_argument("--limit", type=int, default=20)
@@ -202,6 +206,19 @@ def parser():
 
 def print_json(value):
     print(json_text(redact(value)))
+
+
+def planning_turn_limit(root, requested_limit):
+    maximum = requested_limit
+    if maximum is None:
+        application = tomllib.loads((root / "config/application.toml").read_text(encoding="utf-8"))
+        maximum = application.get("gameplay", {}).get("max_turns", 0)
+    if isinstance(maximum, bool) or not isinstance(maximum, int) or maximum < 0:
+        raise FrameworkError(
+            ErrorCode.INVALID_CONTRACT,
+            "The planning-turn limit must be a non-negative integer; zero means unlimited",
+        )
+    return maximum
 
 
 def run_details(store, run_id):
@@ -278,6 +295,8 @@ def main(argv=None):
         root = args.project.resolve()
         if not (root / "config/application.toml").is_file():
             raise FrameworkError(ErrorCode.PROJECT_NOT_FOUND)
+        if args.command in ("play", "workflow"):
+            args.max_turns = planning_turn_limit(root, args.max_turns)
         if args.command == "serve-trace":
             from game_automation.reporting.live import serve_trace
 
@@ -293,8 +312,6 @@ def main(argv=None):
             save_profile(root, args.profile, username, password)
             print_json({"saved": True, "profile": args.profile})
         elif args.command == "play":
-            if args.max_turns < 0:
-                raise FrameworkError(ErrorCode.INVALID_CONTRACT)
             routine = None
             if args.routine:
                 routine = json.loads(args.routine.read_text(encoding="utf-8"))
