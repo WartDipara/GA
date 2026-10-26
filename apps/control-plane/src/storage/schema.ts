@@ -25,6 +25,8 @@ CREATE TABLE IF NOT EXISTS events (
 );
 CREATE INDEX IF NOT EXISTS run_task ON runs(task_id);
 CREATE INDEX IF NOT EXISTS event_run ON events(run_id, seq);
+CREATE INDEX IF NOT EXISTS event_run_kind_seq ON events(run_id, kind, seq);
+CREATE INDEX IF NOT EXISTS event_run_span_seq ON events(run_id, span_id, seq);
 CREATE TABLE IF NOT EXISTS sessions (
     run_id TEXT,
     role TEXT,

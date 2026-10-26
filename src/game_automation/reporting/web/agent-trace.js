@@ -7,6 +7,10 @@
   let selectedAction = '';
   const collapsed = new Set();
   let busy = false;
+  let refreshQueued = false;
+  let refreshTimer;
+  let refreshController;
+  let closed = false;
   const element = (tag, text, className) => {
     const node = document.createElement(tag);
     if (text !== undefined) node.textContent = text;
@@ -49,6 +53,11 @@
       .querySelectorAll('nav button')
       .forEach((node) => node.classList.toggle('active', node.dataset.view === view));
     if (save) remember();
+    if (!loaded(view)) void refresh();
+  }
+
+  function loaded(view) {
+    return !data.loaded_views || data.loaded_views.includes(view);
   }
 
   function detail(label, value) {
@@ -451,11 +460,21 @@
     renderHeader();
     renderTree();
     renderInspector();
-    renderSessions();
+    if (loaded('sessions')) renderSessions();
+    else
+      byId('session-list').replaceChildren(
+        element('p', 'Open this view to load recorded turns.', 'muted'),
+      );
     renderQuality();
     // These fragments are escaped application-rendered markup, never model-provided HTML.
-    byId('action-list').innerHTML =
-      data.action_cards.join('') || '<p class="empty">No device actions in this execution.</p>';
+    byId('action-list').innerHTML = loaded('actions')
+      ? data.action_cards.join('') || '<p class="empty">No device actions in this execution.</p>'
+      : '<p class="muted">Open this view to load recorded action evidence.</p>';
+    byId('writer-health')?.replaceChildren(
+      data.writer_health
+        ? detail('Trace writer overhead · cumulative per collector', data.writer_health)
+        : element('p', 'Writer overhead measurements are unavailable for this execution.', 'muted'),
+    );
     for (const [id, values] of [
       ['model-filter', data.metrics.groups.map((row) => row.model)],
       ['actor-filter', data.metrics.groups.map((row) => row.actor_ref)],
@@ -484,22 +503,54 @@
   }
 
   async function refresh() {
-    if (busy || location.protocol === 'file:') return;
+    if (closed || document.hidden || location.protocol === 'file:') return;
+    if (busy) {
+      refreshQueued = true;
+      return;
+    }
+    clearTimeout(refreshTimer);
     busy = true;
+    refreshController = new AbortController();
     try {
-      const response = await fetch(`agent-trace.json?after=${data.revision ?? -1}`, {
+      const parameters = new URLSearchParams({
+        after: String(loaded(activeView) ? (data.revision ?? -1) : -1),
+      });
+      if (['sessions', 'actions'].includes(activeView)) parameters.set('detail', activeView);
+      const response = await fetch(`agent-trace.json?${parameters}`, {
         cache: 'no-store',
+        signal: refreshController.signal,
       });
       if (response.status !== 204) {
         if (!response.ok) throw new Error('Unavailable');
-        data = await response.json();
-        render();
+        const next = await response.json();
+        if ((next.revision ?? 0) >= (data.revision ?? 0)) {
+          if (next.revision === data.revision) {
+            if (loaded('sessions') && !next.loaded_views.includes('sessions'))
+              next.replay = data.replay;
+            if (loaded('actions') && !next.loaded_views.includes('actions')) {
+              next.actions = data.actions;
+              next.action_cards = data.action_cards;
+            }
+            next.loaded_views = [...new Set([...(data.loaded_views || []), ...next.loaded_views])];
+          }
+          data = next;
+          render();
+          if (!loaded(activeView)) refreshQueued = true;
+        }
       }
       byId('connection').textContent = 'Read-only polling / 3s';
     } catch {
-      byId('connection').textContent = 'Refresh unavailable; retained snapshot';
+      if (!refreshController.signal.aborted)
+        byId('connection').textContent = 'Refresh unavailable; retained snapshot';
     } finally {
       busy = false;
+      if (!closed && !document.hidden) {
+        const delay = refreshQueued ? 0 : 3000;
+        refreshQueued = false;
+        refreshTimer = setTimeout(() => {
+          void refresh();
+        }, delay);
+      }
     }
   }
 
@@ -556,5 +607,21 @@
   });
   addEventListener('hashchange', restore);
   restore();
-  setInterval(refresh, 3000);
+  addEventListener('pagehide', () => {
+    closed = true;
+    clearTimeout(refreshTimer);
+    refreshController?.abort();
+  });
+  addEventListener('pageshow', () => {
+    closed = false;
+    void refresh();
+  });
+  document.addEventListener('visibilitychange', () => {
+    clearTimeout(refreshTimer);
+    if (document.hidden) refreshController?.abort();
+    else void refresh();
+  });
+  refreshTimer = setTimeout(() => {
+    void refresh();
+  }, 3000);
 })();

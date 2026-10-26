@@ -39,48 +39,23 @@
             "type": "string"
           },
           "parent_span_id": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "kind": {
-            "enum": [
-              "entry",
-              "agent",
-              "chain",
-              "step",
-              "chat",
-              "tool"
-            ]
+            "enum": ["entry", "agent", "chain", "step", "chat", "tool"]
           },
           "start_time": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "end_time": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "duration_ms": {
-            "type": [
-              "number",
-              "null"
-            ],
+            "type": ["number", "null"],
             "minimum": 0
           },
           "status": {
-            "enum": [
-              "unknown",
-              "running",
-              "ok",
-              "error",
-              "incomplete"
-            ]
+            "enum": ["unknown", "running", "ok", "error", "incomplete"]
           },
           "attributes": {
             "type": "object"
@@ -106,11 +81,7 @@
                   "type": "string"
                 }
               },
-              "required": [
-                "event_id",
-                "seq",
-                "kind"
-              ],
+              "required": ["event_id", "seq", "kind"],
               "additionalProperties": false
             }
           },
@@ -139,10 +110,7 @@
       }
     },
     "actor_ref": {
-      "type": [
-        "string",
-        "null"
-      ]
+      "type": ["string", "null"]
     },
     "version": {
       "type": "object"
@@ -176,6 +144,14 @@
     },
     "revision": {
       "type": "integer"
+    },
+    "loaded_views": {
+      "type": "array",
+      "items": { "enum": ["calls", "sessions", "actions", "performance", "quality", "insights"] },
+      "uniqueItems": true
+    },
+    "writer_health": {
+      "type": ["object", "null"]
     }
   },
   "required": [

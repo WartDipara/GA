@@ -22,6 +22,7 @@ from .history import execution_index, history_view, render_execution, render_his
 from .navigation import decorate_document, page_document, theme_document
 from .navigation_tree import live_workspace
 from .trace import render_context, render_trace
+from .trace_cache import TraceProjectionCache, view_revision
 from .workspace import workspace_view
 
 
@@ -276,7 +277,9 @@ class TraceHandler(BaseHTTPRequestHandler):
             return
         if relative == "reports/trace.html":
             try:
-                document, _ = render_trace(store, run_id)
+                document, _ = render_trace(
+                    store, run_id, projector=self.server.projections, live=True
+                )
             except Exception:
                 document = render_compact(store, run_id, degraded=True)
             self.respond_document(store, decorate_document(store, run_id, document, "trace.html"))
@@ -295,16 +298,15 @@ class TraceHandler(BaseHTTPRequestHandler):
             self.respond_document(store, decorate_document(store, run_id, document, "context.html"))
             return
         if relative == "reports/agent-trace.json":
-            row = store.db.execute(
-                "SELECT COALESCE(MAX(e.seq),0) FROM events e JOIN runs r ON r.id=e.run_id "
-                "WHERE r.task_id=?",
-                (task_id,),
-            ).fetchone()
-            if query.get("after") == [str(row[0])]:
+            revision = view_revision(store, task_id)
+            detail = query.get("detail", [])
+            if any(view not in ("sessions", "actions") for view in detail):
+                raise FrameworkError(ErrorCode.NOT_FOUND)
+            if query.get("after") == [str(revision)]:
                 self.respond(204, b"", "application/json")
                 return
-            view = agent_view(store, run_id)
-            view["revision"] = row[0]
+            view = agent_view(store, run_id, projector=self.server.projections, detail_views=detail)
+            view["revision"] = revision
             self.respond(200, json.dumps(view, ensure_ascii=False), "application/json")
             return
         if relative == "reports/events.json":
@@ -389,6 +391,7 @@ def serve_trace(root, run_id=None, *, port=8767, interval=3):
         with ThreadingHTTPServer(("127.0.0.1", port), TraceHandler) as server:
             server.project_root = root
             server.interval = interval
+            server.projections = TraceProjectionCache()
             initial = f"/tasks/{task_id}/" if task_id else "/reports/history.html"
             print(f"Trace viewer: http://127.0.0.1:{server.server_port}{initial}", flush=True)
             print(f"Refresh interval: {interval}s. Press Ctrl+C to stop.", flush=True)
