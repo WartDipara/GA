@@ -166,6 +166,7 @@ export class Exploration {
   }
 
   async review(decision: Decision, view: View, pending: Pending | null): Promise<Page | null> {
+    this.catalog.reconcileLedger();
     const inventory = decision.exploration;
     if (!inventory)
       throw new FrameworkError(ErrorCode.AI_OUTPUT_INVALID, 'Exploration inventory missing');
@@ -242,7 +243,12 @@ export class Exploration {
   ): Promise<Pending['exploration'] | null> {
     if (!page || !['tap', 'swipe', 'back'].includes(action.type)) return null;
     const elements = this.catalog.records().filter((record): record is Element => {
-      if (record.kind !== 'element' || record.parent_id !== page.id) return false;
+      if (
+        record.kind !== 'element' ||
+        record.parent_id !== page.id ||
+        record.data.observation_id !== observation.observation_id
+      )
+        return false;
       const bounds = record.data.bounds;
       return (
         bounds[0] <= action.x &&
@@ -289,7 +295,12 @@ export class Exploration {
   permit(action: Action, page: Page | null): boolean {
     if (!page || !['tap', 'swipe'].includes(action.type)) return true;
     const targets = this.catalog.records().filter((record): record is Element => {
-      if (record.kind !== 'element' || record.parent_id !== page.id) return false;
+      if (
+        record.kind !== 'element' ||
+        record.parent_id !== page.id ||
+        record.data.observation_id !== page.data.observation_id
+      )
+        return false;
       const [left, top, right, bottom] = record.data.bounds;
       return (
         left <= action.x &&
