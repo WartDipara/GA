@@ -32,7 +32,8 @@ max_apk_bytes = 8589934592
 executable = "codex"
 version = "0.163.0"
 timeout_seconds = 180
-# Omit model to use the signed-in account's configured default.
+model = "gpt-6-luna"
+reasoning_effort = "medium"
 
 [gameplay]
 no_progress_rounds = 24

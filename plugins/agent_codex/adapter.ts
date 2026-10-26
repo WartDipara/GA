@@ -65,6 +65,9 @@ export class CodexAdapter {
       web_search: 'disabled',
     };
     const arguments_ = ['app-server', '--listen', 'stdio://'];
+    if (params.codex.model) overrides['model'] = params.codex.model;
+    if (params.codex.reasoning_effort)
+      overrides['model_reasoning_effort'] = params.codex.reasoning_effort;
     for (const [key, value] of Object.entries(overrides))
       arguments_.push('-c', `${key}=${JSON.stringify(value)}`);
     const child = await start(binary, arguments_, params.workspace);
@@ -150,6 +153,8 @@ export class CodexAdapter {
       });
       await events.emit('ai.runtime', {
         runtime: actual,
+        requested_model: params.codex.model ?? null,
+        requested_reasoning_effort: params.codex.reasoning_effort ?? null,
         model: threadResult['model'] ?? null,
         reasoning_effort: threadResult['reasoningEffort'] ?? null,
         sandbox: threadResult['sandbox'] ?? null,
@@ -172,6 +177,8 @@ export class CodexAdapter {
         input: inputs,
         outputSchema: strictSchema(params.turn.outputSchema),
       };
+      if (params.codex.model) turn.model = params.codex.model;
+      if (params.codex.reasoning_effort) turn.effort = params.codex.reasoning_effort;
       const turnResult = object(await peer.request('turn/start', turn));
       events.turnId = text(object(turnResult['turn'])['id']);
       const completed = await events.wait(peer, params.codex.timeout_seconds * 1000, stderr);

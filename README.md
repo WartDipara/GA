@@ -21,6 +21,7 @@ npm run build
 ## Configure
 
 1. Check `config/application.toml` for budgets, timeouts and workflow stages.
+   `[codex]` selects `model = "gpt-6-luna"` and `reasoning_effort = "medium"`.
 2. Keep enabled capabilities in `config/plugins.toml` and Skill bindings in
    `config/skills.toml`.
 3. Save test credentials using the hidden local prompts:
