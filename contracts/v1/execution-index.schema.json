@@ -1,0 +1,206 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://game-automation.local/contracts/v1/execution-index",
+  "type": "object",
+  "properties": {
+    "task_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "mode": {
+      "type": "string",
+      "minLength": 1
+    },
+    "status": {
+      "type": "string",
+      "minLength": 1
+    },
+    "created_at": {
+      "type": "string",
+      "minLength": 1
+    },
+    "updated_at": {
+      "type": "string",
+      "minLength": 1
+    },
+    "schema_version": {
+      "const": "1.0"
+    },
+    "stage": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "source_event_seq": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "statistics": {
+      "type": "object",
+      "properties": {
+        "events": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "first_seq": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "last_seq": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "calls": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "model_calls": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "events",
+        "first_seq",
+        "last_seq",
+        "calls",
+        "model_calls"
+      ],
+      "additionalProperties": false
+    },
+    "relations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "relation": {
+            "enum": [
+              "parent",
+              "prepared",
+              "source",
+              "previous_batch"
+            ]
+          },
+          "run_id": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "relation",
+          "run_id"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "views": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "href": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "name",
+          "href"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "storage": {
+      "type": "object",
+      "properties": {
+        "manifest": {
+          "type": "string",
+          "minLength": 1
+        },
+        "calls": {
+          "type": "string",
+          "minLength": 1
+        },
+        "artifacts": {
+          "type": "string",
+          "minLength": 1
+        },
+        "events": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "manifest",
+        "calls",
+        "artifacts",
+        "events"
+      ],
+      "additionalProperties": false
+    },
+    "generation": {
+      "const": "kernel-report-publication"
+    }
+  },
+  "required": [
+    "task_id",
+    "run_id",
+    "mode",
+    "status",
+    "created_at",
+    "updated_at",
+    "schema_version",
+    "stage",
+    "source_event_seq",
+    "statistics",
+    "relations",
+    "views",
+    "storage",
+    "generation"
+  ],
+  "additionalProperties": false
+}

@@ -1,5 +1,9 @@
 # Debugging a run
 
+Use `npm run trace` for a project-wide task history, or `serve-trace <run_id>` to open one task
+initially. New tasks appear without restarting the service. See [Trace workspace](trace-workspace.md)
+for navigation, evidence inspection and automatic report indexes.
+
 The TypeScript control plane is the only SQLite writer. Run `npm run build` before using a changed
 build. Python workflow clients connect to its private local endpoint; the trace viewer stays
 read-only and can inspect historical records without starting a writer. A build-fingerprint mismatch

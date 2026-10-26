@@ -43,6 +43,15 @@ def exploration_view(store, run_id, *, through=None):
             record["run_id"] = row["run_id"]
             records.append(record)
     elements = [record for record in records if record["kind"] == "element"]
+    for element in elements:
+        action_id = element["data"].get("action_id")
+        if action_id:
+            row = store.db.execute(
+                "SELECT a.run_id FROM actions a JOIN runs r ON r.id=a.run_id "
+                "WHERE a.action_id=? AND r.task_id=?",
+                (action_id, task_id),
+            ).fetchone()
+            element["action_run_id"] = row[0] if row else None
     limit = through if through is not None else 9223372036854775807
     locations = []
     for row in store.db.execute(

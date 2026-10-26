@@ -55,6 +55,7 @@ def render_action_cards(store, run_id, actions):
         action_cards.append(
             f'<article class="action-card" id="{action_id}" data-span="{span_id}">'
             f"<h3>{kind} <span class=muted>{state} · {timing}</span></h3>"
+            f'<p><a href="trace.html#view=calls&amp;span={span_id}">Inspect execution call</a></p>'
             f"{figures}<details><summary>Recorded action data</summary><pre>{payload}</pre>"
             "</details></article>"
         )

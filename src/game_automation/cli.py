@@ -191,7 +191,7 @@ def parser():
     export.add_argument("run_id")
     export.add_argument("--format", choices=["html"], default="html")
     viewer = commands.add_parser("serve-trace", help="Poll task traces in a local read-only viewer")
-    viewer.add_argument("run_id")
+    viewer.add_argument("run_id", nargs="?", help="Optional execution to open initially")
     viewer.add_argument(
         "--port", type=int, default=8767, help="Loopback port; zero selects a free port"
     )
@@ -486,6 +486,7 @@ def main(argv=None):
 
             print_json(relocate(store))
         elif args.command == "cleanup":
+            from game_automation.reporting.history import write_history
             from game_automation.storage.cleanup import cleanup
 
             result = cleanup(
@@ -495,6 +496,8 @@ def main(argv=None):
                 missing=args.missing,
                 apply=args.apply,
             )
+            if args.apply:
+                write_history(store)
             print_json(result)
         elif args.command == "provide":
             store.supplement(args.run_id, args.text)

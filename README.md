@@ -73,8 +73,9 @@ uv run game-auto report <run_id>
 uv run game-auto serve-trace <run_id> --port 0
 ```
 
-Run the trace service in another terminal and open its printed URL. After updating
-code or Skills, use `resume <run_id> --new-batch` to pin the updated dependencies.
+Start the independent task-history viewer with `npm run trace` and open
+its printed URL. New executions appear automatically; settled runs publish linked reports.
+After updating code or Skills, use `resume <run_id> --new-batch` to pin the updated dependencies.
 Reports and evidence are stored under `var/tasks/<task_id>/`.
 
 See [workflow options](docs/workflow.md), [gameplay](docs/gameplay.md),

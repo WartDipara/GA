@@ -7,8 +7,16 @@
   let timer;
   let snapshot;
   let revision = -1;
-  let selectedRun = '';
+  const initialSelection = new URLSearchParams(location.hash.slice(1));
+  let selectedRun = initialSelection.get('run') || '';
   let selectedEvent;
+  function rememberSelection() {
+    const state = new URLSearchParams({
+      run: selectedRun,
+      event: String(selectedEvent?.seq || ''),
+    });
+    history.replaceState(null, '', `#${state}`);
+  }
 
   function node(tag, text, className) {
     const result = document.createElement(tag);
@@ -69,6 +77,7 @@
   function chooseRun(runId) {
     selectedRun = runId;
     selectedEvent = undefined;
+    rememberSelection();
     renderNavigation();
     renderEvents();
   }
@@ -99,6 +108,7 @@
 
   function selectEvent(event) {
     selectedEvent = event;
+    rememberSelection();
     renderEvents();
   }
 
@@ -198,14 +208,14 @@
     inspector.append(metadata);
     if (run) {
       const link = node('a', 'Open full execution trace', 'trace-link');
-      link.href = run.trace_url;
-      link.target = '_blank';
-      link.rel = 'noopener noreferrer';
+      const source = encodeURIComponent(`${location.pathname}${location.hash}`);
+      link.href = `${run.trace_url}?from=${source}#view=calls&span=${encodeURIComponent(event.span_id || event.run_id)}`;
       inspector.append(link);
+      const overview = node('a', 'Execution overview', 'trace-link');
+      overview.href = `${run.index_url}?from=${source}`;
+      inspector.append(overview);
       const catalog = node('a', 'Open exploration catalog', 'trace-link');
-      catalog.href = run.exploration_url;
-      catalog.target = '_blank';
-      catalog.rel = 'noopener noreferrer';
+      catalog.href = `${run.exploration_url}?from=${source}`;
       inspector.append(catalog);
     }
     if (!snapshot.events.some((entry) => entry.seq === event.seq)) {
@@ -253,6 +263,10 @@
   }
 
   function render() {
+    if (!selectedEvent)
+      selectedEvent = snapshot.events.find(
+        (event) => String(event.seq) === initialSelection.get('event'),
+      );
     element('task-title').textContent = snapshot.title;
     element('task-reference').textContent = snapshot.task_id;
     element('live-metrics').replaceChildren();
@@ -284,7 +298,7 @@
     clearTimeout(timer);
     pending = true;
     try {
-      const response = await fetch(`/snapshot?after=${revision}`, {
+      const response = await fetch(`snapshot?after=${revision}`, {
         cache: 'no-store',
         signal: AbortSignal.timeout(10000),
       });
