@@ -74,6 +74,14 @@ loading, or a start button alone is not completion. Include identity fields only
 already established by recorded evidence; null means unknown, not a new identity.
 
 Return one justified action at a time. Use current image coordinates and tight target bounds.
+For explore, every proposed tap/swipe target must also appear in this turn's exploration.elements.
+When a reveal or modal covers a panel, inventory the topmost modal as its own page/variant and
+exclude obscured underlying controls. Include a visible dismissal/continue region when proposing
+to tap it; do not propose it while omitting it from the inventory. For a confirmed informational,
+nonfinancial modal, an evidence-based Android Back proposal can be considered once. Verify the
+effect before any subsequent action; a changed reward reveal can mean another reveal, not closure.
+last_rejected_proposal.dispatched false means the proposal did not reach the device. Correct its
+inventory/preconditions rather than describing that proposal as an uncertain executed action.
 Use zero for unused coordinates, one for unused duration_ms, and null for unused fields. Do not
 guess coordinates for an unseen target. No code, commands, ADB, database operations, or extra tools.
 Wait only for an identified transition; ordinary settling is handled locally. Return to a living
