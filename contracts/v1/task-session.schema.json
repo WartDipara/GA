@@ -5,7 +5,7 @@
   "properties": {
     "session_id": { "type": "string" },
     "scope": { "const": "business_task" },
-    "executions": { "type": "array", "maxItems": 200, "items": { "type": "object" } },
+    "executions": { "type": "array", "maxItems": 200, "items": { "$ref": "#/$defs/execution" } },
     "next_before": { "type": ["integer", "null"], "minimum": 0 },
     "before": { "type": "integer", "minimum": 0 },
     "limit": { "type": "integer", "minimum": 1, "maximum": 200 },
@@ -20,5 +20,69 @@
     "limit",
     "source_event_seq"
   ],
-  "additionalProperties": false
+  "additionalProperties": false,
+  "$defs": {
+    "execution": {
+      "type": "object",
+      "properties": {
+        "run_id": { "type": "string", "minLength": 1 },
+        "mode": { "type": "string" },
+        "status": { "enum": ["queued", "running", "blocked", "succeeded", "failed", "cancelled"] },
+        "href": { "type": "string" },
+        "relations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "relation": { "enum": ["continued_from", "owning_workflow"] },
+              "run_id": { "type": "string" }
+            },
+            "required": ["relation", "run_id"],
+            "additionalProperties": false
+          }
+        },
+        "segments": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "type": "object",
+            "properties": {
+              "span_id": { "type": "string" },
+              "attempt_id": { "type": "string" },
+              "previous_span_id": { "type": ["string", "null"] },
+              "status": {
+                "enum": ["running", "unknown", "succeeded", "blocked", "failed", "cancelled"]
+              },
+              "duration_ms": { "type": ["integer", "null"], "minimum": 0 },
+              "href": { "type": "string" }
+            },
+            "required": [
+              "span_id",
+              "attempt_id",
+              "previous_span_id",
+              "status",
+              "duration_ms",
+              "href"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "total_segments": { "type": "integer", "minimum": 0 },
+        "segments_truncated": { "type": "boolean" },
+        "visible_active_ms": { "type": ["integer", "null"], "minimum": 0 }
+      },
+      "required": [
+        "run_id",
+        "mode",
+        "status",
+        "href",
+        "relations",
+        "segments",
+        "total_segments",
+        "segments_truncated",
+        "visible_active_ms"
+      ],
+      "additionalProperties": false
+    }
+  }
 }

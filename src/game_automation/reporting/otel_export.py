@@ -88,6 +88,8 @@ def export_payload(store, run_id):
                 "game_automation.span_id": source["span_id"],
                 "game_automation.task_id": view["trace_id"],
                 "gen_ai.span.kind": source["kind"],
+                "game_automation.span_status": source["status"],
+                "game_automation.measured_duration_available": source["duration_ms"] is not None,
             }
         )
         if source["duration_ms"] is not None:

@@ -122,6 +122,7 @@ export async function publish(execution: Execution, runId: string): Promise<Fiel
       if (component === 'outcome') fallback = outcome(execution, runId, snapshot);
       else if (component === 'workflow') workflow(execution, runId, snapshot);
       else {
+        if (component === 'trace') store.health(runId, true);
         result = object(await execution.tool('render', runId, { component }));
         if (!['complete', 'failed'].includes(text(result['status'])))
           throw new FrameworkError(ErrorCode.INVALID_PROTOCOL);

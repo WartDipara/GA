@@ -21,6 +21,8 @@ for (const file of (await readdir('contracts/v1')).sort()) {
   const source = await compile({ ...schema, title: type }, type, {
     bannerComment: '// Generated from contracts/v1; do not edit.',
     unknownAny: true,
+    // Keep fixed coordinate tuples; runtime schemas enforce larger variable array bounds.
+    maxItems: 8,
     style: { printWidth: 100, singleQuote: true },
   });
   await writeFile(`${directory}/${name}.ts`, source);

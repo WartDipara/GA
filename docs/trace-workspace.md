@@ -43,9 +43,10 @@ uv run game-auto trace-health <run_id>
 uv run game-auto trace-doctor <run_id>
 ```
 
-Writer health snapshots are emitted at most once every five seconds at recording boundaries and
-once after report publication. Measurements are cumulative per `collector_id`; retain the latest
-snapshot per collector when aggregating. Transaction, commit, encoding and artifact-write timings
+Writer health snapshots are emitted at most once every five seconds at recording boundaries,
+before trace rendering and after report publication. Measurements are cumulative per
+`collector_id`; retain the latest snapshot per collector when aggregating. Transaction, commit,
+encoding and artifact-write timings
 overlap and must not be added together. Encoded bytes are not physical disk IO. Older executions
 without measurements return `null`, not zero. Health records exclude their own current write.
 The doctor scans committed call boundaries and referenced files with a bounded findings list;
@@ -82,6 +83,9 @@ segments link to earlier segments; crash recovery explicitly closes interrupted 
 unknown duration. Report publication remains outside the measured gameplay segment. Segment
 measurements never include time spent blocked between invocations, and nested spans must not be
 summed into elapsed time. Historical executions without segments retain unknown measurements.
+Before starting a resumed segment, the writer also closes an unfinished prior segment even if
+its business state had already settled before the original process stopped. The duration remains
+unknown; an observed old start is never converted into a successful ending.
 
 Session replay also includes a paged business-task timeline across execution batches. Select a
 segment to open its call span, or another execution to inspect its model session. The timeline

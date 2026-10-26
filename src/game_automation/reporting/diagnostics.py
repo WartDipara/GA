@@ -76,6 +76,15 @@ def inspect_snapshot(store, run_id):
                 references.setdefault(reference, event)
 
     for span, event in starts.items():
+        ending = endings.get(span)
+        if ending and ending["kind"].rsplit(".", 1)[0] != event["kind"].rsplit(".", 1)[0]:
+            finding(
+                "mismatched_boundary",
+                "error",
+                "Start and ending belong to different operations.",
+                event,
+                span,
+            )
         if span not in endings:
             active = run["status"] == "running"
             finding(
@@ -94,6 +103,23 @@ def inspect_snapshot(store, run_id):
                 event,
                 span,
             )
+    checked = set()
+    for span in starts:
+        current = span
+        path = set()
+        while current in starts and current not in checked:
+            if current in path:
+                finding(
+                    "parent_cycle",
+                    "error",
+                    "Call parent relationships contain a cycle.",
+                    starts[current],
+                    current,
+                )
+                break
+            path.add(current)
+            current = starts[current].get("parent_span_id")
+        checked.update(path)
     for span, event in endings.items():
         if span not in starts:
             finding("missing_start", "error", "Ending has no recorded start.", event, span)
