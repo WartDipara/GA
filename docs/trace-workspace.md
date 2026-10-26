@@ -36,6 +36,22 @@ observed and reconciled before continuing. Report components fail independently,
 outcome records where possible and support report-only recovery after storage becomes available.
 The read-only viewer can stop or fail without stopping the workflow's authoritative recording.
 
+Inspect writer overhead or retained evidence without starting a writer, model or device:
+
+```powershell
+uv run game-auto trace-health <run_id>
+uv run game-auto trace-doctor <run_id>
+```
+
+Writer health snapshots are emitted at most once every five seconds at recording boundaries and
+once after report publication. Measurements are cumulative per `collector_id`; retain the latest
+snapshot per collector when aggregating. Transaction, commit, encoding and artifact-write timings
+overlap and must not be added together. Encoded bytes are not physical disk IO. Older executions
+without measurements return `null`, not zero. Health records exclude their own current write.
+The doctor scans committed call boundaries and referenced files with a bounded findings list;
+counts include findings beyond that limit. Open or incomplete calls and unresolved actions remain
+explicit. Its report links identify the corresponding spans; it never repairs or replays actions.
+
 ## Find a game or task
 
 The task-history table has a sticky search field. Type any part of a recorded game name, package

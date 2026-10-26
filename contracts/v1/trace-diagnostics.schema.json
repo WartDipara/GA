@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://game-automation.local/contracts/v1/trace-diagnostics",
+  "type": "object",
+  "properties": {
+    "run_id": { "type": "string" },
+    "source_event_seq": { "type": "integer", "minimum": 0 },
+    "status": { "enum": ["healthy", "attention"] },
+    "counts": { "type": "object", "additionalProperties": { "type": "integer", "minimum": 0 } },
+    "findings": {
+      "type": "array",
+      "maxItems": 1000,
+      "items": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "string" },
+          "severity": { "enum": ["info", "warning", "error"] },
+          "span_id": { "type": ["string", "null"] },
+          "event_id": { "type": ["string", "null"] },
+          "detail": { "type": "string" },
+          "report_href": { "type": "string" }
+        },
+        "required": ["code", "severity", "span_id", "event_id", "detail", "report_href"],
+        "additionalProperties": false
+      }
+    },
+    "truncated": { "type": "boolean" },
+    "health": { "type": ["object", "null"] }
+  },
+  "required": ["run_id", "source_event_seq", "status", "counts", "findings", "truncated", "health"],
+  "additionalProperties": false
+}

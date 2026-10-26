@@ -12,9 +12,14 @@ from game_automation.kernel.agent_quality import (
 )
 from game_automation.kernel.workflow.runner import execute, new_run
 from game_automation.reporting.agent_trace import agent_view
+from game_automation.reporting.diagnostics import trace_diagnostics, writer_health
 
 
 def add_commands(commands):
+    doctor = commands.add_parser("trace-doctor", help="Check retained trace integrity without AI")
+    doctor.add_argument("run_id")
+    health = commands.add_parser("trace-health", help="Read recorded writer overhead measurements")
+    health.add_argument("run_id")
     export = commands.add_parser("agent-trace", help="Export semantic Agent spans as JSON")
     export.add_argument("run_id")
     analyze = commands.add_parser("analyze-trace", help="Ask AI about retained execution evidence")
@@ -47,6 +52,10 @@ def add_commands(commands):
 
 
 def handle(store, args):
+    if args.command == "trace-doctor":
+        return trace_diagnostics(store, args.run_id)
+    if args.command == "trace-health":
+        return writer_health(store, args.run_id)
     if args.command == "agent-trace":
         return agent_view(store, args.run_id)
     if args.command == "review":

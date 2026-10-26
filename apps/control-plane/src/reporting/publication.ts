@@ -195,5 +195,6 @@ export async function publish(execution: Execution, runId: string): Promise<Fiel
     receipt['receipt_error'] = frameworkError(error).details();
   }
   store.event(runId, 'report.finished', receipt);
+  store.health(runId, true);
   return receipt;
 }
