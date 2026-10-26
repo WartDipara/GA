@@ -104,7 +104,7 @@ export async function publish(execution: Execution, runId: string): Promise<Fiel
   if (run['mode'] === 'gameplay') components.push('gameplay');
   if (run['mode'] === 'workflow') components.push('workflow');
   if (['gameplay', 'workflow'].includes(text(run['mode']))) components.push('exploration');
-  components.push('trace', 'context', 'task_index');
+  components.push('trace', 'context', 'index', 'task_index');
   const outcomes: Fields = {};
   let fallback: string | null = null;
   let degraded = false;
@@ -157,6 +157,8 @@ export async function publish(execution: Execution, runId: string): Promise<Fiel
     store.event(runId, 'report.component.finished', { ...boundary, ...result }, { span_id: span });
   }
   const names = [
+    'index.html',
+    'index.json',
     'execution.json',
     'execution.html',
     'trace.html',

@@ -6,13 +6,25 @@
   let busy = false;
   let timer;
   const size = 100;
+  let selectedElement = '';
+  function remember() {
+    const state = new URLSearchParams({
+      element: selectedElement,
+      page: get('page').value,
+      status: get('status').value,
+      q: get('search').value,
+      offset: String(offset),
+    });
+    history.replaceState(null, '', `#${state}`);
+  }
   function node(tag, value, className = '') {
     const element = document.createElement(tag);
     if (value !== undefined) element.textContent = value;
     element.className = className;
     return element;
   }
-  function inspect(record) {
+  function inspect(record, save = true) {
+    selectedElement = record.id;
     const locations = data.locations
       .filter((location) => location.element_id === record.id)
       .slice(0, 10);
@@ -20,6 +32,7 @@
       (item) => item.kind === 'locator' && item.parent_id === record.id,
     );
     get('detail').textContent = JSON.stringify({ element: record, memory, locations }, null, 2);
+    if (save) remember();
   }
   function render() {
     const pages = new Map(
@@ -80,10 +93,12 @@
         const bounds = node('td', record.data.bounds.join(', '));
         const action = node('td');
         const proof = record.data.verification;
-        const actionId = proof?.action_id || record.data.action_id;
+        const actionId = record.data.action_id || proof?.action_id;
         if (actionId) {
           const link = node('a', 'Evidence');
-          link.href = `../../${proof?.action_run_id || record.run_id}/reports/gameplay.html#${actionId}`;
+          const actionRun = record.action_run_id || proof?.action_run_id || record.run_id;
+          link.href = `../../${actionRun}/reports/gameplay.html#${actionId}`;
+          link.addEventListener('click', () => inspect(record));
           action.append(link);
         }
         row.append(page, target, state, bounds, action);
@@ -142,16 +157,29 @@
     get(id).addEventListener(id === 'search' ? 'input' : 'change', () => {
       offset = 0;
       render();
+      remember();
     });
   get('previous').addEventListener('click', () => {
     offset = Math.max(0, offset - size);
     render();
+    remember();
   });
   get('next').addEventListener('click', () => {
     offset += size;
     render();
+    remember();
   });
   get('refresh').addEventListener('click', refresh);
   render();
+  const state = new URLSearchParams(location.hash.slice(1));
+  for (const field of ['page', 'status', 'search'])
+    get(field).value = state.get(field === 'search' ? 'q' : field) || '';
+  const position = Number(state.get('offset') || 0);
+  offset = Number.isSafeInteger(position) && position >= 0 ? position : 0;
+  render();
+  const selection = data.records.find(
+    (record) => record.kind === 'element' && record.id === state.get('element'),
+  );
+  if (selection) inspect(selection, false);
   void refresh();
 })();

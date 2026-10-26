@@ -7,6 +7,7 @@
     "node": "22.19.0"
   },
   "scripts": {
+    "trace": "node tools/serve-trace.mjs",
     "generate": "node tools/generate-contracts.mjs && node tools/generate-codex-types.mjs",
     "check": "npm run generate && tsc --noEmit && eslint apps packages plugins/agent_codex --max-warnings 0",
     "build": "npm run check && node tools/build.mjs"

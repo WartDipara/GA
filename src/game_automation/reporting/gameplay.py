@@ -122,6 +122,8 @@ def write_html(store, run_id, report):
         rows.append(
             f'<article id="{escaped(action["action_id"])}">'
             f"<h3>{escaped(action['action_id'])}</h3>"
+            f'<p><a href="trace.html#view=calls&amp;span={escaped(action["span_id"])}">'
+            "Inspect execution call</a></p>"
             f"<p>Recorded action state: {escaped(action['status'])}</p>"
             f"<p>Execution time: {execution_time}; "
             f"call status: {escaped(action['execution_status'])}</p>"

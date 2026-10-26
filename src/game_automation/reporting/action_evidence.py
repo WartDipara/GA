@@ -72,12 +72,17 @@ def evidence_figure(store, report_run, image_run, reference, caption, action=Non
         return '<p class="evidence-note">Screenshot unavailable.</p>'
     prefix = "../" if image_run == report_run else f"../../{image_run}/"
     source = html.escape(prefix + quote(reference, safe="/"), quote=True)
+    report_prefix = "" if image_run == report_run else f"../../{image_run}/reports/"
+    evidence = html.escape(
+        f"{report_prefix}evidence.html?ref={quote(reference, safe='')}", quote=True
+    )
     overlay = action_overlay(action, width, height) if action else ""
     figure = (
         '<figure class="action-evidence"><div class="evidence-frame" '
         f'style="aspect-ratio:{width}/{height}">'
         f'<img loading="lazy" src="{source}" alt="{html.escape(caption, quote=True)}">'
-        f"{overlay}</div><figcaption>{html.escape(caption)}</figcaption></figure>"
+        f"{overlay}</div><figcaption>{html.escape(caption)} · "
+        f'<a href="{evidence}">Open screenshot</a></figcaption></figure>'
     )
     return figure
 

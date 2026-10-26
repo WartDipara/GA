@@ -1,5 +1,10 @@
 # Report finalization and recovery
 
+Each settled execution automatically publishes `reports/index.json` under the execution-index
+contract, `reports/index.html`, shared report navigation and task/history indexes. This includes
+blocked checkpoints, failures and cancellations. Report-only recovery uses the same pipeline.
+See [Trace workspace](trace-workspace.md) for the independent viewer and storage layout.
+
 SQLite events and action records are authoritative. HTML and JSON reports are recoverable
 projections. A renderer failure must not convert a completed game operation into a business failure,
 cause the scheduler to repeat it, or prevent another report component from being attempted.

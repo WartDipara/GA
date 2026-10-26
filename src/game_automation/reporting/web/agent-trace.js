@@ -3,6 +3,8 @@
   const byId = (id) => document.getElementById(id);
   let data = JSON.parse(byId('trace-data').textContent);
   let selected = data.spans[0].span_id;
+  let activeView = 'calls';
+  let selectedAction = '';
   const collapsed = new Set();
   let busy = false;
   const element = (tag, text, className) => {
@@ -27,13 +29,26 @@
     return node;
   };
 
-  function show(view) {
+  function remember() {
+    const state = new URLSearchParams({ view: activeView, span: selected });
+    state.set('q', byId('span-search').value);
+    state.set('kind', byId('span-kind').value);
+    state.set('status', byId('span-state').value);
+    if (selectedAction) state.set('action', selectedAction);
+    history.replaceState(null, '', `#${state}`);
+  }
+
+  function show(view, save = true) {
+    if (!['calls', 'sessions', 'actions', 'performance', 'quality', 'insights'].includes(view))
+      return;
+    activeView = view;
     document
       .querySelectorAll('.view')
       .forEach((node) => node.classList.toggle('active', node.id === view));
     document
       .querySelectorAll('nav button')
       .forEach((node) => node.classList.toggle('active', node.dataset.view === view));
+    if (save) remember();
   }
 
   function detail(label, value) {
@@ -50,16 +65,18 @@
       return node;
     }
     const link = element('a', 'Open retained JSON');
-    link.href = `../${reference}`;
-    link.target = '_blank';
-    link.rel = 'noopener noreferrer';
+    const raw = `../${reference}`;
+    link.href =
+      location.protocol === 'file:'
+        ? raw
+        : `evidence.html?${new URLSearchParams({ ref: reference })}`;
     node.append(link);
     let loaded = false;
     node.addEventListener('toggle', async () => {
       if (!node.open || loaded || location.protocol === 'file:') return;
       loaded = true;
       try {
-        const response = await fetch(link.href, { cache: 'no-store' });
+        const response = await fetch(raw, { cache: 'no-store' });
         if (!response.ok) throw new Error('Unavailable');
         node.append(pretty(await response.json()));
       } catch {
@@ -216,6 +233,7 @@
           row.append(label, track, element('span', duration(span.duration_ms), 'span-time'));
           const choose = () => {
             selected = span.span_id;
+            remember();
             renderTree();
             renderInspector();
           };
@@ -254,6 +272,11 @@
       element('h3', span.name),
       metadata,
     );
+    if (span.parent_span_id) {
+      const parent = element('a', 'Inspect parent call');
+      parent.href = `#view=calls&span=${encodeURIComponent(span.parent_span_id)}`;
+      node.append(parent);
+    }
     if (span.attributes['game_automation.decision.reason_summary'])
       node.append(element('p', span.attributes['game_automation.decision.reason_summary']));
     node.append(
@@ -270,7 +293,9 @@
     span.links.forEach((link) => {
       if (link.run_id) {
         const anchor = element('a', `${link.relation}: ${link.run_id}`);
-        anchor.href = `../../${encodeURIComponent(link.run_id)}/reports/trace.html`;
+        anchor.href =
+          `../../${encodeURIComponent(link.run_id)}/reports/trace.html` +
+          (link.span_id ? `#view=calls&span=${encodeURIComponent(link.span_id)}` : '');
         const paragraph = element('p');
         paragraph.append(anchor);
         node.append(paragraph);
@@ -280,6 +305,7 @@
     if (action)
       node.append(
         button('Show action on screenshot', () => {
+          selectedAction = action.action_id;
           show('actions');
           byId(action.action_id)?.scrollIntoView({ block: 'center' });
         }),
@@ -293,6 +319,9 @@
       session.turns.forEach((turn, index) => {
         const row = element('div', undefined, 'turn');
         row.dataset.disclosureScope = turn.span_id;
+        const call = element('a', 'Inspect model call');
+        call.href = `#view=calls&span=${encodeURIComponent(turn.span_id)}`;
+        row.append(call);
         row.append(
           element('h3', `Turn ${index + 1} · ${turn.status}`),
           element('p', turn.turn_id || 'Turn ID unavailable', 'muted'),
@@ -478,7 +507,10 @@
     .querySelectorAll('nav button')
     .forEach((node) => node.addEventListener('click', () => show(node.dataset.view)));
   ['span-search', 'span-kind', 'span-state'].forEach((id) =>
-    byId(id).addEventListener(id === 'span-search' ? 'input' : 'change', renderTree),
+    byId(id).addEventListener(id === 'span-search' ? 'input' : 'change', () => {
+      remember();
+      renderTree();
+    }),
   );
   ['model-filter', 'actor-filter'].forEach((id) =>
     byId(id).addEventListener('change', renderPerformance),
@@ -503,6 +535,26 @@
     byId('analysis-command').textContent =
       `game-auto analyze-trace ${data.run_id} --question '${question}'`;
   });
-  render();
+  function restore() {
+    const state = new URLSearchParams(location.hash.slice(1));
+    selected = state.get('span') || data.spans[0].span_id;
+    selectedAction = state.get('action') || '';
+    byId('span-search').value = state.get('q') || '';
+    byId('span-kind').value = state.get('kind') || 'all';
+    byId('span-state').value = state.get('status') || 'all';
+    render();
+    show(state.get('view') || 'calls', false);
+    if (selectedAction && activeView === 'actions')
+      byId(selectedAction)?.scrollIntoView({ block: 'center' });
+  }
+  document.addEventListener('click', (event) => {
+    const action = event.target.closest('.action-card[id]');
+    if (!action) return;
+    selectedAction = action.id;
+    selected = action.dataset.span || selected;
+    remember();
+  });
+  addEventListener('hashchange', restore);
+  restore();
   setInterval(refresh, 3000);
 })();

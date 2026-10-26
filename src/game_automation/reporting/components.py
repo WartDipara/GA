@@ -9,6 +9,7 @@ from game_automation.errors import ErrorCode
 from .compact_trace import render_compact
 from .exploration import exploration_report
 from .gameplay import gameplay_report
+from .history import index_reports
 from .task_index import task_report
 from .trace import export_agent_trace, export_context
 
@@ -25,6 +26,8 @@ def render_component(store, run_id, component):
             export_context(store, run_id)
         elif component == "task_index":
             task_report(store, store.run(run_id)["task_id"])
+        elif component == "index":
+            index_reports(store, run_id)
         elif component == "compact_trace":
             document = render_compact(store, run_id, degraded=True)
             atomic_text(store.run_dir(run_id) / "reports/trace.html", document)

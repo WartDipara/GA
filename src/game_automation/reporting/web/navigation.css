@@ -1,0 +1,98 @@
+.report-navigation {
+  padding: 12px 20px;
+  margin: 0 0 20px;
+  border: 1px solid #34465f;
+  border-radius: 12px;
+  background: #172235;
+  color: #e5edf8;
+  font:
+    14px/1.6 system-ui,
+    sans-serif;
+}
+.report-navigation > div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 18px;
+}
+.report-navigation > div + div {
+  margin-top: 8px;
+}
+.report-navigation a {
+  color: #a3c5ff;
+  text-decoration: none;
+  padding: 3px 0;
+}
+.report-navigation a:hover,
+.report-navigation a:focus-visible {
+  text-decoration: underline;
+}
+.report-navigation [aria-current='page'] {
+  color: #fff;
+  font-weight: 700;
+}
+.report-navigation span {
+  margin-left: auto;
+  color: #b2bfd2;
+}
+.history-page {
+  background: #101827;
+  color: #e5edf8;
+  font:
+    15px/1.6 system-ui,
+    sans-serif;
+  margin: 0;
+}
+.history-page main {
+  max-width: 1360px;
+  margin: 32px auto;
+  padding: 0 24px;
+}
+.history-page a {
+  color: #a3c5ff;
+}
+.history-page .history-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: center;
+  margin: 24px 0;
+}
+.history-page input,
+.history-page select,
+.history-page button {
+  background: #1a2940;
+  color: #e5edf8;
+  padding: 10px 14px;
+  border: 1px solid #405574;
+  border-radius: 8px;
+}
+.history-page table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #172235;
+  border-radius: 12px;
+}
+.history-page th,
+.history-page td {
+  text-align: left;
+  padding: 14px;
+  border-bottom: 1px solid #34465f;
+  overflow-wrap: anywhere;
+}
+.history-page pre {
+  padding: 18px;
+  background: #172235;
+  border-radius: 12px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.history-page img {
+  max-width: 100%;
+  max-height: 80vh;
+  object-fit: contain;
+}
+.history-page small {
+  display: block;
+  color: #b2bfd2;
+}

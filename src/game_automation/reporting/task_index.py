@@ -1,9 +1,10 @@
 """Task-level indexes of existing executions; no model or device access."""
 
-import html
 from collections import Counter
 
 from game_automation.common import FileLock, atomic_json, atomic_text
+
+from .history import task_document
 
 
 def task_report(store, task_id, *, layout_locked=False):
@@ -22,7 +23,6 @@ def write_task_report(store, task_id):
     directory = store.task_dir(task_id)
     executions = store.task_runs(task_id)
     apks = []
-    rows = []
     for execution in executions:
         run_id = execution["run_id"]
         execution["directory"] = f"executions/{run_id}"
@@ -41,14 +41,6 @@ def write_task_report(store, task_id):
                     else None,
                 }
                 apks.append(entry)
-        label = html.escape(run_id)
-        if execution["trace_available"]:
-            label = f'<a href="../executions/{label}/reports/trace.html">{label}</a>'
-        rows.append(
-            f"<tr><td>{label}</td><td>{html.escape(execution['mode'])}</td>"
-            f"<td>{html.escape(execution['status'])}</td>"
-            f"<td>{execution['evidence_available']}</td></tr>"
-        )
     report = {
         "task_id": task_id,
         "execution_statuses": dict(Counter(item["status"] for item in executions)),
@@ -58,18 +50,6 @@ def write_task_report(store, task_id):
     }
     atomic_json(directory / "reports/task.json", report)
     atomic_json(directory / "apks/index.json", apks)
-    document = (
-        '<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width">'
-        '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; '
-        "style-src 'unsafe-inline'\"><title>Task executions</title>"
-        "<style>body{font:16px system-ui;max-width:1100px;margin:32px auto;padding:20px}"
-        "td,th{text-align:left;padding:8px;overflow-wrap:anywhere}</style>"
-        f"<h1>Task executions</h1><p>{html.escape(task_id)}</p>"
-        "<p>Each row is a preserved stage execution. Missing historical evidence stays missing. "
-        "Execution states do not establish whole-task completion or game coverage.</p>"
-        '<p><a href="task.json">Task index</a> · <a href="../apks/index.json">APK index</a></p>'
-        "<table><thead><tr><th>Execution</th><th>Mode</th><th>Status</th>"
-        "<th>Evidence available</th></tr></thead><tbody>" + "".join(rows) + "</tbody></table>"
-    )
+    document = task_document(store, task_id)
     atomic_text(directory / "reports/task.html", document)
     return report
