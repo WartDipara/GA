@@ -182,6 +182,9 @@ def theme_document(document, prefix):
             "default-src 'none';", "default-src 'none'; script-src 'self' file:;", 1
         )
     document = document.replace("style-src ", "style-src 'self' file: ", 1)
+    document = document.replace(
+        "default-src 'none';", "default-src 'none'; worker-src 'self' file:;", 1
+    )
     document = document.replace("script-src ", f"script-src 'sha256-{digest}' ", 1)
     document = re.sub(
         r'<meta\b[^>]*http-equiv="Content-Security-Policy"[^>]*>',

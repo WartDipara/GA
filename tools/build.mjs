@@ -9,7 +9,10 @@ const validateTheme = new Ajv2020().compile(themeSchema);
 if (!validateTheme(theme)) throw new Error('Invalid UI theme configuration');
 
 await build({
-  entryPoints: { trace_ui: 'packages/trace-ui/src/main.tsx' },
+  entryPoints: {
+    trace_ui: 'packages/trace-ui/src/main.tsx',
+    history_search: 'packages/trace-ui/src/history-worker.ts',
+  },
   outdir: 'var/cache/typescript',
   bundle: true,
   platform: 'browser',
@@ -59,6 +62,7 @@ const files = [
   'var/cache/typescript/control_plane.mjs',
   'var/cache/typescript/trace_ui.js',
   'var/cache/typescript/trace_ui.css',
+  'var/cache/typescript/history_search.js',
 ];
 async function sources(directory) {
   for (const entry of await readdir(directory, { withFileTypes: true })) {

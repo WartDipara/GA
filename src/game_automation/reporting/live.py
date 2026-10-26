@@ -138,7 +138,11 @@ class TraceHandler(BaseHTTPRequestHandler):
         try:
             parsed = urlsplit(self.path)
             path = unquote(parsed.path)
-            if path in ("/cache/typescript/trace_ui.js", "/cache/typescript/trace_ui.css"):
+            if path in (
+                "/cache/typescript/trace_ui.js",
+                "/cache/typescript/trace_ui.css",
+                "/cache/typescript/history_search.js",
+            ):
                 asset = self.server.project_root / "var" / path.lstrip("/")
                 content_type = "text/javascript" if path.endswith(".js") else "text/css"
                 content = asset.read_bytes()
@@ -186,9 +190,9 @@ class TraceHandler(BaseHTTPRequestHandler):
             self.respond(200, render_history(store), "text/html; charset=utf-8")
             return
         if path in ("/history.json", "/reports/history.json"):
-            self.respond(
-                200, json.dumps(history_view(store), ensure_ascii=False), "application/json"
-            )
+            content = json.dumps(history_view(store), ensure_ascii=False)
+            etag = f'"{hashlib.sha256(content.encode()).hexdigest()}"'
+            self.respond(200, content, "application/json", etag=etag)
             return
         parts = path.strip("/").split("/")
         if len(parts) < 2 or parts[0] != "tasks":

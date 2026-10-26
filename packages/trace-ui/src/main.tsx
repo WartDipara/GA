@@ -3,6 +3,9 @@ import { createRoot } from 'react-dom/client';
 import { flushSync } from 'react-dom';
 import { workspaceView, type WorkspaceView } from '@game-automation/contracts/workspace';
 import './workspace.css';
+import { mountHistory } from './history.js';
+
+mountHistory();
 
 function duration(value: number | null): string {
   if (value === null) return 'Unknown';
