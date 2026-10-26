@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
-import { decode, type ContractMap } from '@game-automation/contracts';
+import { decode, text, type ContractMap } from '@game-automation/contracts';
 import { ErrorCode, FrameworkError } from '@game-automation/contracts/errors';
-import { uid } from '../storage/values.js';
+import { parsed, uid } from '../storage/values.js';
 import type { Runtime } from '../gameplay/runtime.js';
 import type { Facts, Observation, Pending } from '../gameplay/types.js';
 import { destination } from './frontier.js';
@@ -24,7 +24,23 @@ function name(value: string): string {
 }
 
 export class Catalog {
+  private readonly semanticKeys = new Map<string, string | null>();
   constructor(readonly runtime: Runtime) {}
+
+  private semanticKey(page: Page): string | null {
+    if (page.data.semantic_key) return page.data.semantic_key;
+    if (this.semanticKeys.has(page.id)) return this.semanticKeys.get(page.id) ?? null;
+    const row = this.runtime.store.database.one(
+      "SELECT e.data FROM events e JOIN runs r ON r.id=e.run_id WHERE r.task_id=? AND e.kind='gameplay.decision' AND json_extract(e.data,'$.payload.observation_id')=? ORDER BY e.seq DESC LIMIT 1",
+      text(this.runtime.store.run(this.runtime.runId)['task_id']),
+      page.data.observation_id,
+    );
+    const event = row ? decode('trace', parsed(row['data'])) : null;
+    const view = event?.payload['exploration'];
+    const key = view ? decode('exploration-view', view).page_key : null;
+    this.semanticKeys.set(page.id, key);
+    return key;
+  }
 
   get key(): string {
     return `${this.runtime.progress.key}:exploration:${signature(this.runtime.progress.data.identity)}`;
@@ -59,16 +75,34 @@ export class Catalog {
       (record): record is Page => record.kind === 'page' && record.id === current,
     );
     const next = destination(this);
+    const related = new Set([
+      current,
+      session?.data.root_page,
+      ...elements
+        .filter((element) => element.status === 'pending')
+        .slice(0, 30)
+        .map((element) => element.parent_id),
+    ]);
     const result = {
       current_page: page
         ? {
             id: page.id,
+            page_key: this.semanticKey(page),
             label: page.data.label,
             variant: page.data.variant,
             layout: page.data.layout,
             anchors: page.data.anchors.map((anchor) => anchor.key),
           }
         : null,
+      known_pages: records
+        .filter((record): record is Page => record.kind === 'page' && related.has(record.id))
+        .slice(0, 12)
+        .map((page) => ({
+          id: page.id,
+          page_key: this.semanticKey(page),
+          label: page.data.label,
+          variant: page.data.variant,
+        })),
       elements: elements
         .filter((record) => record.parent_id === current)
         .slice(0, 120)
@@ -122,6 +156,7 @@ export class Catalog {
       status: view.inventory_complete ? 'scanned' : 'pending',
       data: {
         key,
+        semantic_key: view.page_key,
         label: view.label,
         variant: view.variant,
         layout: view.layout,
