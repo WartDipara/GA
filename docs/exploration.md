@@ -52,3 +52,10 @@ New pages/items, first verified operations and new scroll viewports advance the 
 old nodes, animations and repeated navigation do not. Pending action links are checkpointed before
 dispatch; catalog reconciliation finishes before clearing a pending action. The existing action
 ledger remains authoritative, and unknown actions are never automatically replayed.
+
+A blocked planner assessment settles the current execution after saving its observation, action
+outcome and checkpoint. It records `exploration.branch.blocked` and preserves the remaining queue;
+it does not report the branch as skipped or request another plan against the same evidence.
+Rejected proposals and premature completion receive at most one correction round per observation.
+Both attempts are traced before the watchdog blocks further planning. Resume obtains a new device
+observation and reconciles pending actions before considering another input.

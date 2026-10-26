@@ -9,6 +9,8 @@ export class Watchdog {
   readonly data: NonNullable<Progress['watchdog']>;
   reconciling: boolean;
   private updated = performance.now();
+  private correctionObservation: string | null = null;
+  private correctionAttempts = 0;
   constructor(
     readonly runtime: Runtime,
     readonly settings: Fields,
@@ -79,6 +81,22 @@ export class Watchdog {
     this.data.history = [];
     this.data.blocked = false;
     this.runtime.progress.save();
+  }
+
+  withoutDispatch(observation: Observation, reason: string): void {
+    if (this.correctionObservation !== observation.observation_id) {
+      this.correctionObservation = observation.observation_id;
+      this.correctionAttempts = 0;
+    }
+    this.correctionAttempts += 1;
+    this.runtime.record('gameplay.planning.correction', {
+      observation_id: observation.observation_id,
+      reason,
+      attempt: this.correctionAttempts,
+      maximum: 2,
+      dispatched: false,
+    });
+    if (this.correctionAttempts >= 2) this.block('planning-correction-without-new-evidence');
   }
 
   private block(reason: string): never {
