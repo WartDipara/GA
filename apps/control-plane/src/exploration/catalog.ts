@@ -55,9 +55,35 @@ export class Catalog {
     const session = records.find((record): record is Session => record.kind === 'session');
     const current = session?.data.page_id;
     const elements = records.filter((record): record is Element => record.kind === 'element');
+    const page = records.find(
+      (record): record is Page => record.kind === 'page' && record.id === current,
+    );
+    const next = destination(this);
     const result = {
-      current_page: records.find((record) => record.kind === 'page' && record.id === current),
-      elements: elements.filter((record) => record.parent_id === current).slice(0, 120),
+      current_page: page
+        ? {
+            id: page.id,
+            label: page.data.label,
+            variant: page.data.variant,
+            layout: page.data.layout,
+            anchors: page.data.anchors.map((anchor) => anchor.key),
+          }
+        : null,
+      elements: elements
+        .filter((record) => record.parent_id === current)
+        .slice(0, 120)
+        .map((record) => ({
+          id: record.id,
+          key: record.data.semantic_key,
+          label: record.data.label,
+          container: record.data.container,
+          item: record.data.item,
+          kind: record.data.kind,
+          status: record.status,
+          availability: record.data.availability,
+          risk: record.data.risk,
+          condition: record.data.condition,
+        })),
       frontier: elements
         .filter((record) => record.status === 'pending')
         .slice(0, 30)
@@ -65,7 +91,18 @@ export class Catalog {
       root_page: session?.data.root_page ?? null,
       sweep_done: session?.data.sweep_done ?? false,
       authority: 'Memory is historical evidence; locate targets in the current observation',
-      recommendation: destination(this),
+      recommendation: next
+        ? {
+            element_id: next.element.id,
+            key: next.element.data.semantic_key,
+            label: next.element.data.label,
+            kind: next.element.data.kind,
+            container: next.element.data.container,
+            item: next.element.data.item,
+            expected_page: next.expectedPage,
+            navigating: next.navigating,
+          }
+        : null,
     };
     return result;
   }
