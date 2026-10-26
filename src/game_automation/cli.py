@@ -22,6 +22,7 @@ from game_automation.reporting.trace import export_trace
 from game_automation.storage.store import Store
 
 READ_ONLY_COMMANDS = {
+    "exploration",
     "status",
     "runs",
     "tasks",
@@ -49,6 +50,9 @@ def parser():
         help="Repository root (default: current directory)",
     )
     commands = cli.add_subparsers(dest="command", required=True)
+    exploration = commands.add_parser("exploration", help="Inspect the recorded exploration graph")
+    exploration.add_argument("run_id")
+    exploration.add_argument("--format", choices=["json"], default="json")
     submit = commands.add_parser("submit", help="Submit canonical JSON or a UTF-8 text document")
     source = submit.add_mutually_exclusive_group(required=True)
     source.add_argument("--task", type=Path)
@@ -442,6 +446,10 @@ def main(argv=None):
                 result["report"] = str(store.run_dir(args.run_id) / "reports" / filename)
             print_json(result)
             return 0 if all(receipt["status"] == "complete" for receipt in receipts) else 2
+        elif args.command == "exploration":
+            from game_automation.reporting.exploration import exploration_view
+
+            print_json(exploration_view(store, args.run_id))
         elif args.command == "compare-games":
             from game_automation.reporting.game_comparison import compare_games
 

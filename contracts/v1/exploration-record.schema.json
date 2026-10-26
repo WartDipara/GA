@@ -1,0 +1,682 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "oneOf": [
+    {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "page"
+        },
+        "id": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "parent_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 2000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "status": {
+          "enum": [
+            "pending",
+            "scanned"
+          ]
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "key": {
+              "type": "string",
+              "maxLength": 240
+            },
+            "label": {
+              "type": "string",
+              "maxLength": 240
+            },
+            "variant": {
+              "type": "string",
+              "maxLength": 240
+            },
+            "layout": {
+              "type": "string",
+              "maxLength": 240
+            },
+            "kind": {
+              "enum": [
+                "screen",
+                "modal",
+                "external"
+              ]
+            },
+            "authenticated": {
+              "type": "boolean"
+            },
+            "root": {
+              "type": "boolean"
+            },
+            "scan_complete": {
+              "type": "boolean"
+            },
+            "observation_id": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "anchors": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "key": {
+                    "type": "string",
+                    "maxLength": 240
+                  },
+                  "bounds": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "minItems": 4,
+                    "maxItems": 4
+                  },
+                  "resource_id": {
+                    "type": "string",
+                    "maxLength": 240
+                  }
+                },
+                "required": [
+                  "key",
+                  "bounds",
+                  "resource_id"
+                ],
+                "additionalProperties": false
+              },
+              "maxItems": 12
+            },
+            "recheck": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "key",
+            "label",
+            "variant",
+            "layout",
+            "kind",
+            "authenticated",
+            "root",
+            "scan_complete",
+            "observation_id",
+            "anchors",
+            "recheck"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "kind",
+        "id",
+        "parent_id",
+        "status",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "element"
+        },
+        "id": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "parent_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 2000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "status": {
+          "enum": [
+            "pending",
+            "in_progress",
+            "verified",
+            "external_skipped",
+            "locked",
+            "prohibited",
+            "limited",
+            "unknown"
+          ]
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "key": {
+              "type": "string",
+              "maxLength": 240
+            },
+            "label": {
+              "type": "string",
+              "maxLength": 240
+            },
+            "container": {
+              "type": "string",
+              "maxLength": 240
+            },
+            "item": {
+              "type": "string",
+              "maxLength": 240
+            },
+            "kind": {
+              "enum": [
+                "tap",
+                "scroll"
+              ]
+            },
+            "intent": {
+              "enum": [
+                "navigate",
+                "tab",
+                "close",
+                "resource",
+                "input",
+                "scroll"
+              ]
+            },
+            "bounds": {
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "minItems": 4,
+              "maxItems": 4
+            },
+            "risk": {
+              "enum": [
+                "none",
+                "game_resource",
+                "real_payment",
+                "account_delete",
+                "unknown"
+              ]
+            },
+            "availability": {
+              "enum": [
+                "enabled",
+                "locked",
+                "disabled"
+              ]
+            },
+            "condition": {
+              "type": "string",
+              "maxLength": 240
+            },
+            "page_id": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "observation_id": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "locator_id": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 2000
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "attempts": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "action_id": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 2000
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "child_page": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 2000
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "key",
+            "label",
+            "container",
+            "item",
+            "kind",
+            "intent",
+            "bounds",
+            "risk",
+            "availability",
+            "condition",
+            "page_id",
+            "observation_id",
+            "locator_id",
+            "attempts",
+            "action_id",
+            "child_page"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "kind",
+        "id",
+        "parent_id",
+        "status",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "locator"
+        },
+        "id": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "parent_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 2000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "status": {
+          "enum": [
+            "candidate",
+            "verified",
+            "stale"
+          ]
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "element_id": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "page_id": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "layout": {
+              "type": "string",
+              "maxLength": 240
+            },
+            "observation_id": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "source_run": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "image_ref": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "bounds": {
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "minItems": 4,
+              "maxItems": 4
+            },
+            "anchors": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "key": {
+                    "type": "string",
+                    "maxLength": 240
+                  },
+                  "bounds": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "minItems": 4,
+                    "maxItems": 4
+                  },
+                  "resource_id": {
+                    "type": "string",
+                    "maxLength": 240
+                  }
+                },
+                "required": [
+                  "key",
+                  "bounds",
+                  "resource_id"
+                ],
+                "additionalProperties": false
+              },
+              "maxItems": 12
+            },
+            "active": {
+              "type": "boolean"
+            },
+            "verified": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "element_id",
+            "page_id",
+            "layout",
+            "observation_id",
+            "source_run",
+            "image_ref",
+            "bounds",
+            "anchors",
+            "active",
+            "verified"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "kind",
+        "id",
+        "parent_id",
+        "status",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "edge"
+        },
+        "id": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "parent_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 2000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "status": {
+          "enum": [
+            "verified"
+          ]
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "from_page": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "to_page": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "element_id": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "action_id": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "observation_id": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "action_type": {
+              "enum": [
+                "tap",
+                "back",
+                "swipe",
+                "return"
+              ]
+            }
+          },
+          "required": [
+            "from_page",
+            "to_page",
+            "element_id",
+            "action_id",
+            "observation_id",
+            "action_type"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "kind",
+        "id",
+        "parent_id",
+        "status",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "scroll"
+        },
+        "id": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "parent_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 2000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "status": {
+          "enum": [
+            "pending",
+            "complete",
+            "limited"
+          ]
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "element_id": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "viewports": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "maxLength": 2000
+              },
+              "maxItems": 102
+            },
+            "last_viewport": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "unchanged": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "cycles": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "at_end": {
+              "type": "boolean"
+            },
+            "reason": {
+              "type": "string",
+              "maxLength": 2000
+            }
+          },
+          "required": [
+            "element_id",
+            "viewports",
+            "last_viewport",
+            "unchanged",
+            "cycles",
+            "at_end",
+            "reason"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "kind",
+        "id",
+        "parent_id",
+        "status",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "session"
+        },
+        "id": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "parent_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 2000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "status": {
+          "enum": [
+            "active",
+            "complete"
+          ]
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "page_id": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 2000
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "root_page": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 2000
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "observation_id": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "identity_key": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "sweep_done": {
+              "type": "boolean"
+            },
+            "novelty": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "page_id",
+            "root_page",
+            "observation_id",
+            "identity_key",
+            "sweep_done",
+            "novelty"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "kind",
+        "id",
+        "parent_id",
+        "status",
+        "data"
+      ],
+      "additionalProperties": false
+    }
+  ]
+}

@@ -2,6 +2,7 @@ import { object, text } from '@game-automation/contracts';
 import { ErrorCode, FrameworkError } from '@game-automation/contracts/errors';
 import { integer } from '../storage/values.js';
 import { Battle } from './battle.js';
+import { Catalog } from '../exploration/catalog.js';
 import { Knowledge } from './knowledge.js';
 import { executeRoutine, Perception, route } from './local.js';
 import { Planner } from './planning.js';
@@ -48,7 +49,8 @@ function complete(
 
 export async function runLoop(runtime: Runtime, initial: Observation): Promise<void> {
   const perception = new Perception(runtime);
-  const planner = new Planner(runtime);
+  const catalog = runtime.task['goal'] === 'explore' ? new Catalog(runtime) : null;
+  const planner = new Planner(runtime, catalog);
   const knowledge = new Knowledge(runtime);
   const battle = runtime.task['goal'] === 'advance-battle' ? new Battle(runtime) : null;
   const progress = runtime.progress.data;
@@ -132,8 +134,6 @@ export async function runLoop(runtime: Runtime, initial: Observation): Promise<v
       progress.pending = null;
       runtime.progress.save();
     }
-    // Commit known outcomes before a watchdog can stop further planning or dispatch.
-    watchdog.review(decision, view.observation, pending);
     if (decision.identity) {
       const identity = progress.identity ?? { small_account: null, server: null, role: null };
       const keys: (keyof typeof identity)[] = ['small_account', 'server', 'role'];
@@ -150,6 +150,12 @@ export async function runLoop(runtime: Runtime, initial: Observation): Promise<v
       progress.identity =
         identity.small_account || identity.server || identity.role ? identity : null;
     }
+    const page = decision.exploration ? catalog?.ingest(decision.exploration, view.observation) : null;
+    if (pending) catalog?.outcome(
+      pending, page ?? null, view.observation, decision.previous_outcome.status === 'verified',
+    );
+    // Commit known outcomes and their catalog evidence before the watchdog can stop dispatch.
+    watchdog.review(decision, view.observation, pending);
     runtime.progress.update(decision, view.observation.observation_id);
     battle?.update(decision.battle_progress, view.observation);
     progress.checkpoint = {
@@ -208,6 +214,7 @@ export async function runLoop(runtime: Runtime, initial: Observation): Promise<v
       image_sha256: view.observation.screenshot.sha256,
       sensitive_regions: view.observation.sensitive_regions,
     });
+    if (page) catalog?.associate(dispatched, actionId, page);
     progress.paths.push({
       run_id: runtime.runId,
       action_id: actionId,

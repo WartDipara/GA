@@ -57,6 +57,16 @@ CREATE TABLE IF NOT EXISTS task_aliases (
     alias_id TEXT PRIMARY KEY REFERENCES tasks(id),
     task_id TEXT NOT NULL REFERENCES tasks(id)
 );
+CREATE TABLE IF NOT EXISTS exploration_records (
+    workspace_key TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    id TEXT NOT NULL,
+    task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+    run_id TEXT NOT NULL REFERENCES runs(id),
+    data TEXT NOT NULL,
+    PRIMARY KEY(workspace_key,kind,id)
+);
+CREATE INDEX IF NOT EXISTS exploration_task ON exploration_records(task_id,workspace_key,kind);
 `;
 
 export const counters = `

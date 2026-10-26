@@ -7,6 +7,7 @@ import { redact, strings, within, type Fields } from '../storage/values.js';
 import type { Runtime } from './runtime.js';
 import { verifyPlanningDependencies } from './dependencies.js';
 import type { Action, Coordinates, Decision, Facts, Observation } from './types.js';
+import type { Catalog, Inventory } from '../exploration/catalog.js';
 
 type Bounds = NonNullable<Action['bounds']>;
 
@@ -79,7 +80,7 @@ function projectAction(
 export class Planner {
   turns = 0;
   mappingUntried: boolean;
-  constructor(readonly runtime: Runtime) {
+  constructor(readonly runtime: Runtime, readonly catalog: Catalog | null = null) {
     const progress = runtime.progress.data;
     if (progress.planner_coordinate_space !== 'bounded-image-v1') {
       if (progress['semantic_stall']) {
@@ -210,6 +211,7 @@ export class Planner {
         coordinate_mapping_corrected: this.mappingUntried,
         coordinate_space: 'planner_image_pixels',
       },
+      exploration_memory: this.catalog?.context() ?? null,
       image_order: order,
       available_actions: [
         'tap',
@@ -248,12 +250,22 @@ export class Planner {
       coordinates: { space: 'planner_image_pixels', ...coordinates },
       planner_action: proposed.action,
     });
+    const inventory: Inventory | null = proposed.exploration ? decode('exploration-view', {
+      ...proposed.exploration,
+      anchors: proposed.exploration.anchors.map((anchor) => ({
+        ...anchor, bounds: rectangle(anchor.bounds, coordinates, true),
+      })),
+      elements: proposed.exploration.elements.map((element) => ({
+        ...element, bounds: rectangle(element.bounds, coordinates, true),
+      })),
+    }) : null;
     const decision = decode('gameplay-decision', {
       ...proposed,
       action: projectAction(proposed.action, coordinates, true),
       sensitive_regions: proposed.sensitive_regions.map((bounds) =>
         rectangle(bounds, coordinates, true),
       ),
+      exploration: inventory,
     });
     runtime.record('gameplay.decision', { ...decision });
     this.turns += 1;

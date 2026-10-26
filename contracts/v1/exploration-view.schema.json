@@ -1,0 +1,201 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "page_key": {
+      "type": "string",
+      "maxLength": 240
+    },
+    "label": {
+      "type": "string",
+      "maxLength": 240
+    },
+    "variant": {
+      "type": "string",
+      "maxLength": 240
+    },
+    "layout": {
+      "type": "string",
+      "maxLength": 240
+    },
+    "kind": {
+      "enum": [
+        "screen",
+        "modal",
+        "external"
+      ]
+    },
+    "authenticated": {
+      "type": "boolean"
+    },
+    "inventory_complete": {
+      "type": "boolean"
+    },
+    "is_root": {
+      "type": "boolean"
+    },
+    "anchors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "maxLength": 240
+          },
+          "bounds": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "minItems": 4,
+            "maxItems": 4
+          },
+          "resource_id": {
+            "type": "string",
+            "maxLength": 240
+          }
+        },
+        "required": [
+          "key",
+          "bounds",
+          "resource_id"
+        ],
+        "additionalProperties": false
+      },
+      "maxItems": 12
+    },
+    "elements": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "maxLength": 240
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 240
+          },
+          "container": {
+            "type": "string",
+            "maxLength": 240
+          },
+          "item": {
+            "type": "string",
+            "maxLength": 240
+          },
+          "kind": {
+            "enum": [
+              "tap",
+              "scroll"
+            ]
+          },
+          "intent": {
+            "enum": [
+              "navigate",
+              "tab",
+              "close",
+              "resource",
+              "input",
+              "scroll"
+            ]
+          },
+          "bounds": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "minItems": 4,
+            "maxItems": 4
+          },
+          "risk": {
+            "enum": [
+              "none",
+              "game_resource",
+              "real_payment",
+              "account_delete",
+              "unknown"
+            ]
+          },
+          "availability": {
+            "enum": [
+              "enabled",
+              "locked",
+              "disabled"
+            ]
+          },
+          "condition": {
+            "type": "string",
+            "maxLength": 240
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "container",
+          "item",
+          "kind",
+          "intent",
+          "bounds",
+          "risk",
+          "availability",
+          "condition"
+        ],
+        "additionalProperties": false
+      },
+      "maxItems": 500
+    },
+    "scroll_review": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "maxLength": 240
+          },
+          "at_end": {
+            "type": "boolean"
+          },
+          "unbounded": {
+            "type": "boolean"
+          },
+          "loading": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 240
+          }
+        },
+        "required": [
+          "key",
+          "at_end",
+          "unbounded",
+          "loading",
+          "reason"
+        ],
+        "additionalProperties": false
+      },
+      "maxItems": 20
+    }
+  },
+  "required": [
+    "page_key",
+    "label",
+    "variant",
+    "layout",
+    "kind",
+    "authenticated",
+    "inventory_complete",
+    "is_root",
+    "anchors",
+    "elements",
+    "scroll_review"
+  ],
+  "additionalProperties": false
+}
