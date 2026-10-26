@@ -4,10 +4,10 @@ import shlex
 from pathlib import Path
 
 from capture import masked_image
-from PIL import Image, ImageChops, ImageStat
+from PIL import Image, ImageChops, ImageDraw, ImageStat
 from runtime import same_runtime, snapshot
 
-from game_automation.common import FrameworkError
+from game_automation.common import FrameworkError, digest
 from game_automation.errors import ErrorCode
 
 
@@ -43,6 +43,21 @@ async def execute(device, request):
             and 0 <= top <= y < bottom <= display["height"]
         ):
             raise FrameworkError(ErrorCode.STALE_OBSERVATION)
+        guard = request.get("target_guard")
+        if guard and (
+            digest(reference.crop(bounds).tobytes()) != guard
+            or digest(current_image.crop(bounds).tobytes()) != guard
+        ):
+            raise FrameworkError(ErrorCode.STALE_OBSERVATION)
+        page_guard = request.get("page_guard")
+        if page_guard:
+            guarded_page = current_image.convert("L")
+            drawing = ImageDraw.Draw(guarded_page)
+            for region in page_guard["noise_regions"]:
+                drawing.rectangle(region, fill=0)
+            guarded_page = guarded_page.point(lambda value: value // 32 * 32)
+            if digest(guarded_page.tobytes()) != page_guard["sha256"]:
+                raise FrameworkError(ErrorCode.STALE_OBSERVATION)
         difference = ImageChops.difference(current_image.crop(bounds), reference.crop(bounds))
         if sum(ImageStat.Stat(difference).mean) / (3 * 255) > 0.12:
             raise FrameworkError(ErrorCode.STALE_OBSERVATION)

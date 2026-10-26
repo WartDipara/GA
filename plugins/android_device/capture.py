@@ -57,6 +57,7 @@ async def read_controls(device, display):
                 raise
             await device.commands.event("ui_tree.cleanup_failed", {"error": exc.code})
     controls = []
+    parents = {child: parent for parent in root.iter() for child in parent}
     for node in root.iter("node"):
         values = node.attrib
         if values.get("package") != display["package_name"]:
@@ -66,6 +67,11 @@ async def read_controls(device, display):
             continue
         rectangle = list(map(int, bounds.groups()))
         label = values.get("text", "") or values.get("content-desc", "")
+        parent = parents.get(node)
+        ancestors = []
+        while parent is not None:
+            ancestors.append(parent.attrib.get("resource-id", "") or parent.attrib.get("class", ""))
+            parent = parents.get(parent)
         control = {
             "resource_id": values.get("resource-id", ""),
             "label": device.commands.sanitize(label),
@@ -73,6 +79,9 @@ async def read_controls(device, display):
             "bounds": rectangle,
             "clickable": values.get("clickable") == "true",
             "sensitive": values.get("password") == "true",
+            "scrollable": values.get("scrollable") == "true",
+            "enabled": values.get("enabled") != "false",
+            "container_ref": "/".join(reversed(ancestors))[-2000:],
         }
         controls.append(control)
     controls = controls[:500]

@@ -15,3 +15,33 @@ a candidate locator; only post-action verification promotes it. A deviated resul
 locator while retaining its history. Dynamic appearance does not establish a new business state.
 
 Rendered screenshots do not prove delivery to a translation hook or whole-game text coverage.
+
+## Localization and scheduling
+
+Memory separates semantic page/item identity, layout-bound locators and current observation bounds.
+The local perception plugin matches unique accessible labels, or two coherent stable visual anchors
+and one exact edge patch. Whole-page comparison ignores only recurrent non-target motion regions
+learned over at least three inventory observations. Approximate, ambiguous, changed-layout and
+unverified visual matches return to planning. Before local input, the executor checks the current
+page fingerprint and exact target pixels again; a changed frame rejects the proposal before input.
+Only verified outcomes promote a locator; deviations retire that locator version.
+
+Current-page pending items precede navigation along a shortest verified safe path. Resource actions
+still require planning and cannot be replayed merely because a balance changes. Known page return
+paths may use local verification, with a fresh planner inventory after at most five local steps.
+System Back is recorded as navigation, separately identified from screen tap targets.
+
+Scrollable containers retain content fingerprints and per-container traversal state. Each swipe
+exposes approximately 70 percent of the container with overlap. Bottom confirmation requires two
+unchanged viewport results plus semantic bottom evidence. Repeated cycles, confirmed unbounded
+content or 100 unique viewports seal that region as limited across resume and new batches.
+
+External closure requires an originating tap, a newly observed focused window/task and the same
+living game process. The runtime backs out only from that correlated window, then requires its
+disappearance and the original game process in focus before recording external-skipped. Ambiguous
+ownership cannot authorize closing an unrelated window. No browser force-stop or data reset occurs.
+
+New pages/items, first verified operations and new scroll viewports advance the watchdog. Reopening
+old nodes, animations and repeated navigation do not. Pending action links are checkpointed before
+dispatch; catalog reconciliation finishes before clearing a pending action. The existing action
+ledger remains authoritative, and unknown actions are never automatically replayed.

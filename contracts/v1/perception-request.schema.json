@@ -49,6 +49,16 @@
           },
           "sensitive": {
             "type": "boolean"
+          },
+          "scrollable": {
+            "type": "boolean"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "container_ref": {
+            "type": "string",
+            "maxLength": 2000
           }
         },
         "required": [

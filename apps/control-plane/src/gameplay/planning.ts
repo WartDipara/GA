@@ -80,7 +80,10 @@ function projectAction(
 export class Planner {
   turns = 0;
   mappingUntried: boolean;
-  constructor(readonly runtime: Runtime, readonly catalog: Catalog | null = null) {
+  constructor(
+    readonly runtime: Runtime,
+    readonly catalog: Catalog | null = null,
+  ) {
     const progress = runtime.progress.data;
     if (progress.planner_coordinate_space !== 'bounded-image-v1') {
       if (progress['semantic_stall']) {
@@ -165,6 +168,7 @@ export class Planner {
       : null;
     const perception = {
       ...facts,
+      motion_regions: (facts.motion_regions ?? []).map((bounds) => rectangle(bounds, coordinates)),
       candidates: facts.candidates.map((candidate) => ({
         ...candidate,
         bounds: rectangle(candidate.bounds, coordinates),
@@ -250,15 +254,19 @@ export class Planner {
       coordinates: { space: 'planner_image_pixels', ...coordinates },
       planner_action: proposed.action,
     });
-    const inventory: Inventory | null = proposed.exploration ? decode('exploration-view', {
-      ...proposed.exploration,
-      anchors: proposed.exploration.anchors.map((anchor) => ({
-        ...anchor, bounds: rectangle(anchor.bounds, coordinates, true),
-      })),
-      elements: proposed.exploration.elements.map((element) => ({
-        ...element, bounds: rectangle(element.bounds, coordinates, true),
-      })),
-    }) : null;
+    const inventory: Inventory | null = proposed.exploration
+      ? decode('exploration-view', {
+          ...proposed.exploration,
+          anchors: proposed.exploration.anchors.map((anchor) => ({
+            ...anchor,
+            bounds: rectangle(anchor.bounds, coordinates, true),
+          })),
+          elements: proposed.exploration.elements.map((element) => ({
+            ...element,
+            bounds: rectangle(element.bounds, coordinates, true),
+          })),
+        })
+      : null;
     const decision = decode('gameplay-decision', {
       ...proposed,
       action: projectAction(proposed.action, coordinates, true),

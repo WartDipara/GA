@@ -146,7 +146,13 @@ def build_workflow(names):
             play_input,
             requires=("prepare", "launch"),
             per_apk=True,
-            capabilities=("ai.decide", "perception.analyze", "planner.image"),
+            capabilities=(
+                "ai.decide",
+                "perception.analyze",
+                "perception.locate",
+                "perception.viewport",
+                "planner.image",
+            ),
         ),
         Stage("report", None, report_output),
     )

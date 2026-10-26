@@ -16,7 +16,10 @@ def same_runtime(expected, current):
     process_matches = old is None and new is None
     if old is not None and new is not None:
         process_matches = all(old[key] == new[key] for key in identity)
-    return process_matches and all(expected[key] == current[key] for key in keys)
+    window_matches = "foreground_window" not in expected or expected[
+        "foreground_window"
+    ] == current.get("foreground_window")
+    return process_matches and window_matches and all(expected[key] == current[key] for key in keys)
 
 
 async def snapshot(device, package):
@@ -64,6 +67,30 @@ async def snapshot(device, package):
             if entry not in tasks:
                 tasks.append(entry)
     main = next((entry for entry in processes if entry["name"] == package), None)
+    window_ids = list(dict.fromkeys(re.findall(r"Window\{([a-f0-9]+)\b", windows["stdout"])))
+    foreground_window = None
+    if display:
+        focused = re.search(
+            r"mCurrentFocus=Window\{([a-f0-9]+)\s+u\d+\s+"
+            + re.escape(display["package_name"])
+            + r"/",
+            windows["stdout"],
+        )
+        task_match = next(
+            (
+                re.search(r"\bt(\d+)\b", line)
+                for line in activities["stdout"].splitlines()
+                if "ResumedActivity" in line and display["activity"] in line
+            ),
+            None,
+        )
+        if focused:
+            foreground_window = {
+                "window_id": focused[1],
+                "task_id": int(task_match[1]) if task_match else None,
+                "display_id": display["display_id"],
+                "package_name": display["package_name"],
+            }
     alive = main is not None and not main["state"].startswith("Z")
     result = {
         "boot_id": boot["stdout"].strip(),
@@ -73,6 +100,8 @@ async def snapshot(device, package):
         "tasks": tasks,
         "alive": alive,
         "focused_display": display,
+        "foreground_window": foreground_window,
+        "window_ids": window_ids,
     }
     return result
 

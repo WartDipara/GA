@@ -3,14 +3,14 @@ import { readFile } from 'node:fs/promises';
 import { FileUsage } from '../storage/file-usage.js';
 import { performance } from 'node:perf_hooks';
 import { setTimeout as delay } from 'node:timers/promises';
-import { decode, object, text } from '@game-automation/contracts';
+import { decode, object, text, type ContractMap } from '@game-automation/contracts';
 import { ErrorCode, FrameworkError, frameworkError } from '@game-automation/contracts/errors';
 import { Host } from '../kernel/host.js';
 import { requireDiskSpace } from '../storage/disk.js';
 import { integer, uid, within, type Fields } from '../storage/values.js';
 import type { Execution } from '../workflow/execution.js';
 import { ProgressStore } from './progress.js';
-import type { Action, Facts, Observation } from './types.js';
+import type { Action, Facts, Observation, Pending } from './types.js';
 import { Diagnostics } from './diagnostics.js';
 
 export class Runtime {
@@ -168,7 +168,14 @@ export class Runtime {
     }
   }
 
-  async perform(action: Action, observation: Observation, source = 'operator'): Promise<string> {
+  async perform(
+    action: Action,
+    observation: Observation,
+    source = 'operator',
+    targetGuard: string | null = null,
+    pageGuard: ContractMap['perception-locate-result']['page_guard'] = null,
+    exploration: Pending['exploration'] | null = null,
+  ): Promise<string> {
     await this.admit();
     decode('gameplay-action', action);
     const data = this.progress.data;
@@ -194,6 +201,7 @@ export class Runtime {
       run_id: this.runId,
       image_ref: observation.evidence_ref,
       step_id: this.step,
+      ...(exploration ? { exploration } : {}),
     };
     this.progress.save();
     const request = {
@@ -204,6 +212,8 @@ export class Runtime {
       sensitive_regions: observation.sensitive_regions,
       observation_path: within(this.directory, observation.evidence_ref),
       credential_path: this.credentialPath,
+      target_guard: targetGuard,
+      page_guard: pageGuard,
     };
     let result: Fields;
     try {
