@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
+import { flushSync } from 'react-dom';
 import { workspaceView, type WorkspaceView } from '@game-automation/contracts/workspace';
-import theme from '../../../config/ui-theme.json' with { type: 'json' };
 import './workspace.css';
 
 function duration(value: number | null): string {
@@ -9,86 +9,18 @@ function duration(value: number | null): string {
   return value < 1000 ? `${Math.round(value)} ms` : `${(value / 1000).toFixed(1)} s`;
 }
 
-function Icon({ name }: { name: string }) {
-  const paths: Record<string, string> = {
-    grid: 'M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h7v7h-7z',
-    trace: 'M5 3v12h14 M5 7h14 M5 11h9 M19 3v4 M14 7v4 M19 11v4 M5 15v6',
-    sun: 'M12 2v2 M12 20v2 M2 12h2 M20 12h2 M5 5l1.5 1.5 M17.5 17.5L19 19 M5 19l1.5-1.5 M17.5 6.5L19 5 M16 12a4 4 0 1 1-8 0a4 4 0 1 1 8 0',
-    arrow: 'M5 12h14 M13 6l6 6-6 6',
-  };
+function ArrowIcon() {
   return (
-    <svg className="ui-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d={paths[name] ?? paths['grid']} />
+    <svg
+      className="ui-icon"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      aria-hidden="true"
+    >
+      <path d="M5 12h14 M13 6l6 6-6 6" />
     </svg>
-  );
-}
-
-function ThemeButton() {
-  const [mode, setMode] = useState(() => {
-    try {
-      const saved = localStorage.getItem('game-auto-theme');
-      return saved === 'light' || saved === 'dark' ? saved : theme.default_mode;
-    } catch {
-      return theme.default_mode;
-    }
-  });
-  useEffect(() => {
-    document.documentElement.dataset['theme'] = mode;
-    try {
-      localStorage.setItem('game-auto-theme', mode);
-    } catch {
-      // The selected theme still works when browser storage is disabled.
-    }
-  }, [mode]);
-  return (
-    <button className="ui-theme" onClick={() => setMode(mode === 'dark' ? 'light' : 'dark')}>
-      <Icon name="sun" />
-      {mode === 'dark' ? 'Light theme' : 'Dark theme'}
-    </button>
-  );
-}
-
-function Shell({ view }: { view: WorkspaceView }) {
-  return (
-    <>
-      <aside className="ui-sidebar" aria-label="Workspace navigation">
-        <a className="ui-logo" href={view.links[0]?.href ?? '#'}>
-          <span className="ui-logo-mark">
-            <Icon name="trace" />
-          </span>
-          <span>
-            Game Automation<small>OBSERVABILITY</small>
-          </span>
-        </a>
-        <p className="ui-nav-label">WORKSPACE</p>
-        <nav className="ui-links">
-          {view.links.map((link, index) => (
-            <a key={link.href} href={link.href} aria-current={link.current ? 'page' : undefined}>
-              <Icon name={index === 0 ? 'grid' : 'trace'} />
-              {link.label}
-            </a>
-          ))}
-        </nav>
-        <div className="ui-sidebar-footer">
-          <span className="ui-dot" />
-          Local evidence store
-          <small>Read-only workspace</small>
-        </div>
-      </aside>
-      <div className="ui-topbar">
-        <span>
-          Workspace <span className="ui-separator">/</span>
-          <strong>{view.links.find((link) => link.current)?.label ?? view.title}</strong>
-        </span>
-        <div>
-          <span className="ui-local">
-            <span className="ui-dot" />
-            Local
-          </span>
-          <ThemeButton />
-        </div>
-      </div>
-    </>
   );
 }
 
@@ -180,7 +112,7 @@ function SlowCalls({ view }: { view: WorkspaceView }) {
             <span>{call.label}</span>
             <strong>
               {duration(call.value)}
-              <Icon name="arrow" />
+              <ArrowIcon />
             </strong>
           </div>
           <div className="ui-bar-track">
@@ -295,18 +227,6 @@ function Insights({ initial }: { initial: WorkspaceView }) {
 }
 
 const source = document.getElementById('workspace-data');
-try {
-  const saved = localStorage.getItem('game-auto-theme');
-  document.documentElement.dataset['theme'] =
-    saved === 'light' || saved === 'dark' ? saved : theme.default_mode;
-} catch {
-  document.documentElement.dataset['theme'] = theme.default_mode;
-}
-const legacyThemeButton = document.getElementById('theme-toggle');
-if (legacyThemeButton) {
-  legacyThemeButton.textContent =
-    document.documentElement.dataset['theme'] === 'light' ? 'Dark' : 'Light';
-}
 let initial: WorkspaceView | null = null;
 try {
   const value: unknown = JSON.parse(source?.textContent ?? 'null');
@@ -315,16 +235,11 @@ try {
   // Original report content remains available if the enhanced view cannot load.
 }
 if (initial) {
-  const shell = document.createElement('div');
-  shell.id = 'workspace-shell';
-  document.body.prepend(shell);
-  createRoot(shell).render(<Shell view={initial} />);
-  document.body.classList.add('ui-ready');
   const main = document.querySelector('main');
   const before = main?.querySelector('nav, .history-toolbar, table');
   if (main && source?.dataset['charts'] === 'true') {
     const charts = document.createElement('div');
     main.insertBefore(charts, before?.parentElement === main ? before : null);
-    createRoot(charts).render(<Insights initial={initial} />);
+    flushSync(() => createRoot(charts).render(<Insights initial={initial} />));
   }
 }

@@ -100,17 +100,23 @@ class TraceHandler(BaseHTTPRequestHandler):
     def log_message(self, format_string, *arguments):
         pass
 
-    def respond(self, status, content, content_type):
+    def respond(self, status, content, content_type, *, etag=None):
         if (
             content_type == "text/html; charset=utf-8"
             and "cache/typescript/trace_ui.css" not in content
         ):
             content = theme_document(content, "/")
         body = content.encode("utf-8") if isinstance(content, str) else content
+        if etag and self.headers.get("If-None-Match") == etag:
+            status = 304
+            body = b""
         self.send_response(status)
         self.send_header("Content-Type", content_type)
-        self.send_header("Content-Length", str(len(body)))
-        self.send_header("Cache-Control", "no-store")
+        if status != 304:
+            self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-cache" if etag else "no-store")
+        if etag:
+            self.send_header("ETag", etag)
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("Referrer-Policy", "no-referrer")
         self.send_header("X-Frame-Options", "DENY")
@@ -135,7 +141,9 @@ class TraceHandler(BaseHTTPRequestHandler):
             if path in ("/cache/typescript/trace_ui.js", "/cache/typescript/trace_ui.css"):
                 asset = self.server.project_root / "var" / path.lstrip("/")
                 content_type = "text/javascript" if path.endswith(".js") else "text/css"
-                self.respond(200, asset.read_bytes(), content_type + "; charset=utf-8")
+                content = asset.read_bytes()
+                etag = f'"{hashlib.sha256(content).hexdigest()}"'
+                self.respond(200, content, content_type + "; charset=utf-8", etag=etag)
                 return
             if not (self.server.project_root / "var/state.sqlite").is_file():
                 if path in ("/", "/reports/history.html"):

@@ -343,7 +343,7 @@
     else refresh();
   });
   element('theme-toggle').addEventListener('click', () => {
-    const light = document.documentElement.dataset.theme !== 'light';
+    const light = getComputedStyle(document.documentElement).colorScheme !== 'light';
     document.documentElement.dataset.theme = light ? 'light' : 'dark';
     try {
       localStorage.setItem('game-auto-theme', light ? 'light' : 'dark');
