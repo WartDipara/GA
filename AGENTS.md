@@ -69,6 +69,14 @@
   queries and keep worker counts bounded. Introduce Node-API/C++ for measured CPU bottlenecks rather
   than by default. Define buffer ownership before using transfer or shared memory; never share live
   SQLite connections or mutable writer state across workers or native capabilities.
+- Generate trace records, timings, metrics, replay and factual reports deterministically in code.
+  Never invoke AI to compose logs, fill missing facts or render reports. Store model proposals and
+  public summaries as attributed evidence; optional AI analysis requires an explicit request and
+  remains separate from authoritative records.
+- Preserve call boundaries, correlation IDs, inputs/outputs, measured durations, errors, retries and
+  action outcomes. Bound event batches and preview sizes; use file references for large artifacts.
+  Optimize measured overhead without dropping critical evidence, weakening action durability or
+  adding unbounded queues. Never claim low resource use without measurements.
 - Never replay actions with unknown outcomes. Observe and reconcile before continuing.
 - Store test credentials only in the current Windows user's DPAPI-encrypted local vault. Never
   include plaintext credentials in arguments, prompts, traces, screenshots, or tracked files.
