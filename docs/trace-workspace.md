@@ -64,6 +64,18 @@ returning successfully. An abrupt process crash can leave the last uncommitted f
 recovery must not fabricate them. `ai.trace.buffer` records actual batch and queue measurements.
 The JSON-RPC peer also bounds queued bytes, pending requests and active handlers.
 
+The live service folds only events after each cached run's watermark. Its connection-free LRU
+retains at most four folds and 8 MiB of serialized fold data; oversized folds remain rebuildable
+without entering the cache. An older request snapshot never consumes a newer cached fold.
+The single writer creates indexes for run/kind/sequence and run/span/sequence queries at startup.
+The viewer never creates indexes or writes projections to the business database.
+
+Live call pages load conversation bodies and action figures only when their views are opened.
+Polling revisions ignore transport-only fragments that do not change the displayed projection.
+Unchanged revisions return 204; hidden or closed tabs cancel pending refreshes and polling.
+Offline exports retain complete views and do not require the live service. Writer health is shown
+under Performance, with missing historical measurements explicitly unavailable.
+
 ## Find a game or task
 
 The task-history table has a sticky search field. Type any part of a recorded game name, package

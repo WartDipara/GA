@@ -1,6 +1,7 @@
 """Project recorded boundaries into semantic spans; never infer missing execution facts."""
 
 import json
+from copy import deepcopy
 
 from .pricing import reference_cost
 
@@ -122,7 +123,81 @@ def enrich_span(span, event):
         span["events"].append(reference)
 
 
-def project_trace(store, run_id):
+class TraceFold:
+    def __init__(self):
+        self.through = 0
+        self.spans = {}
+        self.session_totals = {}
+        self.baselines = {}
+        self.root_events = []
+        self.root_attributes = {}
+
+    def size(self):
+        encoded = json.dumps(self.__dict__, ensure_ascii=False).encode("utf-8")
+        return len(encoded)
+
+    def update(self, store, run_id, watermark):
+        kinds = (*STARTS, *ENDS, *DETAILS)
+        for event in store.iter_events(
+            run_id, kinds=tuple(STARTS), after=self.through, through=watermark
+        ):
+            payload = event["payload"]
+            name = payload.get("capability") or payload.get("stage") or event["kind"]
+            kind = "chat" if name == "ai.decide" else STARTS[event["kind"]]
+            span = span_record(
+                run_id, event["span_id"], name, kind, event["timestamp"], event["parent_span_id"]
+            )
+            span["attributes"]["gen_ai.operation.name"] = {
+                "step": "react",
+                "chat": "chat",
+                "tool": "execute_tool",
+                "chain": "chain",
+            }[kind]
+            if kind == "step":
+                span["attributes"]["gen_ai.step.id"] = event["span_id"]
+            self.spans[event["span_id"]] = span
+        for event in store.iter_events(run_id, kinds=kinds, after=self.through, through=watermark):
+            target = self.spans.get(event["span_id"])
+            if target is not None:
+                enrich_span(target, event)
+                payload = event["payload"]
+                if event["kind"] == "ai.session":
+                    thread = payload.get("thread_id")
+                    baseline = self.session_totals.get(thread)
+                    if payload.get("fresh") is True:
+                        baseline = dict.fromkeys(USAGE_ATTRIBUTES, 0)
+                    self.baselines[target["span_id"]] = baseline
+                if event["kind"] == "ai.usage":
+                    usage = payload.get("usage") or {}
+                    total = usage.get("total") or {}
+                    baseline = self.baselines.get(target["span_id"])
+                    delta = None
+                    if baseline is not None:
+                        delta = {
+                            key: total[key] - baseline[key]
+                            if type(total.get(key)) is int and type(baseline.get(key)) is int
+                            else None
+                            for key in USAGE_ATTRIBUTES
+                        }
+                        if any(value is not None and value < 0 for value in delta.values()):
+                            delta = None
+                    target["usage"] = {
+                        "attributed": delta,
+                        "provider_last_report": usage.get("last"),
+                        "session_total": total,
+                    }
+                    if target["attributes"].get("gen_ai.session.id"):
+                        self.session_totals[target["attributes"]["gen_ai.session.id"]] = total
+            else:
+                self.root_events.append(
+                    {"event_id": event["event_id"], "seq": event["seq"], "kind": event["kind"]}
+                )
+                if event["kind"] == "run.state" and event["payload"].get("reason"):
+                    self.root_attributes["game_automation.run_error"] = event["payload"]["reason"]
+        self.through = watermark
+
+
+def project_trace(store, run_id, *, fold=None):
     run = store.run(run_id)
     root = span_record(run_id, run_id, run["mode"], "entry", run["created_at"])
     if run["mode"] == "gameplay":
@@ -143,73 +218,20 @@ def project_trace(store, run_id):
         root["links"].append({"run_id": inputs["workflow_run"], "relation": "owning_workflow"})
     for event in store.events(run_id, kinds=("run.continued_from",)):
         root["links"].append({"run_id": event["payload"]["run_id"], "relation": "continued_from"})
-    kinds = (*STARTS, *ENDS, *DETAILS)
     watermark = store.db.execute(
         "SELECT COALESCE(MAX(seq),0) FROM events WHERE run_id=?", (run_id,)
     ).fetchone()[0]
-    spans = {}
-    session_totals = {}
-    baselines = {}
-    for event in store.iter_events(run_id, kinds=tuple(STARTS), through=watermark):
-        payload = event["payload"]
-        name = payload.get("capability") or payload.get("stage") or event["kind"]
-        kind = "chat" if name == "ai.decide" else STARTS[event["kind"]]
-        span = span_record(
-            run_id, event["span_id"], name, kind, event["timestamp"], event["parent_span_id"]
-        )
-        span["attributes"]["gen_ai.operation.name"] = {
-            "step": "react",
-            "chat": "chat",
-            "tool": "execute_tool",
-            "chain": "chain",
-        }[kind]
-        if kind == "step":
-            span["attributes"]["gen_ai.step.id"] = event["span_id"]
-        spans[event["span_id"]] = span
+    fold = fold or TraceFold()
+    fold.update(store, run_id, watermark)
+    spans = deepcopy(fold.spans)
+    root["events"] = list(fold.root_events)
+    root["attributes"].update(fold.root_attributes)
     for span in spans.values():
         if span["parent_span_id"] not in spans:
             recorded_parent = span["parent_span_id"]
             if recorded_parent:
                 span["attributes"]["game_automation.unavailable_parent"] = recorded_parent
             span["parent_span_id"] = run_id
-    for event in store.iter_events(run_id, kinds=kinds, through=watermark):
-        target = spans.get(event["span_id"])
-        if target is not None:
-            enrich_span(target, event)
-            payload = event["payload"]
-            if event["kind"] == "ai.session":
-                thread = payload.get("thread_id")
-                baseline = session_totals.get(thread)
-                if payload.get("fresh") is True:
-                    baseline = dict.fromkeys(USAGE_ATTRIBUTES, 0)
-                baselines[target["span_id"]] = baseline
-            if event["kind"] == "ai.usage":
-                usage = payload.get("usage") or {}
-                total = usage.get("total") or {}
-                baseline = baselines.get(target["span_id"])
-                delta = None
-                if baseline is not None:
-                    delta = {
-                        key: total[key] - baseline[key]
-                        if type(total.get(key)) is int and type(baseline.get(key)) is int
-                        else None
-                        for key in USAGE_ATTRIBUTES
-                    }
-                    if any(value is not None and value < 0 for value in delta.values()):
-                        delta = None
-                target["usage"] = {
-                    "attributed": delta,
-                    "provider_last_report": usage.get("last"),
-                    "session_total": total,
-                }
-                if target["attributes"].get("gen_ai.session.id"):
-                    session_totals[target["attributes"]["gen_ai.session.id"]] = total
-        else:
-            root["events"].append(
-                {"event_id": event["event_id"], "seq": event["seq"], "kind": event["kind"]}
-            )
-            if event["kind"] == "run.state" and event["payload"].get("reason"):
-                root["attributes"]["game_automation.run_error"] = event["payload"]["reason"]
     for span in spans.values():
         if span["end_time"] is None:
             span["status"] = "running" if run["status"] == "running" else "incomplete"

@@ -13,13 +13,16 @@ from .action_evidence import action_figures
 from .agent_metrics import trace_metrics, version_identity
 from .agent_quality import quality_report
 from .agent_sessions import session_replay
+from .diagnostics import writer_health
 from .execution import snapshot_metadata
 from .gameplay import action_path
 from .trace_projection import project_trace
 
 
-def agent_view(store, run_id):
-    view = project_trace(store, run_id)
+def agent_view(store, run_id, *, projector=None, detail_views=None):
+    view = projector.project(store, run_id) if projector else project_trace(store, run_id)
+    loaded = {"calls", "performance", "quality", "insights"}
+    loaded.update(("sessions", "actions") if detail_views is None else detail_views)
     view["snapshot"] = snapshot_metadata(store, run_id)
     owners = store.events(run_id, kinds=("agent.actor_assigned",), limit=1)
     actor = owners[0]["payload"]["actor_ref"] if owners else None
@@ -27,9 +30,19 @@ def agent_view(store, run_id):
     view["version"] = version_identity(store, run_id)
     view["metrics"] = trace_metrics(view["spans"], actor)
     view["quality"] = quality_report(store, run_id, view["spans"])
-    view["replay"] = session_replay(store, run_id, view["spans"])
-    view["actions"] = action_path(store, run_id) if store.run(run_id)["mode"] == "gameplay" else []
-    view["action_cards"] = render_action_cards(store, run_id, view["actions"])
+    view["replay"] = (
+        session_replay(store, run_id, view["spans"]) if "sessions" in loaded else {"sessions": []}
+    )
+    view["actions"] = (
+        action_path(store, run_id)
+        if "actions" in loaded and store.run(run_id)["mode"] == "gameplay"
+        else []
+    )
+    view["action_cards"] = (
+        render_action_cards(store, run_id, view["actions"]) if "actions" in loaded else []
+    )
+    view["loaded_views"] = sorted(loaded)
+    view["writer_health"] = writer_health(store, run_id)
     view["analyses"] = []
     for run in store.task_runs(view["trace_id"]):
         if run["mode"] != "analysis" or store.run_task(run["run_id"]).get("source_run") != run_id:
@@ -62,8 +75,8 @@ def render_action_cards(store, run_id, actions):
     return action_cards
 
 
-def render_agent_trace(store, run_id):
-    view = agent_view(store, run_id)
+def render_agent_trace(store, run_id, *, projector=None, live=False):
+    view = agent_view(store, run_id, projector=projector, detail_views=() if live else None)
     assets = Path(__file__).parent / "web"
     script = (assets / "agent-trace.js").read_text(encoding="utf-8")
     script_element = f"<script>{script}</script>"

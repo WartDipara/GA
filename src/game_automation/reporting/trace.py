@@ -34,10 +34,10 @@ def export_context(store, run_id):
     return path
 
 
-def render_trace(store, run_id):
+def render_trace(store, run_id, *, projector=None, live=False):
     from .agent_trace import render_agent_trace
 
-    return render_agent_trace(store, run_id)
+    return render_agent_trace(store, run_id, projector=projector, live=live)
 
 
 def render_context(store, run_id):
