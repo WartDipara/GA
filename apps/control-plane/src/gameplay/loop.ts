@@ -197,7 +197,9 @@ export async function runLoop(runtime: Runtime, initial: Observation): Promise<v
       ['real_payment', 'account_delete', 'unknown'].includes(decision.risk)
     ) {
       if (exploration && page) {
-        runtime.record('exploration.branch.skipped', {
+        runtime.record('exploration.branch.blocked', {
+          observation_id: view.observation.observation_id,
+          page_id: page.id,
           reason: decision.reason_summary,
           next: exploration.hint(),
         });
@@ -205,7 +207,6 @@ export async function runLoop(runtime: Runtime, initial: Observation): Promise<v
           complete(runtime, decision, view.observation, battle);
           return;
         }
-        continue;
       }
       throw new FrameworkError(ErrorCode.GAMEPLAY_BLOCKED, decision.reason_summary);
     }
@@ -215,6 +216,7 @@ export async function runLoop(runtime: Runtime, initial: Observation): Promise<v
           reason: 'Frontier, viewport scans or root recheck remain',
           next: exploration.hint(),
         });
+        watchdog.withoutDispatch(view.observation, 'unsettled-exploration-frontier');
         continue;
       }
       complete(runtime, decision, view.observation, battle);
@@ -242,6 +244,7 @@ export async function runLoop(runtime: Runtime, initial: Observation): Promise<v
           'Enumerate the proposed visible target in this viewport inventory; exclude covered controls. No device input occurred for this proposal.',
         next: exploration.hint(),
       });
+      watchdog.withoutDispatch(view.observation, 'rejected-exploration-proposal');
       continue;
     }
     let actionId: string;
