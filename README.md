@@ -64,6 +64,7 @@ Use the execution ID printed by the command:
 
 ```powershell
 uv run game-auto status <run_id>
+uv run game-auto exploration <run_id> --format json
 uv run game-auto resume <run_id> --input var/inputs/apks.json
 uv run game-auto cancel <run_id>
 uv run game-auto report <run_id>

@@ -73,7 +73,29 @@ export async function reviewScroll(
   element.status = limited ? 'limited' : atEnd ? 'verified' : 'pending';
   const session = catalog.session();
   if (session && !prior?.data.viewports.includes(current)) session.data.novelty += 1;
-  catalog.save(session ? [scroll, element, session] : [scroll, element]);
+  const changes = session ? [scroll, element, session] : [scroll, element];
+  if (limited)
+    for (const record of records) {
+      if (
+        record.kind !== 'element' ||
+        record.parent_id !== element.parent_id ||
+        record.status !== 'pending' ||
+        record.id === element.id
+      )
+        continue;
+      const bounds = record.data.bounds;
+      const region = element.data.bounds;
+      if (
+        bounds[0] >= region[0] &&
+        bounds[1] >= region[1] &&
+        bounds[2] <= region[2] &&
+        bounds[3] <= region[3]
+      ) {
+        record.status = 'limited';
+        changes.push(record);
+      }
+    }
+  catalog.save(changes);
   runtime.record('exploration.scroll', {
     element_id: element.id,
     action_id: pending.action_id,

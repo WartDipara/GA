@@ -195,8 +195,20 @@ export async function runLoop(runtime: Runtime, initial: Observation): Promise<v
     if (
       decision.disposition === 'blocked' ||
       ['real_payment', 'account_delete', 'unknown'].includes(decision.risk)
-    )
+    ) {
+      if (exploration && page) {
+        runtime.record('exploration.branch.skipped', {
+          reason: decision.reason_summary,
+          next: exploration.hint(),
+        });
+        if (!exploration.hint() && exploration.complete(page)) {
+          complete(runtime, decision, view.observation, battle);
+          return;
+        }
+        continue;
+      }
       throw new FrameworkError(ErrorCode.GAMEPLAY_BLOCKED, decision.reason_summary);
+    }
     if (decision.disposition === 'complete') {
       if (exploration && !exploration.complete(page)) {
         runtime.record('exploration.completion.deferred', {

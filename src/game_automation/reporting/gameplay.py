@@ -164,7 +164,8 @@ def write_html(store, run_id, report):
         "A local predicate verifies only its stated condition.</p>"
         f"<pre>{escaped(json.dumps(summary, ensure_ascii=False, indent=2))}</pre>"
         '<p><a href="gameplay.json">Complete gameplay data</a> · '
-        '<a href="trace.html">Calls and model context</a></p>'
+        '<a href="trace.html">Calls and model context</a> · '
+        '<a href="exploration.html">Exploration catalog</a></p>'
         "<p>HTML shows the latest 2,000 actions and 1,000 decisions. "
         "The JSON report retains the complete batch history.</p>"
         "<h2>Longest execution times</h2>"

@@ -104,6 +104,15 @@ export class Catalog {
     const display = observation.runtime.focused_display;
     if (!display) throw new FrameworkError(ErrorCode.STALE_OBSERVATION);
     const seen = new Set<string>();
+    const sealed = records
+      .filter((record): record is Scroll => record.kind === 'scroll' && record.status === 'limited')
+      .map((region) =>
+        records.find(
+          (record): record is Element =>
+            record.kind === 'element' && record.id === region.data.element_id,
+        ),
+      )
+      .filter((element) => element?.parent_id === page.id);
     for (const candidate of view.elements) {
       const [left, top, right, bottom] = candidate.bounds;
       if (!(left < right && top < bottom && right <= display.width && bottom <= display.height))
@@ -130,8 +139,17 @@ export class Catalog {
       let status: Element['status'] = known?.status ?? 'pending';
       const blocked = candidate.availability !== 'enabled';
       const prohibited = ['real_payment', 'account_delete', 'unknown'].includes(candidate.risk);
+      const inSealedRegion = sealed.some(
+        (element) =>
+          element &&
+          candidate.bounds[0] >= element.data.bounds[0] &&
+          candidate.bounds[1] >= element.data.bounds[1] &&
+          candidate.bounds[2] <= element.data.bounds[2] &&
+          candidate.bounds[3] <= element.data.bounds[3],
+      );
       if (known?.status === 'limited' || known?.status === 'external_skipped')
         status = known.status;
+      else if (inSealedRegion && status === 'pending') status = 'limited';
       else if (blocked) status = 'locked';
       else if (prohibited) status = 'prohibited';
       else if (known?.status === 'locked') status = 'pending';

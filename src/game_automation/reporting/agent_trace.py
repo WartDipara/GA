@@ -78,6 +78,9 @@ def render_agent_trace(store, run_id):
         script_hash=script_hash,
         script_element=script_element,
         actions="",
+        exploration_link='<a href="exploration.html">Exploration catalog</a>'
+        if store.run(run_id)["mode"] in ("gameplay", "workflow")
+        else "",
     )
     result = (document, view)
     return result

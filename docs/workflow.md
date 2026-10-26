@@ -18,8 +18,10 @@ The scheduler does not create, boot, reset or recycle emulator instances. Existi
 still enforce workspace isolation. Use a dedicated instance for each APK, including duplicate URLs.
 An instance already bound to a different APK workspace is rejected before installation.
 
-The default goal is `login-and-interact`, using the encrypted local `default` credential profile.
-Override it with `--credentials <profile>` and `--goal explore` or `--goal advance-battle`.
+The default goal for new workflows is `explore`, using the encrypted local `default` credential
+profile. It proceeds from login into reachable-content exploration. Use `--credentials <profile>`
+and `--goal login-and-interact` or `--goal advance-battle` for an explicit alternative.
+Existing submissions retain their recorded goal across resume and new batches.
 `--max-turns <count>` sets an optional per-invocation planning boundary; zero leaves it unlimited.
 There is no new overall workflow deadline. `--adopt-existing` requires the installed APK fingerprint
 to match, and preserves application data. Default preparation follows the existing guarded install

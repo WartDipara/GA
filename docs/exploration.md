@@ -16,6 +16,13 @@ locator while retaining its history. Dynamic appearance does not establish a new
 
 Rendered screenshots do not prove delivery to a translation hook or whole-game text coverage.
 
+The trace toolbar links to `exploration.html`: a searchable, paginated element catalog with page
+transitions, scroll coverage and per-element localization evidence. The standalone trace service
+serves this view from current committed task records and polls every three seconds. Exported files
+remain offline snapshots at the execution's business outcome, including blocked/failed outcomes;
+later batches cannot silently change a rebuilt historical catalog. Report-only repair never calls
+a model or device. Full JSON accompanies the bounded on-screen previews.
+
 ## Localization and scheduling
 
 Memory separates semantic page/item identity, layout-bound locators and current observation bounds.

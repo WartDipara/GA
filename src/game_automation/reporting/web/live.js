@@ -202,6 +202,11 @@
       link.target = '_blank';
       link.rel = 'noopener noreferrer';
       inspector.append(link);
+      const catalog = node('a', 'Open exploration catalog', 'trace-link');
+      catalog.href = run.exploration_url;
+      catalog.target = '_blank';
+      catalog.rel = 'noopener noreferrer';
+      inspector.append(catalog);
     }
     if (!snapshot.events.some((entry) => entry.seq === event.seq)) {
       inspector.append(node('p', 'Pinned event is outside the latest 200-event window.', 'subtle'));

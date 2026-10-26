@@ -16,6 +16,7 @@ from game_automation.storage.store import Store
 from .agent_trace import agent_view
 from .compact_trace import render_compact
 from .execution import publication_status
+from .exploration import exploration_view, render_exploration
 from .trace import render_context, render_trace
 
 
@@ -27,6 +28,9 @@ def task_snapshot(store, task_id):
     executions = store.task_runs(task_id)
     for execution in executions:
         execution["trace_url"] = trace_url(task_id, execution["run_id"])
+        execution["exploration_url"] = (
+            f"/tasks/{task_id}/executions/{execution['run_id']}/reports/exploration.html"
+        )
         inputs = store.run_task(execution["run_id"])
         execution["label"] = inputs.get("workflow_key", execution["mode"])
         execution["parent_run"] = inputs.get("workflow_run")
@@ -162,6 +166,14 @@ class TraceHandler(BaseHTTPRequestHandler):
             except Exception:
                 document = render_compact(store, run_id, degraded=True)
             self.respond(200, document, "text/html; charset=utf-8")
+            return
+        if relative == "reports/exploration.html":
+            document, _ = render_exploration(store, run_id, current=True)
+            self.respond(200, document, "text/html; charset=utf-8")
+            return
+        if relative == "reports/exploration.json":
+            view = exploration_view(store, run_id)
+            self.respond(200, json.dumps(view, ensure_ascii=False), "application/json")
             return
         if relative == "reports/context.html":
             document, _ = render_context(store, run_id)

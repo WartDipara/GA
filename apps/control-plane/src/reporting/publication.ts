@@ -103,6 +103,7 @@ export async function publish(execution: Execution, runId: string): Promise<Fiel
   const components = ['outcome'];
   if (run['mode'] === 'gameplay') components.push('gameplay');
   if (run['mode'] === 'workflow') components.push('workflow');
+  if (['gameplay', 'workflow'].includes(text(run['mode']))) components.push('exploration');
   components.push('trace', 'context', 'task_index');
   const outcomes: Fields = {};
   let fallback: string | null = null;
@@ -163,6 +164,8 @@ export async function publish(execution: Execution, runId: string): Promise<Fiel
     'context.html',
   ];
   if (run['mode'] === 'gameplay') names.push('gameplay.json', 'gameplay.html');
+  if (['gameplay', 'workflow'].includes(text(run['mode'])))
+    names.push('exploration.json', 'exploration.html');
   if (run['mode'] === 'workflow') names.push('workflow.json');
   const files: Fields[] = [];
   for (const name of names) {
