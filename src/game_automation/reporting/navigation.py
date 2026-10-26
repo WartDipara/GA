@@ -6,6 +6,7 @@ import json
 import re
 from base64 import b64encode
 from pathlib import Path
+from string import Template
 from urllib.parse import quote
 
 from .workspace import workspace_view
@@ -72,8 +73,15 @@ def decorate_document(store, run_id, document, current):
 
 
 def workspace_document(document, store, *, run_id=None, task_id=None, current=""):
-    if 'id="workspace-data"' in document:
+    if 'id="workspace-shell"' in document:
         return document
+    # Retained reports may contain the earlier client-rendered shell bootstrap.
+    document = re.sub(
+        r'<script\b[^>]*id="workspace-data"[^>]*>.*?</script>',
+        "",
+        document,
+        flags=re.DOTALL,
+    )
     if run_id:
         prefix = "../../../../../"
         task_link = "../../../reports/task.html"
@@ -101,6 +109,14 @@ def workspace_document(document, store, *, run_id=None, task_id=None, current=""
         f'<script id="workspace-data" type="application/json" '
         f'data-charts="{str(charts).lower()}">{data}</script>'
     )
+    document = structured_document(document)
+    shell = workspace_shell(view)
+    document = re.sub(
+        r"<body\b([^>]*)>",
+        lambda match: workspace_body(match[1]) + shell,
+        document,
+        count=1,
+    )
     document = (
         document.replace("</head>", f"{source}</head>", 1)
         if "</head>" in document
@@ -109,16 +125,71 @@ def workspace_document(document, store, *, run_id=None, task_id=None, current=""
     return theme_document(document, prefix)
 
 
+def workspace_body(attributes):
+    if 'class="' in attributes:
+        attributes = attributes.replace('class="', 'class="ui-ready ', 1)
+    else:
+        attributes += ' class="ui-ready"'
+    return f"<body{attributes}>"
+
+
+def structured_document(document):
+    if "</head>" in document:
+        return document
+    document = re.sub(r"(<html\b[^>]*>)", r"\1<head>", document, count=1)
+    boundary = re.search(r"<(?:nav|h1|main)\b", document)
+    if boundary:
+        head = document[: boundary.start()]
+        content = document[boundary.start() :].replace("</html>", "")
+        document = f"{head}</head><body><main>{content}</main></body></html>"
+    return document
+
+
+def workspace_shell(view):
+    links = []
+    for index, link in enumerate(view["links"]):
+        selected = ' aria-current="page"' if link["current"] else ""
+        icon = "grid" if index == 0 else "trace"
+        links.append(
+            f'<a href="{html.escape(link["href"], quote=True)}"{selected}>'
+            f'<svg class="ui-icon" aria-hidden="true"><use href="#workspace-icon-{icon}" />'
+            f"</svg>{html.escape(link['label'])}</a>"
+        )
+    title = next((link["label"] for link in view["links"] if link["current"]), view["title"])
+    template = Template((ASSETS / "workspace-shell.template.html").read_text(encoding="utf-8"))
+    document = template.substitute(
+        home=html.escape(view["links"][0]["href"], quote=True),
+        links="".join(links),
+        current=html.escape(title),
+    )
+    return document
+
+
 def theme_document(document, prefix):
+    if 'id="workspace-theme-bootstrap"' in document:
+        return document
+    document = re.sub(r'<link\b[^>]*href="[^"]*/trace_ui.css"[^>]*>', "", document)
+    document = re.sub(r'<script\b[^>]*src="[^"]*/trace_ui.js"[^>]*></script>', "", document)
     assets = f"{prefix}cache/typescript/trace_ui"
     style = f'<link rel="stylesheet" href="{assets}.css">'
-    script = f'<script defer src="{assets}.js"></script>'
+    script = f'<script defer blocking="render" src="{assets}.js"></script>'
+    bootstrap = (ASSETS / "theme.js").read_text(encoding="utf-8")
+    digest = b64encode(hashlib.sha256(bootstrap.encode()).digest()).decode("ascii")
+    bootstrap_element = f'<script id="workspace-theme-bootstrap">{bootstrap}</script>'
     document = document.replace("script-src ", "script-src 'self' file: ", 1)
     if "script-src " not in document:
         document = document.replace(
             "default-src 'none';", "default-src 'none'; script-src 'self' file:;", 1
         )
     document = document.replace("style-src ", "style-src 'self' file: ", 1)
+    document = document.replace("script-src ", f"script-src 'sha256-{digest}' ", 1)
+    document = re.sub(
+        r'<meta\b[^>]*http-equiv="Content-Security-Policy"[^>]*>',
+        lambda match: match[0] + bootstrap_element,
+        document,
+        count=1,
+        flags=re.IGNORECASE,
+    )
     if "</head>" in document:
         document = document.replace("</head>", f"{style}{script}</head>", 1)
     else:

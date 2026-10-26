@@ -66,7 +66,8 @@ coverage, translation-hook delivery or correctness of a model's decision.
 
 ## Shared UI and theme
 
-`packages/trace-ui` provides a React shell and charts over the existing read-only projections.
+Reports render their shared shell from `reporting/web/workspace-shell.template.html` before the
+first paint. `packages/trace-ui` enhances charts over the existing read-only projections.
 `config/ui-theme.json` is the single palette, typography, spacing, radius and motion configuration.
 Both theme modes are validated against `contracts/v1/ui-theme.schema.json` during the normal
 build. Edit this configuration, run `npm run build`, and reload the viewer. Theme preference is
@@ -77,8 +78,11 @@ The built JavaScript and CSS live once in `var/cache/typescript/`. Reports refer
 assets, rather than copying React or a theme into each execution. Keep this directory alongside
 retained reports for offline viewing. The service exposes only the two exact UI asset paths;
 dependencies and fonts are local, with no CDN requests. Schema validation is precompiled so the
-browser does not require `unsafe-eval`. If enhancement loading fails, the original report content
-and navigation remain available.
+browser does not require `unsafe-eval`. Theme restoration runs immediately after the CSP declaration,
+before styles or content are painted. Navigation and layout do not wait for React. Shell styles are
+scoped to their own container so report-specific element selectors cannot alter their geometry.
+If enhancement loading fails, report content, theme selection and navigation remain available.
+The viewer validates shared assets with ETags, reusing unchanged bundles while detecting rebuilds.
 
 History charts cover all recorded executions, independent of the task table's filters. Execution
 charts show recorded module-call durations, their median and nearest-rank P95. Unknown durations
@@ -87,7 +91,10 @@ Nested spans overlap, so these measurements are never summed into task elapsed t
 projections use `contracts/v1/workspace-view.schema.json`, refresh every three seconds, and retain
 the last valid snapshot during a connection failure. They do not write state or generate evidence.
 
-Transitions run on entry and view changes, without replaying on polling updates. Reduced-motion
-preferences disable them. Layouts adapt to narrow windows, and keyboard focus remains visible.
+Supporting browsers use [native cross-document transitions](https://developer.chrome.com/docs/web-platform/view-transitions/cross-document)
+for same-origin report navigation. Other browsers retain normal links. Neither path replaces document
+lifecycles, polling cleanup, return links or URL fragments. Content movement never fades the whole
+page to its background and does not replay on polling updates. Reduced-motion preferences disable
+transitions. Layouts adapt to narrow windows, and keyboard focus remains visible.
 Design references include [Langfuse trace navigation](https://langfuse.com/docs/observability/overview)
 and [Grafana trace drill-down](https://grafana.com/docs/grafana/latest/visualizations/panels-visualizations/visualizations/traces/).
