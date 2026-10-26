@@ -1,0 +1,10 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://game-automation.local/contracts/v1/observability-policy",
+  "type": "object",
+  "properties": {
+    "retention_days": { "type": "integer", "minimum": 0, "maximum": 36500 },
+    "export_max_bytes": { "type": "integer", "minimum": 1024, "maximum": 134217728 }
+  },
+  "additionalProperties": false
+}

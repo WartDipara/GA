@@ -3,6 +3,11 @@ call_timeout_seconds = 30
 max_attempts = 2
 max_actions = 100
 
+[observability]
+# Zero disables age-based retention selection; cleanup always requires --apply.
+retention_days = 0
+export_max_bytes = 16777216
+
 [intake]
 timeout_seconds = 300
 
