@@ -93,6 +93,40 @@ uv run game-auto trace-session <run_id> --limit 50
 uv run game-auto trace-session <run_id> --before <next_before> --limit 50
 ```
 
+## Retention and metadata export
+
+`[observability]` in `config/application.toml` controls `retention_days` and `export_max_bytes`.
+Age-based selection is disabled by default (`retention_days = 0`). Retention removes whole tasks,
+preserving their evidence relationships until explicit cleanup rather than pruning individual
+debug events. Preview first; applying uses the existing single-writer cleanup journal and removes
+task-owned SQLite rows and directories together. No timer or background purge is installed.
+
+```powershell
+uv run game-auto trace-retention --days 30
+uv run game-auto trace-pin <run_id> --pin
+uv run game-auto trace-pin <run_id> --unpin
+uv run game-auto trace-retention --days 30 --apply
+uv run game-auto trace-export <run_id>
+```
+
+Pinned, running, queued or blocked tasks, unknown-age tasks, unresolved actions, unfinished reports
+and dependencies of retained tasks are protected from age-based selection. Each application
+removes at most 200 tasks, ordered so remaining tasks cannot lose their dependencies. Dependency
+cycles require an explicit scoped cleanup. Pins protect this retention policy; direct manual
+`cleanup` remains an explicit operator action. This release does not rewrite historical records
+to migrate raw debug events into cold storage.
+
+`trace-export` writes `reports/exports/trace.otlp.v1.json.gz` and an atomic receipt under the
+owning execution. JSON encoding is streamed through a bounded compression buffer, respects the
+configured uncompressed size limit and preserves the configured disk reserve. Existing exports
+are replaced atomically; the source trace is unchanged. The export uses a versioned deterministic
+mapping to OTLP Trace/Span IDs and a strict metadata allowlist. Prompts, responses, input/output
+bodies, screenshots, account references, machine paths and host identifiers are excluded. Closed
+spans with valid recorded timestamps are exported; missing or invalid boundaries are listed as
+omissions, never invented. Measured execution duration remains a separate attribute from OTLP's
+wall-clock boundaries. Exports are local files; no collector, network upload or second event
+writer is started. Format reference: [OTLP/JSON](https://opentelemetry.io/docs/specs/otlp/).
+
 ## Find a game or task
 
 The task-history table has a sticky search field. Type any part of a recorded game name, package

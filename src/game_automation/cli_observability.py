@@ -13,10 +13,28 @@ from game_automation.kernel.agent_quality import (
 from game_automation.kernel.workflow.runner import execute, new_run
 from game_automation.reporting.agent_trace import agent_view
 from game_automation.reporting.diagnostics import trace_diagnostics, writer_health
+from game_automation.reporting.otel_export import export_otlp
 from game_automation.reporting.task_session import task_session
+from game_automation.storage.trace_retention import apply_retention, pin_task, retention_plan
 
 
 def add_commands(commands):
+    export_otlp_command = commands.add_parser(
+        "trace-export", help="Write a metadata-only compressed OTLP/JSON export"
+    )
+    export_otlp_command.add_argument("run_id")
+    retention = commands.add_parser(
+        "trace-retention", help="Preview eligible old tasks; --apply uses coordinated cleanup"
+    )
+    retention.add_argument("--days", type=int)
+    retention.add_argument("--apply", action="store_true")
+    pin = commands.add_parser(
+        "trace-pin", help="Protect or release a task from age-based retention"
+    )
+    pin.add_argument("run_id")
+    choice = pin.add_mutually_exclusive_group(required=True)
+    choice.add_argument("--pin", dest="pinned", action="store_true")
+    choice.add_argument("--unpin", dest="pinned", action="store_false")
     session = commands.add_parser(
         "trace-session", help="Inspect a task's execution and recovery timeline"
     )
@@ -59,6 +77,19 @@ def add_commands(commands):
 
 
 def handle(store, args):
+    if args.command == "trace-export":
+        return export_otlp(store, args.run_id)
+    if args.command == "trace-pin":
+        return pin_task(store, args.run_id, args.pinned)
+    if args.command == "trace-retention":
+        if not args.apply:
+            return retention_plan(store, args.days)
+        from game_automation.reporting.history import write_history
+
+        result = apply_retention(store, args.days)
+        if result["cleanup"]["applied"]:
+            write_history(store)
+        return result
     if args.command == "trace-session":
         return task_session(store, args.run_id, before=args.before, limit=args.limit)
     if args.command == "trace-doctor":

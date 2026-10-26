@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://game-automation.local/contracts/v1/trace-retention-plan",
+  "type": "object",
+  "properties": {
+    "days": { "type": "integer", "minimum": 0, "maximum": 36500 },
+    "enabled": { "type": "boolean" },
+    "cutoff": { "type": ["string", "null"] },
+    "task_ids": { "type": "array", "maxItems": 200, "items": { "type": "string" } },
+    "eligible_tasks": { "type": "integer", "minimum": 0 },
+    "protected_counts": {
+      "type": "object",
+      "additionalProperties": { "type": "integer", "minimum": 0 }
+    },
+    "has_more": { "type": "boolean" }
+  },
+  "required": [
+    "days",
+    "enabled",
+    "cutoff",
+    "task_ids",
+    "eligible_tasks",
+    "protected_counts",
+    "has_more"
+  ],
+  "additionalProperties": false
+}

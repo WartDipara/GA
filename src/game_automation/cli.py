@@ -23,6 +23,7 @@ from game_automation.reporting.trace import export_trace
 from game_automation.storage.store import Store
 
 READ_ONLY_COMMANDS = {
+    "trace-export",
     "trace-session",
     "trace-doctor",
     "trace-health",
@@ -305,7 +306,9 @@ def main(argv=None):
 
             serve_trace(root, args.run_id, port=args.port, interval=args.interval)
             return 0
-        if args.command in READ_ONLY_COMMANDS:
+        if args.command in READ_ONLY_COMMANDS or (
+            args.command == "trace-retention" and not args.apply
+        ):
             store = Store.open_readonly(root)
         else:
             store = Store(root, allow_cleanup=args.command == "cleanup")
@@ -509,6 +512,9 @@ def main(argv=None):
             store.cancel(args.run_id)
             print_json({"cancel_requested": True, "run_id": args.run_id})
         elif args.command in (
+            "trace-export",
+            "trace-retention",
+            "trace-pin",
             "trace-session",
             "trace-doctor",
             "trace-health",

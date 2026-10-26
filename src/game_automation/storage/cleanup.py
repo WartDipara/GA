@@ -100,19 +100,24 @@ def plan_cleanup(store, task_ids, *, all_tasks, missing):
     return plan
 
 
-def cleanup(store, task_ids=None, *, all_tasks=False, missing=False, apply=False):
+def cleanup(store, task_ids=None, *, all_tasks=False, missing=False, apply=False, selection=None):
     with FileLock(store.var / "execution.lock"), FileLock(store.var / "layout.lock"):
         if store.cleanup_journal.parent.is_symlink() or store.cleanup_journal.parent.is_junction():
             raise FrameworkError(ErrorCode.INVALID_PATH)
         pending = store.cleanup_journal.exists()
         if pending:
-            if task_ids or all_tasks or missing:
+            if task_ids or all_tasks or missing or selection:
                 raise FrameworkError(
                     ErrorCode.CLEANUP_PENDING,
                     "Pending cleanup has a fixed scope; use cleanup --apply to finish it",
                 )
             plan = json.loads(store.cleanup_journal.read_text(encoding="utf-8"))
         else:
+            if selection is not None:
+                task_ids = selection()
+                if not task_ids:
+                    result = {"applied": False, "pending": False, "task_ids": []}
+                    return result
             plan = plan_cleanup(store, task_ids, all_tasks=all_tasks, missing=missing)
         result = {"applied": False, "pending": pending, **plan}
         if not apply:

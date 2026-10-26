@@ -5,6 +5,7 @@ class ErrorCode(StrEnum):
     """Stable wire codes with default messages shared by the kernel and plugins."""
 
     RPC_BACKPRESSURE = ("RPC_BACKPRESSURE", "RPC queue capacity was exceeded")
+    TRACE_EXPORT_LIMIT = ("TRACE_EXPORT_LIMIT", "Trace export exceeds the configured size limit")
 
     WORKFLOW_INVALID = ("WORKFLOW_INVALID", "Workflow stages or instance assignments are invalid")
     WORKFLOW_BLOCKED = ("WORKFLOW_BLOCKED", "A workflow stage needs attention before continuing")
