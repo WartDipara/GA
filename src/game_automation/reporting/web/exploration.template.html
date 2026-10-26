@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; style-src 'unsafe-inline'; script-src 'sha256-${script_hash}'; connect-src 'self'; base-uri 'none'; form-action 'none'"
+    />
+    <title>Render exploration | Game Automation</title>
+    <style>
+      ${style}
+    </style>
+  </head>
+  <body>
+    <header>
+      <a href="trace.html">Game Automation / Trace</a><span id="connection">Recorded evidence</span>
+    </header>
+    <main>
+      <p class="eyebrow">REACHABLE CONTENT</p>
+      <h1>Render exploration</h1>
+      <p id="scope"></p>
+      <div id="metrics" class="metrics"></div>
+      <nav>
+        <a href="gameplay.html">Action evidence</a><a href="exploration.json">Catalog JSON</a
+        ><button id="refresh">Refresh</button>
+      </nav>
+      <section class="panel">
+        <div class="toolbar">
+          <h2>Elements</h2>
+          <input id="search" type="search" placeholder="Search page, container or item" /><select
+            id="status"
+            aria-label="Element status"
+          >
+            <option value="">All states</option></select
+          ><select id="page" aria-label="Page">
+            <option value="">All pages</option>
+          </select>
+        </div>
+        <div class="table">
+          <table>
+            <thead>
+              <tr>
+                <th>Page / container</th>
+                <th>Element / item</th>
+                <th>Status</th>
+                <th>Current bounds</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="elements"></tbody>
+          </table>
+        </div>
+        <div class="toolbar">
+          <span id="count"></span><button id="previous">Previous</button
+          ><button id="next">Next</button>
+        </div>
+      </section>
+      <section class="columns">
+        <article class="panel">
+          <h2>Page transitions</h2>
+          <div id="edges"></div>
+        </article>
+        <article class="panel">
+          <h2>Scroll coverage</h2>
+          <div id="scrolls"></div>
+        </article>
+      </section>
+      <section class="panel">
+        <h2>Memory and localization</h2>
+        <p>
+          Choose an element to inspect historical prediction, current localization, measured time
+          and outcome links.
+        </p>
+        <pre id="detail">No element selected.</pre>
+      </section>
+      <p class="footnote">
+        Only discovered reachable content is counted. Locked, prohibited, limited and unknown items
+        are explicit gaps. Rendered evidence does not confirm translation-hook delivery. Historical
+        positioning is not execution authority.
+      </p>
+    </main>
+    <script type="application/json" id="catalog-data">
+      ${data}
+    </script>
+    ${script_element}
+  </body>
+</html>

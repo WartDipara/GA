@@ -24,7 +24,14 @@ export class Database {
     }
     this.connection.exec(schema);
     if (version < 4) this.upgrade(version);
-    if (version < 5) this.connection.exec('PRAGMA user_version=5');
+    if (version < 5) {
+      if (version === 4) {
+        const backup = join(this.directory, 'migrations/exploration/state-before-v5.sqlite');
+        mkdirSync(dirname(backup), { recursive: true });
+        if (!existsSync(backup)) this.execute('VACUUM INTO ?', backup);
+      }
+      this.connection.exec('PRAGMA user_version=5');
+    }
     if (!this.one("SELECT 1 FROM sqlite_master WHERE name='event_usage'")) {
       this.connection.exec(counters);
     }

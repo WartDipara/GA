@@ -73,7 +73,7 @@ def parser():
     workflow.add_argument("--credentials", default="default", help="Local credential reference")
     workflow.add_argument(
         "--goal",
-        default="login-and-interact",
+        default="explore",
         choices=["login-and-interact", "explore", "advance-battle"],
     )
     workflow.add_argument("--max-turns", type=int, default=0)

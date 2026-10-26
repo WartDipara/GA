@@ -7,6 +7,7 @@ from game_automation.common import FrameworkError, atomic_text
 from game_automation.errors import ErrorCode
 
 from .compact_trace import render_compact
+from .exploration import exploration_report
 from .gameplay import gameplay_report
 from .task_index import task_report
 from .trace import export_agent_trace, export_context
@@ -16,6 +17,8 @@ def render_component(store, run_id, component):
     try:
         if component == "gameplay":
             gameplay_report(store, run_id)
+        elif component == "exploration":
+            exploration_report(store, run_id)
         elif component == "trace":
             export_agent_trace(store, run_id)
         elif component == "context":
