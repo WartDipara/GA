@@ -12,7 +12,7 @@
 .evidence-frame {
   position: relative;
   overflow: hidden;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   background: var(--surface);
 }
 .evidence-frame img {
@@ -61,7 +61,7 @@
   stroke-dasharray: 5 4;
 }
 .action-evidence figcaption {
-  font-size: 12px;
+  font-size: max(var(--font-min), calc(12px * var(--font-scale)));
   line-height: 1.6;
   color: var(--muted);
   margin-top: 8px;

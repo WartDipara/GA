@@ -24,6 +24,10 @@ REPORTS = {
 
 def report_links(store, run_id):
     mode = store.run(run_id)["mode"]
+    return links_for_mode(mode)
+
+
+def links_for_mode(mode):
     links = []
     for name, label in REPORTS.items():
         if name == "gameplay.html" and mode != "gameplay":
@@ -145,13 +149,14 @@ def structured_document(document):
     return document
 
 
-def workspace_shell(view):
+def workspace_shell(view, *, navigation=None):
     links = []
     for index, link in enumerate(view["links"]):
         selected = ' aria-current="page"' if link["current"] else ""
         icon = "grid" if index == 0 else "trace"
+        depth = min(index, 3)
         links.append(
-            f'<a href="{html.escape(link["href"], quote=True)}"{selected}>'
+            f'<a data-nav-depth="{depth}" href="{html.escape(link["href"], quote=True)}"{selected}>'
             f'<svg class="ui-icon" aria-hidden="true"><use href="#workspace-icon-{icon}" />'
             f"</svg>{html.escape(link['label'])}</a>"
         )
@@ -159,15 +164,23 @@ def workspace_shell(view):
     template = Template((ASSETS / "workspace-shell.template.html").read_text(encoding="utf-8"))
     document = template.substitute(
         home=html.escape(view["links"][0]["href"], quote=True),
-        links="".join(links),
+        links=navigation if navigation is not None else "".join(links),
         current=html.escape(title),
     )
     return document
 
 
 def theme_document(document, prefix):
-    if 'id="workspace-theme-bootstrap"' in document:
-        return document
+    existing = re.search(
+        r'<script id="workspace-theme-bootstrap">(.*?)</script>', document, re.DOTALL
+    )
+    if existing:
+        prior_hash = b64encode(hashlib.sha256(existing[1].encode()).digest()).decode("ascii")
+        document = document.replace(f"'sha256-{prior_hash}'", "", 1)
+        document = document.replace(existing[0], "", 1)
+    document = re.sub(
+        r'<script id="appearance-config"[^>]*>.*?</script>', "", document, flags=re.DOTALL
+    )
     document = re.sub(r'<link\b[^>]*href="[^"]*/trace_ui.css"[^>]*>', "", document)
     document = re.sub(r'<script\b[^>]*src="[^"]*/trace_ui.js"[^>]*></script>', "", document)
     assets = f"{prefix}cache/typescript/trace_ui"
@@ -176,15 +189,32 @@ def theme_document(document, prefix):
     bootstrap = (ASSETS / "theme.js").read_text(encoding="utf-8")
     digest = b64encode(hashlib.sha256(bootstrap.encode()).digest()).decode("ascii")
     bootstrap_element = f'<script id="workspace-theme-bootstrap">{bootstrap}</script>'
-    document = document.replace("script-src ", "script-src 'self' file: ", 1)
+    configuration = json.loads(
+        (ASSETS.parents[3] / "config/ui-theme.json").read_text(encoding="utf-8")
+    )
+    appearance = configuration.get("appearance")
+    settings = json.dumps(appearance).replace("<", "\\u003c")
+    bootstrap_element = (
+        f'<script id="appearance-config" type="application/json">{settings}</script>'
+        + bootstrap_element
+    )
+    if appearance and 'id="appearance-settings"' not in document:
+        panel = (ASSETS / "appearance.template.html").read_text(encoding="utf-8")
+        document = document.replace("</body>", f"{panel}</body>", 1)
+    sources = re.search(r"script-src ([^;]+)", document)
+    if sources and "'self'" not in sources[1]:
+        document = document.replace("script-src ", "script-src 'self' file: ", 1)
     if "script-src " not in document:
         document = document.replace(
             "default-src 'none';", "default-src 'none'; script-src 'self' file:;", 1
         )
-    document = document.replace("style-src ", "style-src 'self' file: ", 1)
-    document = document.replace(
-        "default-src 'none';", "default-src 'none'; worker-src 'self' file:;", 1
-    )
+    styles = re.search(r"style-src ([^;]+)", document)
+    if styles and "'self'" not in styles[1]:
+        document = document.replace("style-src ", "style-src 'self' file: ", 1)
+    if "worker-src " not in document:
+        document = document.replace(
+            "default-src 'none';", "default-src 'none'; worker-src 'self' file:;", 1
+        )
     document = document.replace("script-src ", f"script-src 'sha256-{digest}' ", 1)
     document = re.sub(
         r'<meta\b[^>]*http-equiv="Content-Security-Policy"[^>]*>',

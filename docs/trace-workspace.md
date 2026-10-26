@@ -41,6 +41,12 @@ hazards.
 
 ## Navigation
 
+The live sidebar pre-renders retained tasks, executions and report links as nested disclosure
+groups. Indentation and connecting rules show the hierarchy. Expanding a group needs no request; the
+selected report's ancestors stay open. Expansion and sidebar scroll are remembered in the browser
+tab across navigation and Back. Offline reports retain a compact contextual navigation instead of
+copying the entire history into every file.
+
 Task history links to a task overview and its live workspace. Each execution has an overview,
 call trace, model context, available action/element views and an outcome. Every report has the
 same task/history links, previous/next execution links and a return link. Model turns and actions
@@ -95,10 +101,20 @@ coverage, translation-hook delivery or correctness of a model's decision.
 Reports render their shared shell from `reporting/web/workspace-shell.template.html` before the
 first paint. `packages/trace-ui` enhances charts over the existing read-only projections.
 `config/ui-theme.json` is the single palette, typography, spacing, radius and motion configuration.
-Both theme modes are validated against `contracts/v1/ui-theme.schema.json` during the normal
-build. Edit this configuration, run `npm run build`, and reload the viewer. Theme preference is
-local to the browser. Component styles reference semantic tokens rather than defining palettes.
-Screenshot evidence is unchanged; only annotation overlays follow the shared theme.
+Both theme modes are validated against `contracts/v1/ui-theme.schema.json` during the normal build.
+Edit this configuration, run `npm run build`, and reload the viewer. Its Gothic defaults use
+obsidian surfaces, purple panels, fine gold borders, angular controls and local serif fonts; the
+light mode uses parchment surfaces. The visual reference is
+[StyleKit Gothic](https://www.stylekit.top/zh/styles/gothic). Component styles reference semantic
+tokens rather than defining palettes. Screenshot evidence is unchanged; only annotation overlays
+follow the shared theme.
+
+Open **Appearance** in the header to choose a theme, adjust text size or reduce motion. Text scaling
+includes navigation, tables, controls and report details. Settings apply immediately and persist
+locally across reports and tabs. **Project default** follows the configured theme; **Reset
+defaults** restores the configuration's appearance values. OS reduced-motion settings remain
+respected. Restoring preferences runs before painting, including retained report pages served by the
+viewer; it never modifies the business records.
 
 The built JavaScript and CSS live once in `var/cache/typescript/`. Reports reference these shared
 assets, rather than copying React or a theme into each execution. Keep this directory alongside

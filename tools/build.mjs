@@ -26,7 +26,18 @@ const properties = (values) =>
   Object.entries(values)
     .map(([name, value]) => `--${name}:${value};`)
     .join('');
-let tokens = `:root{${properties(theme.tokens)}}`;
+const sharedTokens = { ...theme.tokens };
+sharedTokens['font-body'] ??= sharedTokens['font-sans'];
+sharedTokens['font-sans'] ??= sharedTokens['font-body'];
+sharedTokens['font-display'] ??= sharedTokens['font-body'];
+if (theme.appearance) {
+  sharedTokens['default-font-scale'] = String(
+    theme.appearance.font_size / theme.appearance.design_font_size,
+  );
+  sharedTokens['default-font-min'] =
+    `${theme.appearance.font_size * theme.appearance.minimum_text_ratio}px`;
+}
+let tokens = `:root{${properties(sharedTokens)}}`;
 for (const [mode, values] of Object.entries(theme.themes)) {
   const selector = `${mode === theme.default_mode ? ':root,' : ''}:root[data-theme="${mode}"]`;
   tokens += `${selector}{color-scheme:${mode};${properties(values)}}`;

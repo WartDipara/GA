@@ -5,7 +5,7 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font: 14px/1.6 var(--font-sans);
+  font: max(var(--font-min), calc(14px * var(--font-scale)))/1.6 var(--font-body, var(--font-sans));
 }
 header {
   padding: 18px 32px;
@@ -21,13 +21,13 @@ header #connection {
   display: flex;
   align-items: center;
   gap: 12px;
-  font-size: 22px;
+  font-size: max(var(--font-min), calc(22px * var(--font-scale)));
   font-weight: 800;
   color: var(--accent);
   text-decoration: none;
 }
 .brand span {
-  font-size: 16px;
+  font-size: max(var(--font-min), calc(16px * var(--font-scale)));
   color: var(--text);
 }
 main {
@@ -36,15 +36,15 @@ main {
   padding: 28px;
 }
 h1 {
-  font-size: 30px;
+  font-size: max(var(--font-min), calc(30px * var(--font-scale)));
   margin: 0;
 }
 h2 {
-  font-size: 17px;
+  font-size: max(var(--font-min), calc(17px * var(--font-scale)));
   margin: 0;
 }
 h3 {
-  font-size: 15px;
+  font-size: max(var(--font-min), calc(15px * var(--font-scale)));
 }
 p {
   margin: 8px 0 18px;
@@ -58,7 +58,7 @@ a:hover {
 }
 .eyebrow {
   color: var(--muted);
-  font-size: 11px;
+  font-size: max(var(--font-min), calc(11px * var(--font-scale)));
   letter-spacing: 1.7px;
   font-weight: 700;
 }
@@ -69,7 +69,7 @@ footer {
 }
 .footnote,
 footer {
-  font-size: 12px;
+  font-size: max(var(--font-min), calc(12px * var(--font-scale)));
   margin-top: 18px;
 }
 .page-heading,
@@ -87,7 +87,7 @@ footer {
 }
 #identity {
   overflow-wrap: anywhere;
-  font: 11px var(--font-mono);
+  font: max(var(--font-min), calc(11px * var(--font-scale))) var(--font-mono);
 }
 .metrics {
   display: grid;
@@ -98,12 +98,12 @@ footer {
 .metric {
   border: 1px solid var(--line);
   padding: 18px;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   background: var(--surface);
 }
 .metric strong {
   display: block;
-  font-size: 26px;
+  font-size: max(var(--font-min), calc(26px * var(--font-scale)));
 }
 .metric small {
   color: var(--muted);
@@ -125,7 +125,7 @@ textarea {
   background: var(--surface-raised);
   border: 1px solid var(--border);
   padding: 9px 12px;
-  border-radius: 7px;
+  border-radius: var(--radius-sm);
 }
 button {
   cursor: pointer;
@@ -171,7 +171,7 @@ textarea {
 .session-card {
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   overflow: hidden;
 }
 .panel-title {
@@ -225,7 +225,7 @@ textarea {
   width: 16px;
 }
 .kind {
-  font-size: 9px;
+  font-size: max(var(--font-min), calc(9px * var(--font-scale)));
   text-transform: uppercase;
   color: var(--muted);
   min-width: 30px;
@@ -241,7 +241,7 @@ textarea {
   position: absolute;
   top: 6px;
   height: 8px;
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   background: var(--accent);
   min-width: 3px;
 }
@@ -266,15 +266,15 @@ textarea {
   );
 }
 .span-time {
-  font: 11px var(--font-mono);
+  font: max(var(--font-min), calc(11px * var(--font-scale))) var(--font-mono);
   color: var(--muted);
 }
 .badge {
   display: inline-block;
   border: 1px solid var(--line);
   padding: 3px 8px;
-  border-radius: 20px;
-  font-size: 11px;
+  border-radius: var(--radius-md);
+  font-size: max(var(--font-min), calc(11px * var(--font-scale)));
 }
 .badge.error {
   color: var(--bad);
@@ -300,10 +300,10 @@ dd {
 pre {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  font: 11px/1.6 var(--font-mono);
+  font: max(var(--font-min), calc(11px * var(--font-scale)))/1.6 var(--font-mono);
   background: var(--bg);
   padding: 14px;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   max-height: 480px;
   overflow: auto;
 }
@@ -331,7 +331,7 @@ summary {
 table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 12px;
+  font-size: max(var(--font-min), calc(12px * var(--font-scale)));
 }
 th,
 td {

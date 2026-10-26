@@ -5,7 +5,7 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--ink);
-  font: 14px var(--font-sans);
+  font: max(var(--font-min), calc(14px * var(--font-scale))) var(--font-body, var(--font-sans));
 }
 main {
   max-width: 1500px;
@@ -21,16 +21,16 @@ header {
   letter-spacing: 0.08em;
 }
 h1 {
-  font-size: 29px;
+  font-size: max(var(--font-min), calc(29px * var(--font-scale)));
   margin: 8px 0;
   overflow-wrap: anywhere;
 }
 h2 {
-  font-size: 18px;
+  font-size: max(var(--font-min), calc(18px * var(--font-scale)));
   margin: 0 0 12px;
 }
 h3 {
-  font-size: 15px;
+  font-size: max(var(--font-min), calc(15px * var(--font-scale)));
   margin: 18px 0 8px;
 }
 p {
@@ -52,7 +52,7 @@ select {
 }
 button {
   border: 1px solid var(--line);
-  border-radius: 7px;
+  border-radius: var(--radius-sm);
   padding: 7px 10px;
   background: var(--surface);
   color: inherit;
@@ -76,8 +76,8 @@ summary:focus-visible {
 .notice {
   background: var(--surface-raised);
   padding: 12px 16px;
-  border-radius: 9px;
-  font-size: 13px;
+  border-radius: var(--radius-md);
+  font-size: max(var(--font-min), calc(13px * var(--font-scale)));
 }
 .metrics {
   display: grid;
@@ -89,7 +89,7 @@ summary:focus-visible {
 .panel {
   background: white;
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   padding: 20px;
 }
 .metric span {
@@ -97,7 +97,7 @@ summary:focus-visible {
 }
 .metric strong {
   display: block;
-  font-size: 28px;
+  font-size: max(var(--font-min), calc(28px * var(--font-scale)));
   margin: 7px 0;
 }
 .grid {
@@ -123,7 +123,7 @@ summary:focus-visible {
 input,
 select {
   border: 1px solid var(--line);
-  border-radius: 7px;
+  border-radius: var(--radius-sm);
   padding: 8px 10px;
   background: var(--surface);
   min-width: 0;
@@ -136,7 +136,7 @@ select {
   display: flex;
   overflow: hidden;
   height: 24px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--surface-raised);
   margin: 16px 0;
 }
@@ -151,7 +151,7 @@ select {
   gap: 6px;
 }
 .legend-item {
-  font-size: 12px;
+  font-size: max(var(--font-min), calc(12px * var(--font-scale)));
   border-left-width: 4px;
 }
 .legend-item:not(.segment) {
@@ -212,7 +212,7 @@ select {
 .trend-fill {
   background: var(--info);
   width: 100%;
-  border-radius: 3px 3px 0 0;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
 }
 .trend-step.selected {
   outline: 2px solid var(--brand);
@@ -227,7 +227,7 @@ select {
 .actuals {
   background: var(--surface-raised);
   padding: 12px;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   line-height: 1.9;
 }
 .browser {
@@ -237,7 +237,7 @@ select {
 .context-item,
 .event-row {
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   padding: 10px 12px;
   margin: 8px 0;
 }
@@ -251,8 +251,8 @@ pre {
   overflow-wrap: anywhere;
   background: var(--surface-raised);
   padding: 12px;
-  border-radius: 6px;
-  font-size: 12px;
+  border-radius: var(--radius-sm);
+  font-size: max(var(--font-min), calc(12px * var(--font-scale)));
   line-height: 1.6;
   max-height: 520px;
   overflow: auto;
@@ -261,7 +261,7 @@ pre {
   color: var(--positive);
 }
 #notes {
-  font-size: 12px;
+  font-size: max(var(--font-min), calc(12px * var(--font-scale)));
   color: var(--muted);
 }
 .raw details {
@@ -283,7 +283,7 @@ pre {
 footer {
   color: var(--muted);
   padding: 20px 0;
-  font-size: 12px;
+  font-size: max(var(--font-min), calc(12px * var(--font-scale)));
 }
 a {
   color: var(--brand);
@@ -300,6 +300,6 @@ a {
     grid-template-columns: repeat(2, 1fr);
   }
   h1 {
-    font-size: 22px;
+    font-size: max(var(--font-min), calc(22px * var(--font-scale)));
   }
 }

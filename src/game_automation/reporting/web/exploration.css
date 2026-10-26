@@ -5,7 +5,7 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font: 15px/1.6 var(--font-sans);
+  font: max(var(--font-min), calc(15px * var(--font-scale)))/1.6 var(--font-body, var(--font-sans));
 }
 header {
   border-bottom: 1px solid var(--line);
@@ -19,11 +19,11 @@ main {
   padding: 0 28px;
 }
 h1 {
-  font-size: 38px;
+  font-size: max(var(--font-min), calc(38px * var(--font-scale)));
   margin: 0 0 12px;
 }
 h2 {
-  font-size: 18px;
+  font-size: max(var(--font-min), calc(18px * var(--font-scale)));
   margin: 0;
 }
 a {
@@ -36,7 +36,7 @@ a:hover {
 .eyebrow {
   letter-spacing: 0.12em;
   color: var(--muted);
-  font-size: 12px;
+  font-size: max(var(--font-min), calc(12px * var(--font-scale)));
 }
 .metrics {
   display: flex;
@@ -50,11 +50,11 @@ a:hover {
   background: var(--panel);
   padding: 18px;
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--radius-md);
 }
 .metric strong {
   display: block;
-  font-size: 28px;
+  font-size: max(var(--font-min), calc(28px * var(--font-scale)));
 }
 .metric span,
 .footnote,
@@ -74,7 +74,7 @@ nav,
   background: var(--panel);
   padding: 22px;
   border: 1px solid var(--line);
-  border-radius: 14px;
+  border-radius: var(--radius-md);
   margin: 20px 0;
   min-width: 0;
 }
@@ -94,7 +94,7 @@ th {
 }
 th {
   color: var(--muted);
-  font-size: 12px;
+  font-size: max(var(--font-min), calc(12px * var(--font-scale)));
   text-transform: uppercase;
 }
 small {
@@ -108,7 +108,7 @@ select {
   color: inherit;
   background: var(--bg);
   border: 1px solid var(--line);
-  border-radius: 7px;
+  border-radius: var(--radius-sm);
   padding: 8px 12px;
 }
 button {
@@ -126,7 +126,7 @@ select {
 }
 .badge {
   border: 1px solid var(--line);
-  border-radius: 20px;
+  border-radius: var(--radius-md);
   padding: 3px 10px;
   white-space: nowrap;
 }
@@ -161,7 +161,7 @@ pre {
   overflow: auto;
 }
 .footnote {
-  font-size: 13px;
+  font-size: max(var(--font-min), calc(13px * var(--font-scale)));
 }
 @media (max-width: 800px) {
   .columns {
