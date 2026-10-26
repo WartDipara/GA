@@ -298,6 +298,67 @@
             },
             "ever_verified": {
               "type": "boolean"
+            },
+            "verification": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "action_id": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 2000
+                    },
+                    "action_run_id": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 2000
+                    },
+                    "binding_event_id": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 2000
+                    },
+                    "before_observation_id": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 2000
+                    },
+                    "after_run_id": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 2000
+                    },
+                    "after_observation_id": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 2000
+                    },
+                    "outcome_event_id": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 2000
+                    }
+                  },
+                  "required": [
+                    "action_id",
+                    "action_run_id",
+                    "binding_event_id",
+                    "before_observation_id",
+                    "after_run_id",
+                    "after_observation_id",
+                    "outcome_event_id"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "verification_issue": {
+              "type": "string",
+              "maxLength": 240
             }
           },
           "required": [
@@ -484,7 +545,8 @@
         },
         "status": {
           "enum": [
-            "verified"
+            "verified",
+            "invalidated"
           ]
         },
         "data": {
@@ -517,6 +579,10 @@
                 "swipe",
                 "return"
               ]
+            },
+            "verification_issue": {
+              "type": "string",
+              "maxLength": 240
             }
           },
           "required": [

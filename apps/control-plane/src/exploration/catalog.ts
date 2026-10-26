@@ -1,11 +1,11 @@
 import { createHash } from 'node:crypto';
 import { decode, text, type ContractMap } from '@game-automation/contracts';
 import { ErrorCode, FrameworkError } from '@game-automation/contracts/errors';
-import { object } from '@game-automation/contracts';
 import { parsed, uid } from '../storage/values.js';
 import type { Runtime } from '../gameplay/runtime.js';
 import type { Facts, Observation, Pending } from '../gameplay/types.js';
 import { destination } from './frontier.js';
+import { elementVerification } from './verification.js';
 
 export type Record = ContractMap['exploration-record'];
 export type Page = Extract<Record, { kind: 'page' }>;
@@ -123,6 +123,8 @@ export class Catalog {
           availability: record.data.availability,
           risk: record.data.risk,
           condition: record.data.condition,
+          verification: record.data.verification ?? null,
+          verification_issue: record.data.verification_issue ?? '',
         })),
       frontier: elements
         .filter((record) => record.status === 'pending')
@@ -257,6 +259,8 @@ export class Catalog {
           action_id: known?.data.action_id ?? null,
           child_page: known?.data.child_page ?? null,
           ever_verified: known?.data.ever_verified ?? known?.status === 'verified',
+          verification: known?.data.verification ?? null,
+          verification_issue: known?.data.verification_issue ?? '',
         },
       };
       const prior = records.find(
@@ -382,34 +386,119 @@ export class Catalog {
   }
 
   reconcileLedger(): void {
+    const records = this.records();
     const changes: Record[] = [];
-    for (const element of this.records()) {
-      if (element.kind !== 'element' || element.status !== 'in_progress' || !element.data.action_id)
+    const events: { kind: string; payload: object }[] = [];
+    for (const element of records) {
+      if (element.kind !== 'element') continue;
+      if (element.status === 'in_progress' && element.data.action_id) {
+        const row = this.runtime.store.database.one(
+          'SELECT a.status FROM actions a JOIN runs r ON r.id=a.run_id WHERE r.task_id=? AND a.action_id=?',
+          text(this.runtime.store.run(this.runtime.runId)['task_id']),
+          element.data.action_id,
+        );
+        if (row && ['verified', 'reconciled'].includes(text(row['status']))) {
+          element.status = element.data.kind === 'scroll' ? 'pending' : 'unknown';
+          const restored = elementVerification(
+            this.runtime.store,
+            this.key,
+            element,
+            element.data.action_id,
+          );
+          if (restored.status === 'verified' && element.data.kind !== 'scroll') {
+            element.status = 'verified';
+            element.data.ever_verified = true;
+            element.data.verification = restored.proof;
+          }
+          changes.push(element);
+          events.push({
+            kind: 'exploration.association.restored',
+            payload: {
+              element_id: element.id,
+              action_id: element.data.action_id,
+              ledger_status: row['status'],
+              status: element.status,
+            },
+          });
+        }
+      }
+      if (element.status !== 'verified' && !element.data.ever_verified) continue;
+      const verification = elementVerification(this.runtime.store, this.key, element);
+      if (verification.status === 'verified') {
+        if (JSON.stringify(element.data.verification) !== JSON.stringify(verification.proof)) {
+          element.data.verification = verification.proof;
+          element.data.ever_verified = true;
+          changes.push(element);
+          events.push({
+            kind: 'exploration.verification.restored',
+            payload: {
+              element_id: element.id,
+              ...verification.proof,
+            },
+          });
+        }
         continue;
-      const row = this.runtime.store.database.one(
-        'SELECT a.status,a.result FROM actions a JOIN runs r ON r.id=a.run_id WHERE r.task_id=? AND a.action_id=?',
-        text(this.runtime.store.run(this.runtime.runId)['task_id']),
-        element.data.action_id,
-      );
-      if (!row || !['verified', 'reconciled'].includes(text(row['status']))) continue;
-      const evidence = object(parsed(row['result'])['result']);
-      if (!evidence['observation_id']) continue;
-      element.status =
-        element.data.kind === 'scroll'
-          ? 'pending'
-          : row['status'] === 'verified'
-            ? 'verified'
-            : 'unknown';
-      if (element.status === 'verified') element.data.ever_verified = true;
+      }
+      const previous = element.status;
+      if (previous === 'verified') element.status = 'unknown';
+      element.data.ever_verified = false;
+      element.data.verification = null;
+      element.data.verification_issue = verification.reason;
       changes.push(element);
-      this.runtime.record('exploration.association.restored', {
-        element_id: element.id,
-        action_id: element.data.action_id,
-        ledger_status: row['status'],
-        evidence,
+      for (const locator of records) {
+        if (locator.kind !== 'locator' || locator.parent_id !== element.id || !locator.data.active)
+          continue;
+        locator.status = 'stale';
+        locator.data.active = false;
+        locator.data.verified = false;
+        changes.push(locator);
+      }
+      events.push({
+        kind: 'exploration.verification.invalidated',
+        payload: {
+          element_id: element.id,
+          action_id: element.data.action_id,
+          previous_status: previous,
+          status: element.status,
+          reason: verification.reason,
+          replayed: false,
+        },
       });
     }
-    this.save(changes);
+    for (const edge of records) {
+      if (edge.kind !== 'edge' || edge.status !== 'verified') continue;
+      const element = records.find(
+        (record): record is Element =>
+          record.kind === 'element' && record.id === edge.data.element_id,
+      );
+      const verification = element
+        ? elementVerification(this.runtime.store, this.key, element, edge.data.action_id)
+        : null;
+      if (
+        verification?.status === 'verified' &&
+        verification.proof.after_observation_id === edge.data.observation_id
+      )
+        continue;
+      edge.status = 'invalidated';
+      edge.data.verification_issue =
+        verification?.status === 'unknown'
+          ? verification.reason
+          : 'edge-observation-does-not-match-action';
+      changes.push(edge);
+      events.push({
+        kind: 'exploration.edge.invalidated',
+        payload: {
+          edge_id: edge.id,
+          element_id: edge.data.element_id,
+          action_id: edge.data.action_id,
+          reason: edge.data.verification_issue,
+        },
+      });
+    }
+    this.runtime.store.database.transaction(() => {
+      this.save(changes);
+      for (const event of events) this.runtime.record(event.kind, { ...event.payload });
+    });
   }
 
   backTarget(page: Page, observation: Observation): Element {
@@ -476,23 +565,43 @@ export class Catalog {
     const locator = records.find(
       (record): record is Locator => record.kind === 'locator' && record.id === link.locator_id,
     );
+    const verification =
+      verified && link.mode !== 'external_close'
+        ? elementVerification(this.runtime.store, this.key, element, pending.action_id)
+        : null;
+    const proven = verification?.status === 'verified';
+    if (proven) {
+      element.data.verification = verification.proof;
+      element.data.verification_issue = '';
+    } else if (verification?.status === 'unknown') {
+      element.data.verification_issue = verification.reason;
+      this.runtime.record('exploration.verification.rejected', {
+        element_id: element.id,
+        action_id: pending.action_id,
+        reason: verification.reason,
+      });
+    }
     element.data.child_page = page?.id ?? null;
     const changes: Record[] = [element];
-    const firstVerification = verified && !element.data.ever_verified && link.mode !== 'scroll';
-    if (verified && link.mode !== 'scroll') element.data.ever_verified = true;
+    const firstVerification = proven && !element.data.ever_verified && link.mode !== 'scroll';
+    if (proven && link.mode !== 'scroll') element.data.ever_verified = true;
     if (!verified) element.data.attempts += 1;
     if (link.mode === 'scroll') element.status = 'pending';
     else if (link.mode === 'external_close') element.status = 'in_progress';
     else
-      element.status = verified ? 'verified' : element.data.attempts >= 2 ? 'unknown' : 'pending';
+      element.status = proven
+        ? 'verified'
+        : verified || element.data.attempts >= 2
+          ? 'unknown'
+          : 'pending';
     if (locator && link.mode !== 'external_close' && link.mode !== 'return') {
-      locator.status = verified ? 'verified' : 'stale';
-      locator.data.verified = verified;
-      locator.data.active = verified;
+      locator.status = proven ? 'verified' : 'stale';
+      locator.data.verified = proven;
+      locator.data.active = proven;
       changes.push(locator);
     }
     if (
-      verified &&
+      proven &&
       page &&
       pending.action.type !== 'swipe' &&
       ['tap', 'back', 'return'].includes(pending.action.type)

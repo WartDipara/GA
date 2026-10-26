@@ -4,6 +4,7 @@ import { join, relative } from 'node:path';
 import { decode, object, text, type ContractMap } from '@game-automation/contracts';
 import { ErrorCode, FrameworkError } from '@game-automation/contracts/errors';
 import { Database } from './database.js';
+import { elementVerification } from '../exploration/verification.js';
 import {
   atomicJson,
   canonical,
@@ -137,6 +138,35 @@ export class Store {
     if (!Array.isArray(values)) throw new FrameworkError(ErrorCode.INVALID_CONTRACT);
     for (const value of values) {
       const record = decode('exploration-record', value);
+      if (
+        record.kind === 'element' &&
+        (record.status === 'verified' || record.data.ever_verified)
+      ) {
+        const verification = elementVerification(this, key, record);
+        if (verification.status !== 'verified')
+          throw new FrameworkError(
+            ErrorCode.INVALID_STATE,
+            `Exploration verification rejected: ${verification.reason}`,
+          );
+        record.data.verification = verification.proof;
+      }
+      if (record.kind === 'edge' && record.status === 'verified') {
+        const row = this.database.one(
+          "SELECT data FROM exploration_records WHERE workspace_key=? AND kind='element' AND id=?",
+          key,
+          record.data.element_id,
+        );
+        const element = row ? decode('exploration-record', parsed(row['data'])) : null;
+        const verification =
+          element?.kind === 'element'
+            ? elementVerification(this, key, element, record.data.action_id)
+            : null;
+        if (
+          verification?.status !== 'verified' ||
+          verification.proof.after_observation_id !== record.data.observation_id
+        )
+          throw new FrameworkError(ErrorCode.INVALID_STATE, 'Exploration edge proof is incomplete');
+      }
       this.database.execute(
         'INSERT INTO exploration_records VALUES(?,?,?,?,?,?) ON CONFLICT(workspace_key,kind,id) DO UPDATE SET run_id=excluded.run_id,data=excluded.data',
         key,

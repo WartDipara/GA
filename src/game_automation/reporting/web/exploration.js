@@ -79,9 +79,11 @@
         state.append(node('span', record.status, `badge ${record.status}`));
         const bounds = node('td', record.data.bounds.join(', '));
         const action = node('td');
-        if (record.data.action_id) {
+        const proof = record.data.verification;
+        const actionId = proof?.action_id || record.data.action_id;
+        if (actionId) {
           const link = node('a', 'Evidence');
-          link.href = `../../${record.run_id}/reports/gameplay.html#${record.data.action_id}`;
+          link.href = `../../${proof?.action_run_id || record.run_id}/reports/gameplay.html#${actionId}`;
           action.append(link);
         }
         row.append(page, target, state, bounds, action);
@@ -99,7 +101,7 @@
         .map((record) =>
           node(
             'div',
-            `${pages.get(record.data.from_page)?.data.label || 'Unknown'} → ${pages.get(record.data.to_page)?.data.label || 'Unknown'} · ${record.data.action_type}`,
+            `${pages.get(record.data.from_page)?.data.label || 'Unknown'} → ${pages.get(record.data.to_page)?.data.label || 'Unknown'} · ${record.data.action_type} · ${record.status}`,
             'relation',
           ),
         ),

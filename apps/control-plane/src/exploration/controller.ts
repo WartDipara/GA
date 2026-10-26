@@ -17,6 +17,7 @@ function pendingAction(runtime: Runtime): Pending | null {
 export class Exploration {
   readonly catalog: Catalog;
   private previousNovelty = 0;
+  private scrollKey: string | null = null;
   madeProgress = false;
   constructor(readonly runtime: Runtime) {
     this.catalog = new Catalog(runtime);
@@ -166,6 +167,8 @@ export class Exploration {
   }
 
   async review(decision: Decision, view: View, pending: Pending | null): Promise<Page | null> {
+    this.madeProgress = false;
+    this.scrollKey = null;
     this.catalog.reconcileLedger();
     const inventory = decision.exploration;
     if (!inventory)
@@ -173,22 +176,37 @@ export class Exploration {
     const page = this.catalog.ingest(inventory, view.observation, view.facts);
     if (pending) {
       if (inventory.kind === 'external') await this.noteExternal(pending, view.observation);
-      this.catalog.outcome(
-        pending,
-        page,
-        view.observation,
-        decision.previous_outcome.status === 'verified',
-      );
-      await reviewScroll(this.runtime, this.catalog, inventory, view.observation, pending);
-      if (pending.exploration?.mode === 'external_close') this.finishExternal(view.observation);
+      const link = pending.exploration;
+      if (link?.mode === 'scroll' && link.scroll_bounds && link.viewport)
+        this.scrollKey = await scrollViewport(this.runtime, view.observation, link.scroll_bounds);
     }
+    this.trackProgress();
+    return page;
+  }
+
+  outcome(decision: Decision, view: View, pending: Pending, page: Page | null): void {
+    const verified = decision.previous_outcome.status === 'verified';
+    this.catalog.outcome(pending, page, view.observation, verified);
+    if (verified && decision.exploration && this.scrollKey)
+      reviewScroll(
+        this.runtime,
+        this.catalog,
+        decision.exploration,
+        view.observation,
+        pending,
+        this.scrollKey,
+      );
+    if (pending.exploration?.mode === 'external_close') this.finishExternal(view.observation);
+    this.trackProgress();
+  }
+
+  private trackProgress(): void {
     const novelty = this.catalog.session()?.data.novelty ?? 0;
-    this.madeProgress = novelty > this.previousNovelty;
-    if (this.madeProgress) {
+    if (novelty > this.previousNovelty) {
+      this.madeProgress = true;
       this.previousNovelty = novelty;
       this.runtime.record('exploration.progress', { novelty });
     }
-    return page;
   }
 
   async verifyKnown(view: View): Promise<boolean> {

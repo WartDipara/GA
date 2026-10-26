@@ -27,7 +27,9 @@ export function destination(catalog: Catalog): Destination | null {
   const goals = new Set(pending.map((element) => element.parent_id));
   if (!pending.length && session?.data.root_page && !session.data.sweep_done)
     goals.add(session.data.root_page);
-  const edges = records.filter((record): record is Edge => record.kind === 'edge');
+  const edges = records.filter(
+    (record): record is Edge => record.kind === 'edge' && record.status === 'verified',
+  );
   const queue: { page: string; first: Edge | null }[] = [{ page: current, first: null }];
   const seen = new Set<string>([current]);
   for (let index = 0; index < queue.length; index += 1) {
