@@ -197,6 +197,56 @@
               "type": "null"
             }
           ]
+        },
+        "foreground_window": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "window_id": {
+                  "type": "string",
+                  "maxLength": 240
+                },
+                "task_id": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "display_id": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "package_name": {
+                  "type": "string",
+                  "maxLength": 240
+                }
+              },
+              "required": [
+                "window_id",
+                "task_id",
+                "display_id",
+                "package_name"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "window_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 240
+          },
+          "maxItems": 1000
         }
       },
       "required": [
@@ -241,6 +291,16 @@
           },
           "sensitive": {
             "type": "boolean"
+          },
+          "scrollable": {
+            "type": "boolean"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "container_ref": {
+            "type": "string",
+            "maxLength": 2000
           }
         },
         "required": [

@@ -71,6 +71,16 @@ export class Watchdog {
     this.runtime.progress.save();
   }
 
+  observeProgress(proof: string): void {
+    if (this.data.proofs.includes(proof)) return;
+    this.data.proofs = [...this.data.proofs, proof].slice(-256);
+    this.data.rounds = 0;
+    this.data.elapsed_seconds = 0;
+    this.data.history = [];
+    this.data.blocked = false;
+    this.runtime.progress.save();
+  }
+
   private block(reason: string): never {
     this.data.blocked = true;
     this.runtime.record('gameplay.watchdog.blocked', { reason, ...this.data });

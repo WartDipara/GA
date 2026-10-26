@@ -36,6 +36,8 @@ const capabilityContracts: Record<string, [keyof ContractMap, keyof ContractMap]
   'device.execute': ['device-execute-request', 'device-execute-result'],
   'device.logs': ['device-logs-request', 'device-logs-result'],
   'perception.analyze': ['perception-request', 'perception-result'],
+  'perception.locate': ['perception-locate-request', 'perception-locate-result'],
+  'perception.viewport': ['perception-viewport-request', 'perception-viewport-result'],
 };
 type Plugin = ContractMap['plugin'] & { cwd: string };
 type CallOptions = {

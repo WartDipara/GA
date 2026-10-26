@@ -2,7 +2,7 @@ import { object, text } from '@game-automation/contracts';
 import { ErrorCode, FrameworkError } from '@game-automation/contracts/errors';
 import { integer } from '../storage/values.js';
 import { Battle } from './battle.js';
-import { Catalog } from '../exploration/catalog.js';
+import { Exploration } from '../exploration/controller.js';
 import { Knowledge } from './knowledge.js';
 import { executeRoutine, Perception, route } from './local.js';
 import { Planner } from './planning.js';
@@ -49,7 +49,8 @@ function complete(
 
 export async function runLoop(runtime: Runtime, initial: Observation): Promise<void> {
   const perception = new Perception(runtime);
-  const catalog = runtime.task['goal'] === 'explore' ? new Catalog(runtime) : null;
+  const exploration = runtime.task['goal'] === 'explore' ? new Exploration(runtime) : null;
+  const catalog = exploration?.catalog ?? null;
   const planner = new Planner(runtime, catalog);
   const knowledge = new Knowledge(runtime);
   const battle = runtime.task['goal'] === 'advance-battle' ? new Battle(runtime) : null;
@@ -63,13 +64,33 @@ export async function runLoop(runtime: Runtime, initial: Observation): Promise<v
   let cachedSteps = 0;
   for (;;) {
     await runtime.admit();
+    if (exploration && progress.pending && (await exploration.verifyKnown(view))) continue;
     const limit = integer(runtime.task['max_turns'] ?? 0);
     if (limit && planner.turns >= limit)
       throw new FrameworkError(
         ErrorCode.BUDGET_EXHAUSTED,
         'Requested planning-turn boundary reached; resume to continue',
       );
-    if (!progress.pending && !watchdog.reconciling && cachedSteps < 5) {
+    if (exploration && !progress.pending && !watchdog.reconciling && cachedSteps < 5) {
+      try {
+        const before = await exploration.attempt(view);
+        if (before) {
+          cachedSteps += 1;
+          view = await perception.settle(before);
+          continue;
+        }
+      } catch (error) {
+        if (
+          !(error instanceof FrameworkError) ||
+          error.code !== ErrorCode.STALE_OBSERVATION ||
+          progress.pending
+        )
+          throw error;
+        runtime.record('exploration.location.rejected', { reason: 'fresh-target-changed' });
+        view = await perception.settle(view.observation);
+      }
+    }
+    if (!catalog && !progress.pending && !watchdog.reconciling && cachedSteps < 5) {
       const steps = knowledge.routine(view.observation, view.facts).slice(0, 5 - cachedSteps);
       if (steps.length) {
         runtime.record('gameplay.cache.hit', { steps: steps.length });
@@ -112,27 +133,6 @@ export async function runLoop(runtime: Runtime, initial: Observation): Promise<v
           ErrorCode.GAMEPLAY_BLOCKED,
           'Previous action outcome remains unverified; no action replay',
         );
-      const outcome = {
-        source: 'model-semantic-review',
-        observation_run: runtime.runId,
-        observation_id: view.observation.observation_id,
-        ...assessment,
-      };
-      runtime.outcome(
-        pending.run_id,
-        text(pending.action_id),
-        assessment.status === 'verified' ? 'verified' : 'reconciled',
-        outcome,
-      );
-      runtime.record('gameplay.outcome', outcome);
-      for (const path of progress.paths)
-        if (path.action_id === pending.action_id) {
-          path.status = assessment.status;
-          path.after = view.observation.observation_id;
-        }
-      if (assessment.status === 'verified') knowledge.learn(pending, view.observation, view.facts);
-      progress.pending = null;
-      runtime.progress.save();
     }
     if (decision.identity) {
       const identity = progress.identity ?? { small_account: null, server: null, role: null };
@@ -150,10 +150,35 @@ export async function runLoop(runtime: Runtime, initial: Observation): Promise<v
       progress.identity =
         identity.small_account || identity.server || identity.role ? identity : null;
     }
-    const page = decision.exploration ? catalog?.ingest(decision.exploration, view.observation) : null;
-    if (pending) catalog?.outcome(
-      pending, page ?? null, view.observation, decision.previous_outcome.status === 'verified',
-    );
+    const page = exploration ? await exploration.review(decision, view, pending) : null;
+    if (pending)
+      runtime.store.database.transaction(() => {
+        const assessment = decision.previous_outcome;
+        const outcome = {
+          source: 'model-semantic-review',
+          observation_run: runtime.runId,
+          observation_id: view.observation.observation_id,
+          ...assessment,
+        };
+        runtime.outcome(
+          pending.run_id,
+          text(pending.action_id),
+          assessment.status === 'verified' ? 'verified' : 'reconciled',
+          outcome,
+        );
+        runtime.record('gameplay.outcome', outcome);
+        for (const path of progress.paths)
+          if (path.action_id === pending.action_id) {
+            path.status = assessment.status;
+            path.after = view.observation.observation_id;
+          }
+        if (!catalog && assessment.status === 'verified')
+          knowledge.learn(pending, view.observation, view.facts);
+        progress.pending = null;
+        runtime.progress.save();
+      });
+    if (exploration?.madeProgress)
+      watchdog.observeProgress(`catalog:${catalog?.session()?.data.novelty ?? 0}`);
     // Commit known outcomes and their catalog evidence before the watchdog can stop dispatch.
     watchdog.review(decision, view.observation, pending);
     runtime.progress.update(decision, view.observation.observation_id);
@@ -173,6 +198,13 @@ export async function runLoop(runtime: Runtime, initial: Observation): Promise<v
     )
       throw new FrameworkError(ErrorCode.GAMEPLAY_BLOCKED, decision.reason_summary);
     if (decision.disposition === 'complete') {
+      if (exploration && !exploration.complete(page)) {
+        runtime.record('exploration.completion.deferred', {
+          reason: 'Frontier, viewport scans or root recheck remain',
+          next: exploration.hint(),
+        });
+        continue;
+      }
       complete(runtime, decision, view.observation, battle);
       return;
     }
@@ -188,9 +220,26 @@ export async function runLoop(runtime: Runtime, initial: Observation): Promise<v
     }
     if (decision.action.type === 'credential' && !decision.sensitive_regions.length)
       throw new FrameworkError(ErrorCode.CAPABILITY_DENIED);
+    if (exploration && !exploration.permit(decision.action, page)) {
+      runtime.record('exploration.proposal.rejected', {
+        reason: 'Target is absent, settled, locked or prohibited',
+        next: exploration.hint(),
+      });
+      continue;
+    }
     let actionId: string;
     try {
-      actionId = await runtime.perform(decision.action, view.observation, 'planner');
+      const link = exploration
+        ? await exploration.intent(decision.action, page, view.observation)
+        : null;
+      actionId = await runtime.perform(
+        decision.action,
+        view.observation,
+        'planner',
+        null,
+        null,
+        link,
+      );
       progress.planner_coordinate_action_dispatched = true;
       planner.mappingUntried = false;
     } catch (error) {
@@ -214,7 +263,7 @@ export async function runLoop(runtime: Runtime, initial: Observation): Promise<v
       image_sha256: view.observation.screenshot.sha256,
       sensitive_regions: view.observation.sensitive_regions,
     });
-    if (page) catalog?.associate(dispatched, actionId, page);
+    if (page) await exploration?.afterDispatch(dispatched, actionId, page, view.observation);
     progress.paths.push({
       run_id: runtime.runId,
       action_id: actionId,

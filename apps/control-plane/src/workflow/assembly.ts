@@ -88,7 +88,13 @@ export function buildWorkflow(value: unknown): { task: ContractMap['workflow']; 
       mode: 'gameplay',
       requires: ['prepare', 'launch'],
       perApk: true,
-      capabilities: ['ai.decide', 'perception.analyze', 'planner.image'],
+      capabilities: [
+        'ai.decide',
+        'perception.analyze',
+        'perception.locate',
+        'perception.viewport',
+        'planner.image',
+      ],
     },
     { name: 'report', mode: null, requires: [], perApk: false, capabilities: [] },
   ];

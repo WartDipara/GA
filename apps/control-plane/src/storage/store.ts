@@ -122,7 +122,8 @@ export class Store {
 
   exploration(key: string): ContractMap['exploration-record'][] {
     const rows = this.database.all(
-      'SELECT data FROM exploration_records WHERE workspace_key=? ORDER BY rowid', key,
+      'SELECT data FROM exploration_records WHERE workspace_key=? ORDER BY rowid',
+      key,
     );
     const records = rows.map((row) => decode('exploration-record', parsed(row['data'])));
     return records;
@@ -138,11 +139,22 @@ export class Store {
       const record = decode('exploration-record', value);
       this.database.execute(
         'INSERT INTO exploration_records VALUES(?,?,?,?,?,?) ON CONFLICT(workspace_key,kind,id) DO UPDATE SET run_id=excluded.run_id,data=excluded.data',
-        key, record.kind, record.id, taskId, runId, JSON.stringify(record),
+        key,
+        record.kind,
+        record.id,
+        taskId,
+        runId,
+        JSON.stringify(record),
       );
-      this.event(runId, `exploration.${record.kind}.updated`, {
-        workspace_key: key, record,
-      }, ids);
+      this.event(
+        runId,
+        `exploration.${record.kind}.updated`,
+        {
+          workspace_key: key,
+          record,
+        },
+        ids,
+      );
     }
   }
 
@@ -593,7 +605,8 @@ export class Store {
     }
     const encoded = JSON.stringify(taskIds);
     this.database.execute(
-      'DELETE FROM exploration_records WHERE task_id IN (SELECT value FROM json_each(?))', encoded,
+      'DELETE FROM exploration_records WHERE task_id IN (SELECT value FROM json_each(?))',
+      encoded,
     );
     const runs = 'SELECT id FROM runs WHERE task_id IN (SELECT value FROM json_each(?))';
     for (const table of [

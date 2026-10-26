@@ -3,7 +3,8 @@ import { decode, type ContractMap } from '@game-automation/contracts';
 import { ErrorCode, FrameworkError } from '@game-automation/contracts/errors';
 import { uid } from '../storage/values.js';
 import type { Runtime } from '../gameplay/runtime.js';
-import type { Observation, Pending } from '../gameplay/types.js';
+import type { Facts, Observation, Pending } from '../gameplay/types.js';
+import { destination } from './frontier.js';
 
 export type Record = ContractMap['exploration-record'];
 export type Page = Extract<Record, { kind: 'page' }>;
@@ -41,7 +42,10 @@ export class Catalog {
   save(records: Record[]): void {
     if (!records.length) return;
     const request = {
-      run_id: this.runtime.runId, workspace_key: this.key, records, span_id: this.runtime.step,
+      run_id: this.runtime.runId,
+      workspace_key: this.key,
+      records,
+      span_id: this.runtime.step,
     };
     this.runtime.store.command('exploration_commit', request);
   }
@@ -54,31 +58,45 @@ export class Catalog {
     const result = {
       current_page: records.find((record) => record.kind === 'page' && record.id === current),
       elements: elements.filter((record) => record.parent_id === current).slice(0, 120),
-      frontier: elements.filter((record) => record.status === 'pending').slice(0, 30).map(
-        (record) => ({ id: record.id, page_id: record.parent_id, label: record.data.label }),
-      ),
+      frontier: elements
+        .filter((record) => record.status === 'pending')
+        .slice(0, 30)
+        .map((record) => ({ id: record.id, page_id: record.parent_id, label: record.data.label })),
       root_page: session?.data.root_page ?? null,
       sweep_done: session?.data.sweep_done ?? false,
       authority: 'Memory is historical evidence; locate targets in the current observation',
+      recommendation: destination(this),
     };
     return result;
   }
 
-  ingest(view: Inventory, observation: Observation): Page | null {
+  ingest(view: Inventory, observation: Observation, facts: Facts): Page | null {
     if (!view.authenticated || view.kind === 'external') return null;
+    if (!view.inventory_complete && !view.elements.length) return null;
     const records = this.records();
     const key = signature([name(view.page_key), name(view.variant)]);
-    const previous = records.find((record): record is Page =>
-      record.kind === 'page' && record.data.key === key,
+    const previous = records.find(
+      (record): record is Page => record.kind === 'page' && record.data.key === key,
     );
     const page: Page = {
-      kind: 'page', id: previous?.id ?? uid('page'), parent_id: null,
+      kind: 'page',
+      id: previous?.id ?? uid('page'),
+      parent_id: null,
       status: view.inventory_complete ? 'scanned' : 'pending',
       data: {
-        key, label: view.label, variant: view.variant, layout: view.layout, kind: view.kind,
-        authenticated: true, root: previous?.data.root === true || view.is_root,
-        scan_complete: view.inventory_complete, observation_id: observation.observation_id,
-        anchors: view.anchors, recheck: false,
+        key,
+        label: view.label,
+        variant: view.variant,
+        layout: view.layout,
+        kind: view.kind,
+        authenticated: true,
+        root: previous?.data.root === true || view.is_root,
+        scan_complete: view.inventory_complete,
+        observation_id: observation.observation_id,
+        anchors: view.anchors,
+        recheck: false,
+        motion_samples: (previous?.data.motion_samples ?? 0) + 1,
+        noise_regions: [],
       },
     };
     const changes: Record[] = [page];
@@ -91,44 +109,80 @@ export class Catalog {
       if (!(left < right && top < bottom && right <= display.width && bottom <= display.height))
         throw new FrameworkError(ErrorCode.AI_OUTPUT_INVALID, 'Invalid exploration target bounds');
       const targetKey = signature([
-        page.id, name(candidate.container), name(candidate.item), name(candidate.key), candidate.kind,
+        page.id,
+        name(candidate.container),
+        name(candidate.item),
+        name(candidate.key),
+        candidate.kind,
       ]);
       if (seen.has(targetKey))
-        throw new FrameworkError(ErrorCode.AI_OUTPUT_INVALID, 'Duplicate exploration item identity');
+        throw new FrameworkError(
+          ErrorCode.AI_OUTPUT_INVALID,
+          'Duplicate exploration item identity',
+        );
       seen.add(targetKey);
-      const known = records.find((record): record is Element =>
-        record.kind === 'element' && record.parent_id === page.id && record.data.key === targetKey,
+      const known = records.find(
+        (record): record is Element =>
+          record.kind === 'element' &&
+          record.parent_id === page.id &&
+          record.data.key === targetKey,
       );
       let status: Element['status'] = known?.status ?? 'pending';
       const blocked = candidate.availability !== 'enabled';
       const prohibited = ['real_payment', 'account_delete', 'unknown'].includes(candidate.risk);
-      if (blocked) status = 'locked';
+      if (known?.status === 'limited' || known?.status === 'external_skipped')
+        status = known.status;
+      else if (blocked) status = 'locked';
       else if (prohibited) status = 'prohibited';
       else if (known?.status === 'locked') status = 'pending';
-      else if (known && known.data.condition !== candidate.condition && status === 'verified')
-        status = 'pending';
-      if (!known || status === 'pending' && known.status !== 'pending') novelty += 1;
+      if (!known || (status === 'pending' && known.status !== 'pending')) novelty += 1;
       const element: Element = {
-        kind: 'element', id: known?.id ?? uid('element'), parent_id: page.id, status,
+        kind: 'element',
+        id: known?.id ?? uid('element'),
+        parent_id: page.id,
+        status,
         data: {
-          ...candidate, key: targetKey, page_id: page.id, observation_id: observation.observation_id,
-          locator_id: known?.data.locator_id ?? null, attempts: known?.data.attempts ?? 0,
-          action_id: known?.data.action_id ?? null, child_page: known?.data.child_page ?? null,
+          ...candidate,
+          key: targetKey,
+          page_id: page.id,
+          observation_id: observation.observation_id,
+          semantic_key: candidate.key,
+          locator_id: known?.data.locator_id ?? null,
+          attempts: known?.data.attempts ?? 0,
+          action_id: known?.data.action_id ?? null,
+          child_page: known?.data.child_page ?? null,
+          ever_verified: known?.data.ever_verified ?? known?.status === 'verified',
         },
       };
-      const prior = records.find((record): record is Locator =>
-        record.kind === 'locator' && record.id === element.data.locator_id,
+      const prior = records.find(
+        (record): record is Locator =>
+          record.kind === 'locator' && record.id === element.data.locator_id,
       );
-      const layout = signature([view.layout, display.display_id, display.rotation_degrees,
-        display.width, display.height]);
+      const layout = signature([
+        view.layout,
+        display.display_id,
+        display.rotation_degrees,
+        display.width,
+        display.height,
+      ]);
       if (!prior?.data.active || prior.data.layout !== layout) {
         const locator: Locator = {
-          kind: 'locator', id: uid('locator'), parent_id: element.id, status: 'candidate',
+          kind: 'locator',
+          id: uid('locator'),
+          parent_id: element.id,
+          status: 'candidate',
           data: {
-            element_id: element.id, page_id: page.id, layout,
-            observation_id: observation.observation_id, source_run: this.runtime.runId,
-            image_ref: observation.evidence_ref, bounds: candidate.bounds, anchors: view.anchors,
-            active: true, verified: false,
+            element_id: element.id,
+            page_id: page.id,
+            layout,
+            observation_id: observation.observation_id,
+            source_run: this.runtime.runId,
+            image_ref: observation.evidence_ref,
+            bounds: candidate.bounds,
+            anchors: view.anchors,
+            active: true,
+            verified: false,
+            viewport: view.viewport_key ?? '',
           },
         };
         element.data.locator_id = locator.id;
@@ -136,15 +190,31 @@ export class Catalog {
       }
       changes.push(element);
     }
+    const motion = facts.motion_regions ?? [];
+    const previousNoise = previous?.data.noise_regions;
+    page.data.noise_regions = motion.filter((box) => {
+      const recurrent =
+        !previousNoise ||
+        previousNoise.some((prior) => prior.every((value, index) => value === box[index]));
+      const overTarget = view.elements.some((element) => {
+        const target = element.bounds;
+        return box[0] < target[2] && box[2] > target[0] && box[1] < target[3] && box[3] > target[1];
+      });
+      return recurrent && !overTarget;
+    });
     const priorSession = records.find((record): record is Session => record.kind === 'session');
     const session: Session = {
-      kind: 'session', id: 'current', parent_id: null, status: 'active',
+      kind: 'session',
+      id: 'current',
+      parent_id: null,
+      status: 'active',
       data: {
+        ...priorSession?.data,
         page_id: page.id,
         root_page: priorSession?.data.root_page ?? (view.is_root ? page.id : null),
         observation_id: observation.observation_id,
         identity_key: signature(this.runtime.progress.data.identity),
-        sweep_done: novelty ? false : priorSession?.data.sweep_done ?? false,
+        sweep_done: novelty ? false : (priorSession?.data.sweep_done ?? false),
         novelty: (priorSession?.data.novelty ?? 0) + novelty,
       },
     };
@@ -153,65 +223,150 @@ export class Catalog {
     return page;
   }
 
-  associate(pending: Pending, actionId: string, page: Page, mode: NonNullable<Pending['exploration']>['mode'] = 'target'): void {
+  associate(
+    pending: Pending,
+    actionId: string,
+    page: Page,
+    mode: NonNullable<Pending['exploration']>['mode'] = 'target',
+  ): void {
     const action = pending.action;
-    const elements = this.records().filter((record): record is Element =>
-      record.kind === 'element' && record.parent_id === page.id &&
-      record.data.observation_id === pending.observation_id,
+    const elements = this.records().filter(
+      (record): record is Element =>
+        record.kind === 'element' &&
+        record.parent_id === page.id &&
+        record.data.observation_id === pending.observation_id,
     );
-    const candidates = elements.filter((element) => {
-      const [left, top, right, bottom] = element.data.bounds;
-      return left <= action.x && action.x < right && top <= action.y && action.y < bottom &&
-        (action.type === 'swipe' ? element.data.kind === 'scroll' : element.data.kind === 'tap');
-    }).sort((a, b) => {
-      const area = (element: Element): number =>
-        (element.data.bounds[2] - element.data.bounds[0]) * (element.data.bounds[3] - element.data.bounds[1]);
-      return area(a) - area(b);
-    });
+    const candidates = elements
+      .filter((element) => {
+        const [left, top, right, bottom] = element.data.bounds;
+        return (
+          left <= action.x &&
+          action.x < right &&
+          top <= action.y &&
+          action.y < bottom &&
+          (action.type === 'swipe' ? element.data.kind === 'scroll' : element.data.kind === 'tap')
+        );
+      })
+      .sort((a, b) => {
+        const area = (element: Element): number =>
+          (element.data.bounds[2] - element.data.bounds[0]) *
+          (element.data.bounds[3] - element.data.bounds[1]);
+        return area(a) - area(b);
+      });
     const element = candidates[0];
     if (!element || !['tap', 'swipe'].includes(action.type)) return;
     element.status = 'in_progress';
     element.data.action_id = actionId;
-    pending.exploration = {
-      workspace_key: this.key, element_id: element.id, from_page: page.id,
-      locator_id: element.data.locator_id, viewport: '',
+    pending.exploration ??= {
+      workspace_key: this.key,
+      element_id: element.id,
+      from_page: page.id,
+      locator_id: element.data.locator_id,
+      viewport: '',
       mode: action.type === 'swipe' ? 'scroll' : mode,
     };
     this.save([element]);
+  }
+
+  move(page: Page, observation: Observation): void {
+    const session = this.session();
+    if (!session) return;
+    session.data.page_id = page.id;
+    session.data.observation_id = observation.observation_id;
+    this.save([session]);
+  }
+
+  backTarget(page: Page, observation: Observation): Element {
+    const known = this.records().find(
+      (record): record is Element =>
+        record.kind === 'element' && record.parent_id === page.id && record.data.kind === 'back',
+    );
+    if (known) return known;
+    const display = observation.runtime.focused_display;
+    if (!display) throw new FrameworkError(ErrorCode.STALE_OBSERVATION);
+    const element: Element = {
+      kind: 'element',
+      id: uid('element'),
+      parent_id: page.id,
+      status: 'pending',
+      data: {
+        key: signature([page.id, 'system-back']),
+        semantic_key: 'system-back',
+        label: 'Android Back',
+        container: 'system-navigation',
+        item: '',
+        kind: 'back',
+        intent: 'close',
+        bounds: [0, 0, display.width, display.height],
+        risk: 'none',
+        availability: 'enabled',
+        condition: '',
+        page_id: page.id,
+        observation_id: observation.observation_id,
+        locator_id: null,
+        attempts: 0,
+        action_id: null,
+        child_page: null,
+        ever_verified: false,
+      },
+    };
+    this.save([element]);
+    return element;
   }
 
   outcome(pending: Pending, page: Page | null, observation: Observation, verified: boolean): void {
     const link = pending.exploration;
     if (!link || link.workspace_key !== this.key || !pending.action_id) return;
     const records = this.records();
-    const element = records.find((record): record is Element =>
-      record.kind === 'element' && record.id === link.element_id,
+    const element = records.find(
+      (record): record is Element => record.kind === 'element' && record.id === link.element_id,
     );
     if (!element) throw new FrameworkError(ErrorCode.INVALID_STATE);
-    const locator = records.find((record): record is Locator =>
-      record.kind === 'locator' && record.id === link.locator_id,
+    const locator = records.find(
+      (record): record is Locator => record.kind === 'locator' && record.id === link.locator_id,
     );
     element.data.child_page = page?.id ?? null;
     const changes: Record[] = [element];
+    const firstVerification = verified && !element.data.ever_verified && link.mode !== 'scroll';
+    if (verified && link.mode !== 'scroll') element.data.ever_verified = true;
     if (!verified) element.data.attempts += 1;
-    element.status = verified ? 'verified' : element.data.attempts >= 2 ? 'unknown' : 'pending';
-    if (locator) {
+    if (link.mode === 'scroll') element.status = 'pending';
+    else if (link.mode === 'external_close') element.status = 'in_progress';
+    else
+      element.status = verified ? 'verified' : element.data.attempts >= 2 ? 'unknown' : 'pending';
+    if (locator && link.mode !== 'external_close' && link.mode !== 'return') {
       locator.status = verified ? 'verified' : 'stale';
       locator.data.verified = verified;
       locator.data.active = verified;
       changes.push(locator);
     }
-    if (verified && page && ['tap', 'back', 'swipe', 'return'].includes(pending.action.type)) {
+    if (
+      verified &&
+      page &&
+      pending.action.type !== 'swipe' &&
+      ['tap', 'back', 'return'].includes(pending.action.type)
+    ) {
       const edge = decode('exploration-record', {
-        kind: 'edge', id: signature([link.from_page, element.id, page.id]),
-        parent_id: link.from_page, status: 'verified',
+        kind: 'edge',
+        id: signature([link.from_page, element.id, page.id]),
+        parent_id: link.from_page,
+        status: 'verified',
         data: {
-          from_page: link.from_page, to_page: page.id, element_id: element.id,
-          action_id: pending.action_id, observation_id: observation.observation_id,
+          from_page: link.from_page,
+          to_page: page.id,
+          element_id: element.id,
+          action_id: pending.action_id,
+          observation_id: observation.observation_id,
           action_type: pending.action.type,
         },
       });
       changes.push(edge);
+    }
+    const session = this.session();
+    if (firstVerification && session) {
+      session.data.novelty += 1;
+      session.data.sweep_done = false;
+      changes.push(session);
     }
     this.save(changes);
   }

@@ -101,6 +101,23 @@
             },
             "recheck": {
               "type": "boolean"
+            },
+            "noise_regions": {
+              "type": "array",
+              "items": {
+                "type": "array",
+                "items": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "minItems": 4,
+                "maxItems": 4
+              },
+              "maxItems": 256
+            },
+            "motion_samples": {
+              "type": "integer",
+              "minimum": 0
             }
           },
           "required": [
@@ -183,7 +200,8 @@
             "kind": {
               "enum": [
                 "tap",
-                "scroll"
+                "scroll",
+                "back"
               ]
             },
             "intent": {
@@ -269,6 +287,13 @@
                   "type": "null"
                 }
               ]
+            },
+            "semantic_key": {
+              "type": "string",
+              "maxLength": 240
+            },
+            "ever_verified": {
+              "type": "boolean"
             }
           },
           "required": [
@@ -402,6 +427,10 @@
             },
             "verified": {
               "type": "boolean"
+            },
+            "viewport": {
+              "type": "string",
+              "maxLength": 2000
             }
           },
           "required": [
@@ -656,6 +685,46 @@
             "novelty": {
               "type": "integer",
               "minimum": 0
+            },
+            "external": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "element_id": {
+                      "type": "string",
+                      "maxLength": 2000
+                    },
+                    "page_id": {
+                      "type": "string",
+                      "maxLength": 2000
+                    },
+                    "window_id": {
+                      "type": "string",
+                      "maxLength": 240
+                    },
+                    "process_start": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "attempts": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  },
+                  "required": [
+                    "element_id",
+                    "page_id",
+                    "window_id",
+                    "process_start",
+                    "attempts"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "null"
+                }
+              ]
             }
           },
           "required": [

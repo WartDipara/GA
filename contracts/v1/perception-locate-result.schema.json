@@ -1,0 +1,117 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "status": {
+      "enum": [
+        "matched",
+        "ambiguous",
+        "unknown"
+      ]
+    },
+    "source": {
+      "enum": [
+        "control",
+        "visual",
+        "none"
+      ]
+    },
+    "bounds": {
+      "anyOf": [
+        {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "minItems": 4,
+          "maxItems": 4
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "predicted_bounds": {
+      "type": "array",
+      "items": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "minItems": 4,
+      "maxItems": 4
+    },
+    "target_guard": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "matched_anchors": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 240
+      },
+      "maxItems": 12
+    },
+    "reason": {
+      "type": "string",
+      "maxLength": 2000
+    },
+    "page_guard": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "noise_regions": {
+              "type": "array",
+              "items": {
+                "type": "array",
+                "items": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "minItems": 4,
+                "maxItems": 4
+              },
+              "maxItems": 256
+            }
+          },
+          "required": [
+            "sha256",
+            "noise_regions"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "page_match": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "status",
+    "source",
+    "bounds",
+    "predicted_bounds",
+    "target_guard",
+    "matched_anchors",
+    "reason",
+    "page_guard",
+    "page_match"
+  ],
+  "additionalProperties": false
+}

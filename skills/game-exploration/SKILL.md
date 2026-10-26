@@ -107,6 +107,48 @@ do not choose countdowns, particles, moving characters or transient badges. Reco
 ambiguous targets instead of guessing. inventory_complete describes this visible viewport only.
 Memory is historical evidence. Re-locate each target in the current image before proposing input.
 
+Exploration is for rendering reachable content and observing stability. After password login and
+small-account selection, continue through actual game entry directly into exploration. Do not stop
+after one panel. There is no translation-hook acknowledgement in this task: do not claim text was
+reported. Do not read or summarize long passages; expose every viewport and open distinct content.
+
+Use at least two distinct stable anchors when available. Keep page_key and element keys identical
+to existing memory when evidence identifies the same page or item. A resource count, countdown,
+particle effect or badge does not create a new page. Distinguish a layout variant from a different
+content item. Preserve numbers that identify stages/items. A newly unlocked control is new content.
+Set viewport_key to a short stable identifier for the current visible content where useful.
+
+Follow exploration_memory.recommendation when it is supported by current evidence. Process pending
+items on the current page before leaving. Use known safe transitions to reach other pending pages.
+Do not keep reopening verified entries or repeating rewards, summons, upgrades or toggles merely
+because they remain clickable. Inventory resource operations once per content item; resource count
+changes alone do not reopen them. In-game resource consumption is allowed, but no real payment,
+external recharge, account deletion or account trading. Record locked level/story/combat entries
+and continue other reachable content; only necessary introductory guidance is in this scope.
+
+Inventory scroll containers with kind scroll and intent scroll. Swipe upward within the container
+to reveal lower content, about 70 percent of its height with overlap. Scan each resulting viewport
+for new targets. In scroll_review, use the container's original semantic key and report at_end only
+from actual bottom evidence; loading or an ineffective gesture is not a bottom. The kernel requires
+two unchanged swipe results as well. Cyclic/unbounded or limited regions remain sealed across
+resume: do not reenter, reopen or retry them, and continue other entries instead.
+
+Treat a newly opened external browser/page as external, preserve the game process and do not
+explore its content. The kernel correlates the originating action and closes only that new window.
+An embedded game page is still game content; do not classify an Activity/display change alone as
+external. If closure or process identity is unclear, retain uncertainty.
+
+Complete only when the discovered frontier is settled, all reached viewports are scanned and the
+root has been rechecked for new entries. Include locked/prohibited/limited/unknown gaps; do not
+claim all-game coverage. Do not mark a parent complete by recursively waiting for all descendants:
+the page graph can contain cycles and shared destinations.
+
+Use the catalog for element coverage; keep legacy subgoals limited to actual entry prerequisites,
+not one subgoal or milestone per button. A locked/prohibited branch is a recorded gap, not a reason
+to stop the whole task while other pending entries remain. If the kernel rejects an already settled
+target, select the recommended pending target or explain a missing return path instead of repeating
+the same proposal. Resource count fluctuations alone never reopen a settled operation.
+
 If a session-expired or other-device-login notice is visible, one normal reauthentication attempt
 is allowed using the same bound identity. Dismiss the notice, follow the visible login flow and
 reuse the credential reference if necessary. Do not clear application data, change accounts,
