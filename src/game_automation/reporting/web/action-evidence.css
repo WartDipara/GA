@@ -13,7 +13,7 @@
   position: relative;
   overflow: hidden;
   border-radius: 10px;
-  background: #111b2a;
+  background: var(--surface);
 }
 .evidence-frame img {
   display: block;
@@ -29,29 +29,29 @@
   pointer-events: none;
 }
 .action-overlay .target-bounds {
-  fill: #ffc85720;
-  stroke: #ffc857;
+  fill: color-mix(in srgb, var(--warning) 13%, transparent);
+  stroke: var(--warning);
   stroke-width: 2;
   vector-effect: non-scaling-stroke;
 }
 .action-overlay .touch-ring {
-  fill: #ff547025;
-  stroke: white;
+  fill: color-mix(in srgb, var(--negative) 15%, transparent);
+  stroke: var(--overlay-contrast);
   stroke-width: 3;
   vector-effect: non-scaling-stroke;
 }
 .action-overlay .touch-point {
-  fill: #ff274f;
-  stroke: white;
+  fill: var(--negative);
+  stroke: var(--overlay-contrast);
   stroke-width: 1;
   vector-effect: non-scaling-stroke;
 }
 .action-overlay .hold-ring {
   fill: none;
-  stroke: #ff5470;
+  stroke: var(--negative);
 }
 .action-overlay .gesture-path {
-  stroke: #ff5470;
+  stroke: var(--negative);
   stroke-width: 4;
   vector-effect: non-scaling-stroke;
   fill: none;
@@ -63,9 +63,9 @@
 .action-evidence figcaption {
   font-size: 12px;
   line-height: 1.6;
-  color: #aebed3;
+  color: var(--muted);
   margin-top: 8px;
 }
 .evidence-note {
-  color: #ffc857;
+  color: var(--warning);
 }

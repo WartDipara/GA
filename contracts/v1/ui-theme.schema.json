@@ -1,0 +1,164 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://game-automation.local/contracts/v1/ui-theme",
+  "type": "object",
+  "properties": {
+    "default_mode": {
+      "enum": ["dark", "light"]
+    },
+    "tokens": {
+      "type": "object",
+      "properties": {
+        "font-sans": {
+          "type": "string"
+        },
+        "font-mono": {
+          "type": "string"
+        },
+        "radius-sm": {
+          "type": "string"
+        },
+        "radius-md": {
+          "type": "string"
+        },
+        "radius-lg": {
+          "type": "string"
+        },
+        "space-1": {
+          "type": "string"
+        },
+        "space-2": {
+          "type": "string"
+        },
+        "space-3": {
+          "type": "string"
+        },
+        "space-4": {
+          "type": "string"
+        },
+        "space-5": {
+          "type": "string"
+        },
+        "space-6": {
+          "type": "string"
+        },
+        "duration-fast": {
+          "type": "string"
+        },
+        "duration-normal": {
+          "type": "string"
+        },
+        "duration-enter": {
+          "type": "string"
+        },
+        "motion-distance": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "font-sans",
+        "font-mono",
+        "radius-sm",
+        "radius-md",
+        "radius-lg",
+        "space-1",
+        "space-2",
+        "space-3",
+        "space-4",
+        "space-5",
+        "space-6",
+        "duration-fast",
+        "duration-normal",
+        "duration-enter",
+        "motion-distance"
+      ],
+      "additionalProperties": false
+    },
+    "themes": {
+      "type": "object",
+      "properties": {
+        "dark": {
+          "$ref": "#/$defs/palette"
+        },
+        "light": {
+          "$ref": "#/$defs/palette"
+        }
+      },
+      "required": ["dark", "light"],
+      "additionalProperties": false
+    }
+  },
+  "required": ["default_mode", "tokens", "themes"],
+  "additionalProperties": false,
+  "$defs": {
+    "palette": {
+      "type": "object",
+      "properties": {
+        "bg": {
+          "type": "string"
+        },
+        "surface": {
+          "type": "string"
+        },
+        "surface-raised": {
+          "type": "string"
+        },
+        "surface-hover": {
+          "type": "string"
+        },
+        "border": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "muted": {
+          "type": "string"
+        },
+        "accent": {
+          "type": "string"
+        },
+        "accent-soft": {
+          "type": "string"
+        },
+        "positive": {
+          "type": "string"
+        },
+        "warning": {
+          "type": "string"
+        },
+        "negative": {
+          "type": "string"
+        },
+        "info": {
+          "type": "string"
+        },
+        "shadow": {
+          "type": "string"
+        },
+        "overlay-contrast": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "bg",
+        "surface",
+        "surface-raised",
+        "surface-hover",
+        "border",
+        "text",
+        "muted",
+        "accent",
+        "accent-soft",
+        "positive",
+        "warning",
+        "negative",
+        "info",
+        "shadow",
+        "overlay-contrast"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

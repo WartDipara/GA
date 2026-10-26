@@ -46,7 +46,7 @@ def action_overlay(action, width, height):
             )
             shapes.append(
                 f'<path class="gesture-path" d="M {x} {y} L {end_x} {end_y}"/>'
-                f'<polygon points="{arrow_points}" fill="#ff5470"/>'
+                f'<polygon points="{arrow_points}" fill="var(--negative)"/>'
             )
     shapes.append(f'<circle class="touch-ring" cx="{x}" cy="{y}" r="{radius}"/>')
     if kind == "long_press":

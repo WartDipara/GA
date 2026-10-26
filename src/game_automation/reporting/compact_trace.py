@@ -57,8 +57,8 @@ def render_compact(store, run_id, *, degraded=False):
         '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; '
         "style-src 'unsafe-inline'\">"
         "<title>Execution timeline</title><style>body{font:16px system-ui;max-width:1100px;"
-        "margin:32px auto;padding:20px;background:#101820;color:#e6edf3}"
-        "details{padding:8px}pre{white-space:pre-wrap;overflow-wrap:anywhere}a{color:#84caff}</style>"
+        "margin:32px auto;padding:20px;background:var(--bg);color:var(--text)}"
+        "details{padding:8px}pre{white-space:pre-wrap;overflow-wrap:anywhere}a{color:var(--accent)}</style>"
         f"<h1>Execution timeline</h1><p>{html.escape(run_id)}</p>"
         f"<p>{explanation} "
         "Complete provider events and earlier records remain in SQLite and the calls directory. "

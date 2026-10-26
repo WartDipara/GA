@@ -1,0 +1,166 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://game-automation.local/contracts/v1/workspace-view",
+  "type": "object",
+  "properties": {
+    "kind": {
+      "enum": ["history", "task", "execution"]
+    },
+    "title": {
+      "type": "string"
+    },
+    "subtitle": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string"
+    },
+    "links": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "href": {
+            "type": "string"
+          },
+          "current": {
+            "type": "boolean"
+          }
+        },
+        "required": ["label", "href", "current"],
+        "additionalProperties": false
+      }
+    },
+    "summary": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "value": {
+            "type": ["number", "null"],
+            "minimum": 0
+          },
+          "note": {
+            "type": "string"
+          },
+          "tone": {
+            "enum": ["accent", "positive", "warning", "negative", "info", "muted"]
+          }
+        },
+        "required": ["label", "value", "note", "tone"],
+        "additionalProperties": false
+      }
+    },
+    "states": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "tone": {
+            "enum": ["accent", "positive", "warning", "negative", "info", "muted"]
+          }
+        },
+        "required": ["label", "count", "tone"],
+        "additionalProperties": false
+      }
+    },
+    "activity": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": ["label", "count"],
+        "additionalProperties": false
+      }
+    },
+    "latency": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "value": {
+            "type": ["number", "null"],
+            "minimum": 0
+          },
+          "href": {
+            "type": "string"
+          },
+          "tone": {
+            "enum": ["accent", "positive", "warning", "negative", "info", "muted"]
+          }
+        },
+        "required": ["label", "value", "href", "tone"],
+        "additionalProperties": false
+      }
+    },
+    "histogram": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": ["label", "count"],
+        "additionalProperties": false
+      }
+    },
+    "p50_ms": {
+      "type": ["number", "null"],
+      "minimum": 0
+    },
+    "p95_ms": {
+      "type": ["number", "null"],
+      "minimum": 0
+    },
+    "missing_timings": {
+      "type": "integer",
+      "minimum": 0
+    }
+  },
+  "required": [
+    "kind",
+    "title",
+    "subtitle",
+    "status",
+    "links",
+    "summary",
+    "states",
+    "activity",
+    "latency",
+    "histogram",
+    "p50_ms",
+    "p95_ms",
+    "missing_timings"
+  ],
+  "additionalProperties": false
+}

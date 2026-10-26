@@ -19,8 +19,9 @@ from .compact_trace import render_compact
 from .execution import publication_status
 from .exploration import exploration_view, render_exploration
 from .history import execution_index, history_view, render_execution, render_history, task_document
-from .navigation import decorate_document, page_document
+from .navigation import decorate_document, page_document, theme_document
 from .trace import render_context, render_trace
+from .workspace import workspace_view
 
 
 def trace_url(task_id, run_id):
@@ -92,7 +93,7 @@ def viewer_document(interval):
         script_element=script_element,
         style=(assets / "live.css").read_text(encoding="utf-8"),
     )
-    return document
+    return theme_document(document, "../../")
 
 
 class TraceHandler(BaseHTTPRequestHandler):
@@ -100,6 +101,11 @@ class TraceHandler(BaseHTTPRequestHandler):
         pass
 
     def respond(self, status, content, content_type):
+        if (
+            content_type == "text/html; charset=utf-8"
+            and "cache/typescript/trace_ui.css" not in content
+        ):
+            content = theme_document(content, "/")
         body = content.encode("utf-8") if isinstance(content, str) else content
         self.send_response(status)
         self.send_header("Content-Type", content_type)
@@ -126,11 +132,18 @@ class TraceHandler(BaseHTTPRequestHandler):
         try:
             parsed = urlsplit(self.path)
             path = unquote(parsed.path)
+            if path in ("/cache/typescript/trace_ui.js", "/cache/typescript/trace_ui.css"):
+                asset = self.server.project_root / "var" / path.lstrip("/")
+                content_type = "text/javascript" if path.endswith(".js") else "text/css"
+                self.respond(200, asset.read_bytes(), content_type + "; charset=utf-8")
+                return
             if not (self.server.project_root / "var/state.sqlite").is_file():
                 if path in ("/", "/reports/history.html"):
                     self.respond(200, render_history(None), "text/html; charset=utf-8")
                 elif path in ("/history.json", "/reports/history.json"):
                     self.respond(200, json.dumps(history_view(None)), "application/json")
+                elif path == "/reports/workspace.json":
+                    self.respond(200, json.dumps(workspace_view(None)), "application/json")
                 else:
                     raise FrameworkError(ErrorCode.NOT_FOUND)
                 return
@@ -158,6 +171,9 @@ class TraceHandler(BaseHTTPRequestHandler):
                 store.close()
 
     def route(self, store, path, query):
+        if path == "/reports/workspace.json":
+            self.respond(200, json.dumps(workspace_view(store)), "application/json")
+            return
         if path in ("/", "/reports/history.html"):
             self.respond(200, render_history(store), "text/html; charset=utf-8")
             return
@@ -171,6 +187,11 @@ class TraceHandler(BaseHTTPRequestHandler):
             raise FrameworkError(ErrorCode.NOT_FOUND)
         task_id = parts[1]
         store.task(task_id)
+        if path == f"/tasks/{task_id}/reports/workspace.json":
+            self.respond(
+                200, json.dumps(workspace_view(store, task_id=task_id)), "application/json"
+            )
+            return
         if path == f"/tasks/{task_id}/reports/task.html":
             self.respond(200, task_document(store, task_id), "text/html; charset=utf-8")
             return
@@ -202,6 +223,9 @@ class TraceHandler(BaseHTTPRequestHandler):
         run = store.run(run_id)
         if not separator or run["task_id"] != task_id:
             raise FrameworkError(ErrorCode.NOT_FOUND)
+        if relative == "reports/workspace.json":
+            self.respond(200, json.dumps(workspace_view(store, run_id=run_id)), "application/json")
+            return
         if relative == "reports/index.html":
             document, _ = render_execution(store, run_id)
             self.respond(200, document, "text/html; charset=utf-8")

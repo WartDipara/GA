@@ -1,12 +1,3 @@
-:root {
-  color-scheme: dark;
-  --bg: #101620;
-  --panel: #192230;
-  --line: #2a3749;
-  --text: #e8eef7;
-  --muted: #a4b3c7;
-  --accent: #91afff;
-}
 * {
   box-sizing: border-box;
 }
@@ -14,9 +5,7 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font:
-    15px/1.6 system-ui,
-    sans-serif;
+  font: 15px/1.6 var(--font-sans);
 }
 header {
   border-bottom: 1px solid var(--line);
@@ -143,15 +132,15 @@ select {
 }
 .verified,
 .external_skipped {
-  color: #80e1b7;
+  color: var(--positive);
 }
 .locked,
 .limited,
 .unknown {
-  color: #f0c684;
+  color: var(--warning);
 }
 .prohibited {
-  color: #ff9b9b;
+  color: var(--negative);
 }
 .columns {
   display: grid;
