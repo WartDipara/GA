@@ -128,6 +128,10 @@ Set viewport_key to a short stable identifier for the current visible content wh
 Reuse known_pages.page_key and variant exactly when current evidence identifies a retained page,
 including after a new model session or execution batch. The opaque page ID is not a page_key.
 
+Historical elements with verification_issue or missing verification proof do not establish a
+successful interaction. Reconcile their labels and identities against the current image; do not
+repeat an old resource action to repair a missing proof or treat historical descriptions as facts.
+
 Follow exploration_memory.recommendation when it is supported by current evidence. Process pending
 items on the current page before leaving. Use known safe transitions to reach other pending pages.
 Do not keep reopening verified entries or repeating rewards, summons, upgrades or toggles merely

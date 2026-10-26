@@ -53,6 +53,17 @@ old nodes, animations and repeated navigation do not. Pending action links are c
 dispatch; catalog reconciliation finishes before clearing a pending action. The existing action
 ledger remains authoritative, and unknown actions are never automatically replayed.
 
+Verified elements carry action-run, binding-event, before/after observation and outcome-event
+references. The writer verifies those references, dispatch ordering, retained artifacts and target
+bounds before accepting verification or a traversable edge. Ledger outcomes, catalog verification
+and pending-action clearance commit together. Scroll evidence is collected before that transaction.
+
+Before planning with restored memory, the kernel checks historical verification. Missing or
+conflicting proof downgrades the element to unknown, retires its active locators and invalidates
+unsupported edges. Repair events and catalog changes commit together; original events and settled
+business outcomes are retained. Valid legacy bindings acquire explicit proof without executing an
+action. Reports show invalidated edges and link verified evidence to the action's original batch.
+
 A blocked planner assessment settles the current execution after saving its observation, action
 outcome and checkpoint. It records `exploration.branch.blocked` and preserves the remaining queue;
 it does not report the branch as skipped or request another plan against the same evidence.

@@ -51,6 +51,7 @@ export async function runLoop(runtime: Runtime, initial: Observation): Promise<v
   const perception = new Perception(runtime);
   const exploration = runtime.task['goal'] === 'explore' ? new Exploration(runtime) : null;
   const catalog = exploration?.catalog ?? null;
+  catalog?.reconcileLedger();
   const planner = new Planner(runtime, catalog);
   const knowledge = new Knowledge(runtime);
   const battle = runtime.task['goal'] === 'advance-battle' ? new Battle(runtime) : null;
@@ -166,6 +167,7 @@ export async function runLoop(runtime: Runtime, initial: Observation): Promise<v
           assessment.status === 'verified' ? 'verified' : 'reconciled',
           outcome,
         );
+        exploration?.outcome(decision, view, pending, page);
         runtime.record('gameplay.outcome', outcome);
         for (const path of progress.paths)
           if (path.action_id === pending.action_id) {

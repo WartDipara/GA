@@ -17,13 +17,14 @@ export async function scrollViewport(
   return result.key;
 }
 
-export async function reviewScroll(
+export function reviewScroll(
   runtime: Runtime,
   catalog: Catalog,
   inventory: Inventory,
   observation: Observation,
   pending: Pending,
-): Promise<void> {
+  current: string,
+): void {
   const link = pending.exploration;
   if (!link || link.mode !== 'scroll' || !link.scroll_bounds || !link.viewport) return;
   const records = catalog.records();
@@ -35,7 +36,6 @@ export async function reviewScroll(
     (record): record is Scroll => record.kind === 'scroll' && record.parent_id === element.id,
   );
   if (prior?.status === 'limited') return;
-  const current = await scrollViewport(runtime, observation, link.scroll_bounds);
   const visited = prior?.data.viewports ?? [link.viewport];
   const unchanged = current === link.viewport ? (prior?.data.unchanged ?? 0) + 1 : 0;
   const cycles =
