@@ -76,6 +76,11 @@ export class Catalog {
       (record): record is Page => record.kind === 'page' && record.id === current,
     );
     const next = destination(this);
+    const feedbackRow = this.runtime.store.database.one(
+      "SELECT data FROM events WHERE kind='exploration.proposal.rejected' AND json_extract(data,'$.payload.workspace_key')=? ORDER BY seq DESC LIMIT 1",
+      this.key,
+    );
+    const feedback = feedbackRow ? decode('trace', parsed(feedbackRow['data'])) : null;
     const related = new Set([
       current,
       session?.data.root_page,
@@ -126,6 +131,15 @@ export class Catalog {
       root_page: session?.data.root_page ?? null,
       sweep_done: session?.data.sweep_done ?? false,
       authority: 'Memory is historical evidence; locate targets in the current observation',
+      last_rejected_proposal: feedback
+        ? {
+            event_id: feedback.event_id,
+            source_observation_id: feedback.payload['observation_id'],
+            dispatched: false,
+            reason: feedback.payload['reason'],
+            required_correction: feedback.payload['required_correction'],
+          }
+        : null,
       recommendation: next
         ? {
             element_id: next.element.id,

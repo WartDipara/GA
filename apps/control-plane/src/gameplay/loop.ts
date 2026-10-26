@@ -234,7 +234,12 @@ export async function runLoop(runtime: Runtime, initial: Observation): Promise<v
       throw new FrameworkError(ErrorCode.CAPABILITY_DENIED);
     if (exploration && !exploration.permit(decision.action, page)) {
       runtime.record('exploration.proposal.rejected', {
+        workspace_key: catalog?.key,
+        observation_id: view.observation.observation_id,
+        dispatched: false,
         reason: 'Target is absent, settled, locked or prohibited',
+        required_correction:
+          'Enumerate the proposed visible target in this viewport inventory; exclude covered controls. No device input occurred for this proposal.',
         next: exploration.hint(),
       });
       continue;

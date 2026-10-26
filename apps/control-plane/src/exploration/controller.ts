@@ -321,6 +321,10 @@ export class Exploration {
     return (
       selected.status === 'pending' ||
       (selected.status === 'verified' &&
+        selected.data.intent === 'close' &&
+        page.data.kind === 'modal' &&
+        selected.data.risk === 'none') ||
+      (selected.status === 'verified' &&
         selected.data.risk === 'none' &&
         next?.navigating === true &&
         selected.id === next.element.id)
