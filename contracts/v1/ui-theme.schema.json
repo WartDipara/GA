@@ -53,10 +53,25 @@
         },
         "motion-distance": {
           "type": "string"
+        },
+        "font-body": {
+          "type": "string",
+          "minLength": 1
+        },
+        "font-display": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sidebar-width": {
+          "type": "string",
+          "minLength": 1
+        },
+        "duration-navigation": {
+          "type": "string",
+          "minLength": 1
         }
       },
       "required": [
-        "font-sans",
         "font-mono",
         "radius-sm",
         "radius-md",
@@ -72,7 +87,15 @@
         "duration-enter",
         "motion-distance"
       ],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "anyOf": [
+        {
+          "required": ["font-body"]
+        },
+        {
+          "required": ["font-sans"]
+        }
+      ]
     },
     "themes": {
       "type": "object",
@@ -85,6 +108,48 @@
         }
       },
       "required": ["dark", "light"],
+      "additionalProperties": false
+    },
+    "appearance": {
+      "type": "object",
+      "properties": {
+        "font_size": {
+          "type": "integer",
+          "minimum": 14,
+          "maximum": 22
+        },
+        "min_font_size": {
+          "type": "integer",
+          "minimum": 12,
+          "maximum": 16
+        },
+        "max_font_size": {
+          "type": "integer",
+          "minimum": 18,
+          "maximum": 28
+        },
+        "design_font_size": {
+          "type": "integer",
+          "minimum": 12,
+          "maximum": 20
+        },
+        "minimum_text_ratio": {
+          "type": "number",
+          "minimum": 0.7,
+          "maximum": 1
+        },
+        "reduce_motion": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "font_size",
+        "min_font_size",
+        "max_font_size",
+        "design_font_size",
+        "minimum_text_ratio",
+        "reduce_motion"
+      ],
       "additionalProperties": false
     }
   },

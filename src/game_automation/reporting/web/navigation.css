@@ -2,10 +2,10 @@
   padding: 12px 20px;
   margin: 0 0 20px;
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   background: var(--surface);
   color: var(--text);
-  font: 14px/1.6 var(--font-sans);
+  font: max(var(--font-min), calc(14px * var(--font-scale)))/1.6 var(--font-body, var(--font-sans));
 }
 .report-navigation > div {
   display: flex;
@@ -36,7 +36,7 @@
 .history-page {
   background: var(--bg);
   color: var(--text);
-  font: 15px/1.6 var(--font-sans);
+  font: max(var(--font-min), calc(15px * var(--font-scale)))/1.6 var(--font-body, var(--font-sans));
   margin: 0;
 }
 .history-page main {
@@ -61,13 +61,13 @@
   color: var(--text);
   padding: 10px 14px;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
 }
 .history-page table {
   width: 100%;
   border-collapse: collapse;
   background: var(--surface);
-  border-radius: 12px;
+  border-radius: var(--radius-md);
 }
 .history-page th,
 .history-page td {
@@ -79,7 +79,7 @@
 .history-page pre {
   padding: 18px;
   background: var(--surface);
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }

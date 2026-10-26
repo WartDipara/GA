@@ -5,7 +5,7 @@ body {
   margin: 0;
   background: var(--background);
   color: var(--text);
-  font: 13px/1.5 var(--font-sans);
+  font: max(var(--font-min), calc(13px * var(--font-scale)))/1.5 var(--font-body, var(--font-sans));
 }
 button,
 input,
@@ -22,7 +22,7 @@ input {
   color: var(--text);
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   padding: 7px 11px;
 }
 button:hover {
@@ -46,17 +46,17 @@ p {
   margin: 0;
 }
 h1 {
-  font-size: 25px;
+  font-size: max(var(--font-min), calc(25px * var(--font-scale)));
   letter-spacing: -0.6px;
   font-weight: 650;
 }
 h2 {
-  font-size: 13px;
+  font-size: max(var(--font-min), calc(13px * var(--font-scale)));
   font-weight: 600;
 }
 small {
   color: var(--muted);
-  font-size: 11px;
+  font-size: max(var(--font-min), calc(11px * var(--font-scale)));
 }
 .app-shell {
   display: grid;
@@ -78,7 +78,7 @@ small {
   display: flex;
   align-items: center;
   gap: 10px;
-  font-size: 14px;
+  font-size: max(var(--font-min), calc(14px * var(--font-scale)));
   font-weight: 650;
   padding: 0 7px;
 }
@@ -87,14 +87,14 @@ small {
   place-items: center;
   width: 28px;
   height: 28px;
-  border-radius: 7px;
+  border-radius: var(--radius-sm);
   background: var(--accent-fill);
   color: var(--surface);
   font-weight: 750;
 }
 .workspace-label,
 .sidebar-heading {
-  font-size: 10px;
+  font-size: max(var(--font-min), calc(10px * var(--font-scale)));
   font-weight: 600;
   color: var(--muted);
   letter-spacing: 1px;
@@ -107,9 +107,9 @@ small {
 }
 .local-badge {
   border: 1px solid var(--line);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   padding: 1px 5px;
-  font-size: 9px;
+  font-size: max(var(--font-min), calc(9px * var(--font-scale)));
 }
 .all-executions {
   display: flex;
@@ -165,7 +165,7 @@ small {
   gap: 8px;
   align-items: center;
   color: var(--muted);
-  font-size: 11px;
+  font-size: max(var(--font-min), calc(11px * var(--font-scale)));
   padding: 18px 8px 0;
 }
 .connection-dot,
@@ -205,7 +205,7 @@ main {
 }
 .breadcrumbs {
   color: var(--muted);
-  font-size: 12px;
+  font-size: max(var(--font-min), calc(12px * var(--font-scale)));
 }
 .breadcrumbs span {
   margin: 0 10px;
@@ -218,11 +218,11 @@ main {
 }
 .live-controls button,
 .live-controls select {
-  font-size: 11px;
+  font-size: max(var(--font-min), calc(11px * var(--font-scale)));
 }
 .live-indicator {
   color: var(--green);
-  font-size: 11px;
+  font-size: max(var(--font-min), calc(11px * var(--font-scale)));
   margin-right: 8px;
   white-space: nowrap;
 }
@@ -245,13 +245,13 @@ main {
   margin-bottom: 25px;
 }
 .eyebrow {
-  font-size: 10px;
+  font-size: max(var(--font-min), calc(10px * var(--font-scale)));
   letter-spacing: 1.4px;
   color: var(--muted);
   margin-bottom: 7px;
 }
 .task-reference {
-  font: 11px/1.6 var(--font-mono);
+  font: max(var(--font-min), calc(11px * var(--font-scale)))/1.6 var(--font-mono);
   color: var(--muted);
   overflow-wrap: anywhere;
   margin-top: 5px;
@@ -260,7 +260,7 @@ main {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 11px;
+  font-size: max(var(--font-min), calc(11px * var(--font-scale)));
   color: var(--muted);
   white-space: nowrap;
 }
@@ -273,17 +273,17 @@ main {
 .metric {
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 9px;
+  border-radius: var(--radius-md);
   padding: 18px 20px;
   display: grid;
   gap: 5px;
 }
 .metric-label {
   color: var(--muted);
-  font-size: 12px;
+  font-size: max(var(--font-min), calc(12px * var(--font-scale)));
 }
 .metric strong {
-  font-size: 29px;
+  font-size: max(var(--font-min), calc(29px * var(--font-scale)));
   font-weight: 600;
   letter-spacing: -0.8px;
 }
@@ -305,7 +305,7 @@ main {
 .panel {
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 9px;
+  border-radius: var(--radius-md);
   overflow: hidden;
   min-width: 0;
 }
@@ -318,7 +318,7 @@ main {
   border-bottom: 1px solid var(--line);
 }
 .section-tag {
-  font-size: 9px;
+  font-size: max(var(--font-min), calc(9px * var(--font-scale)));
   letter-spacing: 0.8px;
   color: var(--muted);
   white-space: nowrap;
@@ -330,7 +330,7 @@ main {
   display: flex;
   gap: 3px;
   height: 13px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   overflow: hidden;
   background: var(--raised);
 }
@@ -361,7 +361,7 @@ main {
   align-items: center;
   gap: 7px;
   color: var(--muted);
-  font-size: 11px;
+  font-size: max(var(--font-min), calc(11px * var(--font-scale)));
   text-transform: capitalize;
 }
 .status-legend strong {
@@ -380,7 +380,7 @@ main {
   gap: 14px;
   border: none;
   padding: 7px 0;
-  font-size: 11px;
+  font-size: max(var(--font-min), calc(11px * var(--font-scale)));
   background: none;
   text-align: left;
 }
@@ -395,14 +395,14 @@ main {
 }
 .bar-track {
   height: 5px;
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   background: var(--raised);
   overflow: hidden;
 }
 .bar-fill {
   display: block;
   height: 100%;
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   background: var(--accent-fill);
 }
 .bar-fill.issues {
@@ -417,10 +417,10 @@ main {
 .count-badge {
   color: var(--muted);
   background: var(--raised);
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   padding: 2px 6px;
   margin-left: 7px;
-  font-size: 10px;
+  font-size: max(var(--font-min), calc(10px * var(--font-scale)));
 }
 .event-toolbar {
   display: flex;
@@ -431,10 +431,10 @@ main {
   min-width: 0;
   flex: 1;
   background: var(--background);
-  font-size: 11px;
+  font-size: max(var(--font-min), calc(11px * var(--font-scale)));
 }
 .event-toolbar select {
-  font-size: 11px;
+  font-size: max(var(--font-min), calc(11px * var(--font-scale)));
   max-width: 140px;
 }
 .event-columns {
@@ -443,7 +443,7 @@ main {
   padding: 8px 18px;
   background: var(--raised);
   color: var(--muted);
-  font-size: 10px;
+  font-size: max(var(--font-min), calc(10px * var(--font-scale)));
 }
 .event-list {
   max-height: 680px;
@@ -470,10 +470,10 @@ main {
   place-items: center;
   width: 28px;
   height: 28px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   color: var(--accent);
   background: var(--selection);
-  font: 11px var(--font-mono);
+  font: max(var(--font-min), calc(11px * var(--font-scale))) var(--font-mono);
   flex-shrink: 0;
 }
 .event-marker.issues {
@@ -492,7 +492,7 @@ main {
   gap: 3px;
 }
 .event-label strong {
-  font-size: 12px;
+  font-size: max(var(--font-min), calc(12px * var(--font-scale)));
   font-weight: 500;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -502,16 +502,16 @@ main {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font: 10px var(--font-mono);
+  font: max(var(--font-min), calc(10px * var(--font-scale))) var(--font-mono);
 }
 .event-duration {
   color: var(--muted);
-  font: 11px var(--font-mono);
+  font: max(var(--font-min), calc(11px * var(--font-scale))) var(--font-mono);
   white-space: nowrap;
 }
 .panel-footnote {
   color: var(--muted);
-  font-size: 10px;
+  font-size: max(var(--font-min), calc(10px * var(--font-scale)));
   padding: 13px 18px;
   border-top: 1px solid var(--line);
 }
@@ -527,8 +527,8 @@ main {
   background: var(--selection);
   color: var(--accent);
   padding: 3px 8px;
-  border-radius: 4px;
-  font-size: 10px;
+  border-radius: var(--radius-sm);
+  font-size: max(var(--font-min), calc(10px * var(--font-scale)));
   text-transform: uppercase;
   letter-spacing: 0.6px;
 }
@@ -536,21 +536,21 @@ main {
   color: var(--red);
 }
 .inspector-title {
-  font-size: 16px;
+  font-size: max(var(--font-min), calc(16px * var(--font-scale)));
   font-weight: 550;
   overflow-wrap: anywhere;
   margin: 12px 0 5px;
 }
 .subtle {
   color: var(--muted);
-  font-size: 11px;
+  font-size: max(var(--font-min), calc(11px * var(--font-scale)));
   overflow-wrap: anywhere;
 }
 .metadata {
   display: grid;
   grid-template-columns: 85px minmax(0, 1fr);
   gap: 12px 10px;
-  font-size: 11px;
+  font-size: max(var(--font-min), calc(11px * var(--font-scale)));
   margin: 25px 0;
 }
 .metadata dt {
@@ -565,16 +565,16 @@ main {
   display: block;
   padding: 9px 12px;
   border: 1px solid var(--line);
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   text-align: center;
   text-decoration: none;
-  font-size: 11px;
+  font-size: max(var(--font-min), calc(11px * var(--font-scale)));
 }
 .trace-link:hover {
   background: var(--selection);
 }
 h4 {
-  font-size: 11px;
+  font-size: max(var(--font-min), calc(11px * var(--font-scale)));
   margin: 24px 0 9px;
   font-weight: 500;
 }
@@ -584,26 +584,26 @@ pre {
   background: var(--background);
   padding: 14px;
   border: 1px solid var(--line);
-  border-radius: 6px;
-  font: 11px/1.7 var(--font-mono);
+  border-radius: var(--radius-sm);
+  font: max(var(--font-min), calc(11px * var(--font-scale)))/1.7 var(--font-mono);
   max-height: 420px;
   overflow: auto;
 }
 .empty-state {
   color: var(--muted);
   padding: 18px 4px;
-  font-size: 12px;
+  font-size: max(var(--font-min), calc(12px * var(--font-scale)));
 }
 .error-notice {
   color: var(--red);
   padding: 12px 16px;
   border: 1px solid var(--red);
-  border-radius: 7px;
+  border-radius: var(--radius-sm);
   margin-bottom: 20px;
 }
 footer {
   color: var(--muted);
-  font-size: 10px;
+  font-size: max(var(--font-min), calc(10px * var(--font-scale)));
   display: flex;
   justify-content: space-between;
   gap: 15px;
@@ -632,7 +632,7 @@ footer {
     grid-template-columns: 175px minmax(0, 1fr);
   }
   .brand {
-    font-size: 11px;
+    font-size: max(var(--font-min), calc(11px * var(--font-scale)));
   }
   .sidebar {
     padding: 20px 8px;
@@ -676,7 +676,7 @@ footer {
   }
   .brand {
     padding-bottom: 14px;
-    font-size: 14px;
+    font-size: max(var(--font-min), calc(14px * var(--font-scale)));
   }
   .topbar {
     padding: 12px;

@@ -1,0 +1,39 @@
+<dialog id="appearance-settings" aria-labelledby="appearance-title">
+  <div class="appearance-heading">
+    <div>
+      <p class="appearance-caption">YOUR WORKSPACE</p>
+      <h2 id="appearance-title">Appearance</h2>
+    </div>
+    <button type="button" data-appearance-close aria-label="Close appearance settings">×</button>
+  </div>
+  <p class="appearance-intro">
+    Choose a comfortable view. Changes apply immediately across reports.
+  </p>
+  <label for="appearance-theme">Color theme</label>
+  <select id="appearance-theme">
+    <option value="default">Project default</option>
+    <option value="dark">Dark · Obsidian</option>
+    <option value="light">Light · Parchment</option>
+  </select>
+  <div class="appearance-size-label">
+    <label for="appearance-font-size">Text size</label
+    ><output id="appearance-font-value" for="appearance-font-size"></output>
+  </div>
+  <div class="appearance-size-control">
+    <button type="button" data-font-step="-1" aria-label="Decrease text size">A−</button>
+    <input type="range" id="appearance-font-size" step="1" />
+    <button type="button" data-font-step="1" aria-label="Increase text size">A+</button>
+  </div>
+  <div class="appearance-preview">
+    <span>Readable evidence</span>
+    <p>Explore every detail. Keep each decision in view.</p>
+    <code>trace → action → evidence</code>
+  </div>
+  <label class="appearance-motion"
+    ><input type="checkbox" id="appearance-motion" />Reduce interface motion</label
+  >
+  <div class="appearance-footer">
+    <small>Saved in this browser.</small
+    ><button type="button" id="appearance-reset">Reset defaults</button>
+  </div>
+</dialog>

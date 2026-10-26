@@ -12,17 +12,33 @@
           d="M12 2v2 M12 20v2 M2 12h2 M20 12h2 M5 5l1.5 1.5 M17.5 17.5L19 19 M5 19l1.5-1.5 M17.5 6.5L19 5 M16 12a4 4 0 1 1-8 0a4 4 0 1 1 8 0"
         />
       </symbol>
+      <symbol id="workspace-icon-chevron" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7" /></symbol>
+      <symbol id="workspace-icon-document" viewBox="0 0 24 24">
+        <path d="M6 3h9l4 4v14H6z M14 3v5h5 M9 12h7 M9 16h7" />
+      </symbol>
+      <symbol id="workspace-icon-pointer" viewBox="0 0 24 24">
+        <path d="m5 3 15 10-7 1-3 7z" />
+      </symbol>
+      <symbol id="workspace-icon-check" viewBox="0 0 24 24">
+        <path d="M12 3 4 6v6c0 5 8 9 8 9s8-4 8-9V6z M8 12l3 3 5-6" />
+      </symbol>
+      <symbol id="workspace-icon-settings" viewBox="0 0 24 24">
+        <path d="M4 7h16 M4 17h16 M8 4v6 M16 14v6" />
+      </symbol>
+      <symbol id="workspace-icon-crest" viewBox="0 0 24 24">
+        <path d="M12 2C8 5 4 7 4 12v9h16v-9c0-5-4-7-8-10Z M12 6v12 M7 12h10 M9 9l6 6 M15 9l-6 6" />
+      </symbol>
     </defs>
   </svg>
   <aside class="ui-sidebar" aria-label="Workspace navigation">
     <a class="ui-logo" href="$home">
       <span class="ui-logo-mark">
-        <svg class="ui-icon" aria-hidden="true"><use href="#workspace-icon-trace" /></svg>
+        <svg class="ui-icon" aria-hidden="true"><use href="#workspace-icon-crest" /></svg>
       </span>
       <span>Game Automation<small>OBSERVABILITY</small></span>
     </a>
     <p class="ui-nav-label">WORKSPACE</p>
-    <nav class="ui-links">$links</nav>
+    <nav class="ui-links" aria-label="Task and execution navigation">$links</nav>
     <div class="ui-sidebar-footer">
       <span class="ui-dot"></span>Local evidence store<small>Read-only workspace</small>
     </div>
@@ -31,6 +47,10 @@
     <span>Workspace <span class="ui-separator">/</span><strong>$current</strong></span>
     <div>
       <span class="ui-local"><span class="ui-dot"></span>Local</span>
+      <button class="ui-theme" type="button" data-appearance-open>
+        <svg class="ui-icon" aria-hidden="true"><use href="#workspace-icon-settings" /></svg>
+        <span>Appearance</span>
+      </button>
       <button class="ui-theme" id="workspace-theme" type="button">
         <svg class="ui-icon" aria-hidden="true"><use href="#workspace-icon-theme" /></svg>
         <span>Theme</span>

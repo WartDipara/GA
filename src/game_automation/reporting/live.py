@@ -20,6 +20,7 @@ from .execution import publication_status
 from .exploration import exploration_view, render_exploration
 from .history import execution_index, history_view, render_execution, render_history, task_document
 from .navigation import decorate_document, page_document, theme_document
+from .navigation_tree import live_workspace
 from .trace import render_context, render_trace
 from .workspace import workspace_view
 
@@ -125,6 +126,12 @@ class TraceHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def respond_document(self, store, document):
+        path = unquote(urlsplit(self.path).path)
+        document = live_workspace(store, document, path)
+        document = theme_document(document, "/")
+        self.respond(200, document, "text/html; charset=utf-8")
+
     def do_GET(self):
         expected_host = f"127.0.0.1:{self.server.server_port}"
         origin = self.headers.get("Origin")
@@ -187,7 +194,7 @@ class TraceHandler(BaseHTTPRequestHandler):
             self.respond(200, json.dumps(workspace_view(store)), "application/json")
             return
         if path in ("/", "/reports/history.html"):
-            self.respond(200, render_history(store), "text/html; charset=utf-8")
+            self.respond_document(store, render_history(store))
             return
         if path in ("/history.json", "/reports/history.json"):
             content = json.dumps(history_view(store), ensure_ascii=False)
@@ -205,14 +212,14 @@ class TraceHandler(BaseHTTPRequestHandler):
             )
             return
         if path == f"/tasks/{task_id}/reports/task.html":
-            self.respond(200, task_document(store, task_id), "text/html; charset=utf-8")
+            self.respond_document(store, task_document(store, task_id))
             return
         if path == f"/tasks/{task_id}/reports/task.json":
             self.respond(200, json.dumps(task_snapshot(store, task_id)), "application/json")
             return
         if path == f"/tasks/{task_id}/":
             document = viewer_document(self.server.interval)
-            self.respond(200, document, "text/html; charset=utf-8")
+            self.respond_document(store, document)
             return
         if path == f"/tasks/{task_id}/snapshot":
             row = store.db.execute(
@@ -240,7 +247,7 @@ class TraceHandler(BaseHTTPRequestHandler):
             return
         if relative == "reports/index.html":
             document, _ = render_execution(store, run_id)
-            self.respond(200, document, "text/html; charset=utf-8")
+            self.respond_document(store, document)
             return
         if relative == "reports/index.json":
             self.respond(200, json.dumps(execution_index(store, run_id)), "application/json")
@@ -265,26 +272,19 @@ class TraceHandler(BaseHTTPRequestHandler):
             document = decorate_document(
                 store, run_id, page_document("Recorded evidence", body), "evidence.html"
             )
-            self.respond(200, document, "text/html; charset=utf-8")
+            self.respond_document(store, document)
             return
         if relative == "reports/trace.html":
             try:
                 document, _ = render_trace(store, run_id)
             except Exception:
                 document = render_compact(store, run_id, degraded=True)
-            self.respond(
-                200,
-                decorate_document(store, run_id, document, "trace.html"),
-                "text/html; charset=utf-8",
-            )
+            self.respond_document(store, decorate_document(store, run_id, document, "trace.html"))
             return
         if relative == "reports/exploration.html":
             document, _ = render_exploration(store, run_id, current=True)
-            self.respond(
-                200,
-                decorate_document(store, run_id, document, "exploration.html"),
-                "text/html; charset=utf-8",
-            )
+            document = decorate_document(store, run_id, document, "exploration.html")
+            self.respond_document(store, document)
             return
         if relative == "reports/exploration.json":
             view = exploration_view(store, run_id)
@@ -292,11 +292,7 @@ class TraceHandler(BaseHTTPRequestHandler):
             return
         if relative == "reports/context.html":
             document, _ = render_context(store, run_id)
-            self.respond(
-                200,
-                decorate_document(store, run_id, document, "context.html"),
-                "text/html; charset=utf-8",
-            )
+            self.respond_document(store, decorate_document(store, run_id, document, "context.html"))
             return
         if relative == "reports/agent-trace.json":
             row = store.db.execute(
@@ -335,7 +331,7 @@ class TraceHandler(BaseHTTPRequestHandler):
             document = decorate_document(
                 store, run_id, file_path.read_text(encoding="utf-8"), relative.rsplit("/", 1)[-1]
             )
-            self.respond(200, document, content_type)
+            self.respond_document(store, document)
         else:
             self.respond(200, file_path.read_bytes(), content_type)
 

@@ -93,8 +93,9 @@ New tasks appear automatically with a three-second refresh. Reports and indexes 
 after success, failure, cancellation or a blocked checkpoint. Press `Ctrl+C` in the viewer terminal
 to stop the viewer; the workflow continues independently.
 
-Switch light/dark themes in the header. Edit `config/ui-theme.json` and run `npm run build`
-to change shared colors, typography, spacing and motion across reports.
+Expand the sidebar's **Task → Executions → Reports** hierarchy to navigate retained records.
+Open **Appearance** to adjust text size, theme and motion; preferences persist in this browser.
+Edit `config/ui-theme.json` and run `npm run build` to change the shared design defaults.
 
 To open a specific execution's task using a free port, use this alternative in PowerShell:
 
