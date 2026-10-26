@@ -73,10 +73,34 @@ uv run game-auto report <run_id>
 uv run game-auto serve-trace <run_id> --port 0
 ```
 
-Start the independent task-history viewer with `npm run trace` and open
-its printed URL. New executions appear automatically; settled runs publish linked reports.
 After updating code or Skills, use `resume <run_id> --new-batch` to pin the updated dependencies.
-Reports and evidence are stored under `var/tasks/<task_id>/`.
+Use `report <run_id>` to rebuild missing reports without running the game again.
+
+## View traces and history
+
+Start the independent viewer in another terminal:
+
+```powershell
+npm run trace
+```
+
+Open the printed URL (default port: 8767). Select a task, then **Execution overview**.
+Use **Call trace**, **Model context**, **Actions**, **Elements** and **Outcome** to inspect it.
+Calls link to parent calls and retained inputs/outputs; actions link to screenshots.
+Use **Back** to return, or **Task overview** / **Task history** to change execution or task.
+
+New tasks appear automatically with a three-second refresh. Reports and indexes are generated
+after success, failure, cancellation or a blocked checkpoint. Press `Ctrl+C` in the viewer terminal
+to stop the viewer; the workflow continues independently.
+
+To open a specific execution's task using a free port, use this alternative in PowerShell:
+
+```powershell
+npm.cmd run trace -- <run_id> --port 0
+```
+
+Events are stored in `var/state.sqlite`; inputs, screenshots and reports are under
+`var/tasks/<task_id>/executions/<run_id>/`. See [trace workspace](docs/trace-workspace.md) for details.
 
 See [workflow options](docs/workflow.md), [gameplay](docs/gameplay.md),
 [device ownership](docs/device-preparation.md), [troubleshooting](docs/debugging.md)
