@@ -1,13 +1,11 @@
 .report-navigation {
   padding: 12px 20px;
   margin: 0 0 20px;
-  border: 1px solid #34465f;
+  border: 1px solid var(--border);
   border-radius: 12px;
-  background: #172235;
-  color: #e5edf8;
-  font:
-    14px/1.6 system-ui,
-    sans-serif;
+  background: var(--surface);
+  color: var(--text);
+  font: 14px/1.6 var(--font-sans);
 }
 .report-navigation > div {
   display: flex;
@@ -19,7 +17,7 @@
   margin-top: 8px;
 }
 .report-navigation a {
-  color: #a3c5ff;
+  color: var(--accent);
   text-decoration: none;
   padding: 3px 0;
 }
@@ -28,19 +26,17 @@
   text-decoration: underline;
 }
 .report-navigation [aria-current='page'] {
-  color: #fff;
+  color: var(--surface);
   font-weight: 700;
 }
 .report-navigation span {
   margin-left: auto;
-  color: #b2bfd2;
+  color: var(--muted);
 }
 .history-page {
-  background: #101827;
-  color: #e5edf8;
-  font:
-    15px/1.6 system-ui,
-    sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font: 15px/1.6 var(--font-sans);
   margin: 0;
 }
 .history-page main {
@@ -49,7 +45,7 @@
   padding: 0 24px;
 }
 .history-page a {
-  color: #a3c5ff;
+  color: var(--accent);
 }
 .history-page .history-toolbar {
   display: flex;
@@ -61,28 +57,28 @@
 .history-page input,
 .history-page select,
 .history-page button {
-  background: #1a2940;
-  color: #e5edf8;
+  background: var(--surface-raised);
+  color: var(--text);
   padding: 10px 14px;
-  border: 1px solid #405574;
+  border: 1px solid var(--border);
   border-radius: 8px;
 }
 .history-page table {
   width: 100%;
   border-collapse: collapse;
-  background: #172235;
+  background: var(--surface);
   border-radius: 12px;
 }
 .history-page th,
 .history-page td {
   text-align: left;
   padding: 14px;
-  border-bottom: 1px solid #34465f;
+  border-bottom: 1px solid var(--border);
   overflow-wrap: anywhere;
 }
 .history-page pre {
   padding: 18px;
-  background: #172235;
+  background: var(--surface);
   border-radius: 12px;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -94,5 +90,5 @@
 }
 .history-page small {
   display: block;
-  color: #b2bfd2;
+  color: var(--muted);
 }

@@ -15,6 +15,7 @@ from .navigation import (
     navigation_script,
     page_document,
     report_links,
+    workspace_document,
 )
 
 
@@ -74,6 +75,7 @@ def render_history(store):
         "default-src 'none';", f"default-src 'none'; script-src 'sha256-{digest}';", 1
     )
     document = document.replace("</body>", f"<script>{script}</script></body>", 1)
+    document = workspace_document(document, store)
     return navigation_script(document)
 
 
@@ -98,7 +100,8 @@ def task_document(store, task_id):
         "<table><thead><tr><th>Execution</th><th>Status</th><th>Stage</th><th>Open</th>"
         f"</tr></thead><tbody>{''.join(rows)}</tbody></table>"
     )
-    return navigation_script(page_document("Task overview", body))
+    document = workspace_document(page_document("Task overview", body), store, task_id=task_id)
+    return navigation_script(document)
 
 
 def execution_index(store, run_id):

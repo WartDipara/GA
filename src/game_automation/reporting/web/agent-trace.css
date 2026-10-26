@@ -1,24 +1,11 @@
-:root {
-  color-scheme: dark;
-  --bg: #0a1120;
-  --panel: #111d30;
-  --line: #26364e;
-  --text: #eaf1fc;
-  --muted: #93a7c4;
-  --accent: #879bff;
-  --good: #63d6ae;
-  --bad: #ff8396;
-}
 * {
   box-sizing: border-box;
 }
 body {
   margin: 0;
-  background: radial-gradient(at 70% 0%, #182440 0, transparent 45%), var(--bg);
+  background: var(--bg);
   color: var(--text);
-  font:
-    14px/1.6 system-ui,
-    sans-serif;
+  font: 14px/1.6 var(--font-sans);
 }
 header {
   padding: 18px 32px;
@@ -63,7 +50,7 @@ p {
   margin: 8px 0 18px;
 }
 a {
-  color: #a4b7ff;
+  color: var(--accent);
   text-decoration: none;
 }
 a:hover {
@@ -100,9 +87,7 @@ footer {
 }
 #identity {
   overflow-wrap: anywhere;
-  font:
-    11px ui-monospace,
-    monospace;
+  font: 11px var(--font-mono);
 }
 .metrics {
   display: grid;
@@ -114,7 +99,7 @@ footer {
   border: 1px solid var(--line);
   padding: 18px;
   border-radius: 12px;
-  background: #142137b0;
+  background: var(--surface);
 }
 .metric strong {
   display: block;
@@ -137,8 +122,8 @@ select,
 textarea {
   font: inherit;
   color: var(--text);
-  background: #17253b;
-  border: 1px solid #344965;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
   padding: 9px 12px;
   border-radius: 7px;
 }
@@ -146,12 +131,12 @@ button {
   cursor: pointer;
 }
 button:hover {
-  background: #223452;
+  background: var(--surface-hover);
 }
 button.active {
-  color: #bcc8ff;
+  color: var(--accent);
   border-color: var(--accent);
-  background: #283862;
+  background: var(--accent-soft);
 }
 input[type='checkbox'] {
   accent-color: var(--accent);
@@ -214,12 +199,12 @@ textarea {
   grid-template-columns: minmax(180px, 1.1fr) minmax(100px, 1fr) 84px;
   align-items: center;
   min-height: 42px;
-  border-bottom: 1px solid #24324880;
+  border-bottom: 1px solid var(--border);
   cursor: pointer;
 }
 .span-row:hover,
 .span-row.selected {
-  background: #253754;
+  background: var(--surface-hover);
 }
 .span-label {
   display: flex;
@@ -242,13 +227,13 @@ textarea {
 .kind {
   font-size: 9px;
   text-transform: uppercase;
-  color: #9fb4db;
+  color: var(--muted);
   min-width: 30px;
 }
 .track {
   height: 20px;
   position: relative;
-  background: repeating-linear-gradient(to right, transparent 0 24%, #30405b65 24.5% 25%);
+  background: repeating-linear-gradient(to right, transparent 0 24%, var(--border) 24.5% 25%);
   margin-right: 14px;
 }
 .bar {
@@ -257,28 +242,32 @@ textarea {
   top: 6px;
   height: 8px;
   border-radius: 3px;
-  background: #879bff;
+  background: var(--accent);
   min-width: 3px;
 }
 .bar.tool {
-  background: #55b8cb;
+  background: var(--info);
 }
 .bar.step,
 .bar.agent {
-  background: #b393f7;
+  background: var(--accent);
 }
 .bar.error {
   background: var(--bad);
 }
 .bar.incomplete,
 .bar.unknown {
-  background: repeating-linear-gradient(45deg, #c69e5e, #c69e5e 3px, #5b4b32 3px, #5b4b32 6px);
+  background: repeating-linear-gradient(
+    45deg,
+    var(--warning),
+    var(--warning) 3px,
+    var(--surface-raised) 3px,
+    var(--surface-raised) 6px
+  );
 }
 .span-time {
-  font:
-    11px ui-monospace,
-    monospace;
-  color: #b9cae3;
+  font: 11px var(--font-mono);
+  color: var(--muted);
 }
 .badge {
   display: inline-block;
@@ -294,7 +283,7 @@ textarea {
   color: var(--good);
 }
 .badge.incomplete {
-  color: #edc383;
+  color: var(--warning);
 }
 dl {
   display: grid;
@@ -311,10 +300,8 @@ dd {
 pre {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  font:
-    11px/1.6 ui-monospace,
-    monospace;
-  background: #0b1423;
+  font: 11px/1.6 var(--font-mono);
+  background: var(--bg);
   padding: 14px;
   border-radius: 8px;
   max-height: 480px;
@@ -323,7 +310,7 @@ pre {
 summary {
   cursor: pointer;
   padding: 10px 0;
-  color: #bed0eb;
+  color: var(--muted);
 }
 .empty {
   padding: 20px;

@@ -2,10 +2,13 @@
 
 import hashlib
 import html
+import json
 import re
 from base64 import b64encode
 from pathlib import Path
 from urllib.parse import quote
+
+from .workspace import workspace_view
 
 ASSETS = Path(__file__).parent / "web"
 REPORTS = {
@@ -32,7 +35,7 @@ def report_links(store, run_id):
 
 def decorate_document(store, run_id, document, current):
     if 'id="report-navigation"' in document:
-        return document
+        return workspace_document(document, store, run_id=run_id, current=current)
     run = store.run(run_id)
     task_id = run["task_id"]
     links = report_links(store, run_id)
@@ -46,7 +49,9 @@ def decorate_document(store, run_id, document, current):
         target = position + offset
         if 0 <= target < len(siblings):
             sibling = quote(siblings[target]["run_id"], safe="")
-            choices.append(f'<a href="../../{sibling}/reports/index.html">{label}</a>')
+            choices.append(
+                f'<a data-execution-neighbor href="../../{sibling}/reports/index.html">{label}</a>'
+            )
     fallback = "../../../reports/task.html" if current == "index.html" else "index.html"
     markup = (
         '<nav class="report-navigation" id="report-navigation" aria-label="Report navigation">'
@@ -62,7 +67,63 @@ def decorate_document(store, run_id, document, current):
         document = re.sub(r"<body\b[^>]*>", lambda match: match[0] + markup, document, count=1)
     else:
         document = document.replace("</style>", f"</style>{style}{markup}", 1)
+    document = workspace_document(document, store, run_id=run_id, current=current)
     return navigation_script(document)
+
+
+def workspace_document(document, store, *, run_id=None, task_id=None, current=""):
+    if 'id="workspace-data"' in document:
+        return document
+    if run_id:
+        prefix = "../../../../../"
+        task_link = "../../../reports/task.html"
+        links = [
+            {"label": "Task history", "href": prefix + "reports/history.html", "current": False},
+            {"label": "Task overview", "href": task_link, "current": False},
+        ]
+        for link in report_links(store, run_id):
+            links.append(
+                {"label": link["name"], "href": link["href"], "current": link["href"] == current}
+            )
+    elif task_id:
+        prefix = "../../../"
+        links = [
+            {"label": "Task history", "href": prefix + "reports/history.html", "current": False},
+            {"label": "Task overview", "href": "task.html", "current": True},
+        ]
+    else:
+        prefix = "../"
+        links = [{"label": "Task history", "href": "history.html", "current": True}]
+    view = workspace_view(store, run_id=run_id, task_id=task_id, links=links)
+    data = json.dumps(view, ensure_ascii=False).replace("<", "\\u003c")
+    charts = not run_id or current in ("trace.html", "index.html")
+    source = (
+        f'<script id="workspace-data" type="application/json" '
+        f'data-charts="{str(charts).lower()}">{data}</script>'
+    )
+    document = (
+        document.replace("</head>", f"{source}</head>", 1)
+        if "</head>" in document
+        else document.replace("</style>", f"</style>{source}", 1)
+    )
+    return theme_document(document, prefix)
+
+
+def theme_document(document, prefix):
+    assets = f"{prefix}cache/typescript/trace_ui"
+    style = f'<link rel="stylesheet" href="{assets}.css">'
+    script = f'<script defer src="{assets}.js"></script>'
+    document = document.replace("script-src ", "script-src 'self' file: ", 1)
+    if "script-src " not in document:
+        document = document.replace(
+            "default-src 'none';", "default-src 'none'; script-src 'self' file:;", 1
+        )
+    document = document.replace("style-src ", "style-src 'self' file: ", 1)
+    if "</head>" in document:
+        document = document.replace("</head>", f"{style}{script}</head>", 1)
+    else:
+        document = document.replace("</style>", f"</style>{style}{script}", 1)
+    return document
 
 
 def navigation_script(document):

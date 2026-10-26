@@ -4,7 +4,7 @@ export default tseslint.config(
   { ignores: ['var/**', 'node_modules/**'] },
   ...tseslint.configs.recommendedTypeChecked,
   {
-    files: ['apps/**/*.ts', 'packages/**/*.ts', 'plugins/**/*.ts'],
+    files: ['apps/**/*.ts', 'packages/**/*.ts', 'packages/**/*.tsx', 'plugins/**/*.ts'],
     languageOptions: {
       parserOptions: { project: './tsconfig.json', tsconfigRootDir: import.meta.dirname },
     },

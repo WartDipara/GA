@@ -154,12 +154,12 @@ def write_html(store, run_id, report):
         '<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width">'
         '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; '
         "img-src 'self' file: data:; style-src 'unsafe-inline'\">"
-        "<title>Gameplay evidence</title><style>body{background:#101820;color:#e6edf3;"
+        "<title>Gameplay evidence</title><style>body{background:var(--bg);color:var(--text);"
         "font:16px system-ui;max-width:1100px;margin:32px auto;padding:20px}"
-        "article{background:#1c2833;padding:20px;margin:16px 0;border-radius:10px}"
-        "pre{white-space:pre-wrap;overflow-wrap:anywhere}img{max-width:280px}a{color:#84caff}"
+        "article{background:var(--surface);padding:20px;margin:16px 0;border-radius:10px}"
+        "pre{white-space:pre-wrap;overflow-wrap:anywhere}img{max-width:280px}a{color:var(--accent)}"
         "table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:8px;"
-        "border-bottom:1px solid #364655;overflow-wrap:anywhere}"
+        "border-bottom:1px solid var(--border);overflow-wrap:anywhere}"
         f"{evidence_style}</style>"
         f"<h1>Gameplay evidence</h1><p>{escaped(run_id)}</p>"
         "<p>AI proposals, dispatched actions and verified outcomes are separate records. "

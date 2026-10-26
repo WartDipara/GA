@@ -63,3 +63,31 @@ removing task-owned records and files. The live history always reads current SQL
 
 Runtime acceptance remains separate: report availability does not establish game completion,
 coverage, translation-hook delivery or correctness of a model's decision.
+
+## Shared UI and theme
+
+`packages/trace-ui` provides a React shell and charts over the existing read-only projections.
+`config/ui-theme.json` is the single palette, typography, spacing, radius and motion configuration.
+Both theme modes are validated against `contracts/v1/ui-theme.schema.json` during the normal
+build. Edit this configuration, run `npm run build`, and reload the viewer. Theme preference is
+local to the browser. Component styles reference semantic tokens rather than defining palettes.
+Screenshot evidence is unchanged; only annotation overlays follow the shared theme.
+
+The built JavaScript and CSS live once in `var/cache/typescript/`. Reports reference these shared
+assets, rather than copying React or a theme into each execution. Keep this directory alongside
+retained reports for offline viewing. The service exposes only the two exact UI asset paths;
+dependencies and fonts are local, with no CDN requests. Schema validation is precompiled so the
+browser does not require `unsafe-eval`. If enhancement loading fails, the original report content
+and navigation remain available.
+
+History charts cover all recorded executions, independent of the task table's filters. Execution
+charts show recorded module-call durations, their median and nearest-rank P95. Unknown durations
+are excluded and counted explicitly. Slow-call bars link directly to their span in the call trace.
+Nested spans overlap, so these measurements are never summed into task elapsed time. Chart
+projections use `contracts/v1/workspace-view.schema.json`, refresh every three seconds, and retain
+the last valid snapshot during a connection failure. They do not write state or generate evidence.
+
+Transitions run on entry and view changes, without replaying on polling updates. Reduced-motion
+preferences disable them. Layouts adapt to narrow windows, and keyboard focus remains visible.
+Design references include [Langfuse trace navigation](https://langfuse.com/docs/observability/overview)
+and [Grafana trace drill-down](https://grafana.com/docs/grafana/latest/visualizations/panels-visualizations/visualizations/traces/).

@@ -2,6 +2,8 @@ import { spawnSync } from 'node:child_process';
 import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { compile } from 'json-schema-to-typescript';
+import { Ajv2020 } from 'ajv/dist/2020.js';
+import standaloneCode from 'ajv/dist/standalone/index.js';
 
 const directory = resolve('var/cache/typescript/generated');
 await mkdir(directory, { recursive: true });
@@ -29,6 +31,16 @@ for (const file of (await readdir('contracts/v1')).sort()) {
 const map = `${imports.join('\n')}\n\nexport interface ContractMap {\n${entries.join('\n')}\n}\n`;
 await writeFile(`${directory}/contracts.ts`, map);
 await writeFile(`${directory}/schemas.ts`, `export const schemas = ${JSON.stringify(schemas)};\n`);
+
+// Precompile the browser boundary so reports never need unsafe-eval.
+const validator = new Ajv2020({ code: { source: true, esm: true } });
+const workspaceCheck = validator.compile(schemas['workspace-view']);
+await writeFile(`${directory}/workspace-validator.js`, standaloneCode(validator, workspaceCheck));
+await writeFile(
+  `${directory}/workspace-validator.d.ts`,
+  "import type { WorkspaceView } from './workspace-view.js';\n" +
+    'export default function check(value: unknown): value is WorkspaceView;\n',
+);
 
 const exported = spawnSync('uv', ['run', 'python', 'tools/export-error-codes.py'], {
   encoding: 'utf8',

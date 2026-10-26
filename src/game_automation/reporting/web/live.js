@@ -345,6 +345,11 @@
   element('theme-toggle').addEventListener('click', () => {
     const light = document.documentElement.dataset.theme !== 'light';
     document.documentElement.dataset.theme = light ? 'light' : 'dark';
+    try {
+      localStorage.setItem('game-auto-theme', light ? 'light' : 'dark');
+    } catch {
+      // Theme selection remains available when browser storage is disabled.
+    }
     element('theme-toggle').textContent = light ? 'Dark' : 'Light';
   });
   element('all-executions').addEventListener('click', () => chooseRun(''));

@@ -1,6 +1,35 @@
 import { build } from 'esbuild';
 import { createHash } from 'node:crypto';
 import { readFile, readdir, writeFile } from 'node:fs/promises';
+import { Ajv2020 } from 'ajv/dist/2020.js';
+
+const theme = JSON.parse(await readFile('config/ui-theme.json', 'utf8'));
+const themeSchema = JSON.parse(await readFile('contracts/v1/ui-theme.schema.json', 'utf8'));
+const validateTheme = new Ajv2020().compile(themeSchema);
+if (!validateTheme(theme)) throw new Error('Invalid UI theme configuration');
+
+await build({
+  entryPoints: { trace_ui: 'packages/trace-ui/src/main.tsx' },
+  outdir: 'var/cache/typescript',
+  bundle: true,
+  platform: 'browser',
+  target: 'es2022',
+  format: 'iife',
+  minify: true,
+  define: { 'process.env.NODE_ENV': '"production"' },
+  legalComments: 'eof',
+});
+const properties = (values) =>
+  Object.entries(values)
+    .map(([name, value]) => `--${name}:${value};`)
+    .join('');
+let tokens = `:root{${properties(theme.tokens)}}`;
+for (const [mode, values] of Object.entries(theme.themes)) {
+  const selector = `${mode === theme.default_mode ? ':root,' : ''}:root[data-theme="${mode}"]`;
+  tokens += `${selector}{color-scheme:${mode};${properties(values)}}`;
+}
+const styles = await readFile('var/cache/typescript/trace_ui.css', 'utf8');
+await writeFile('var/cache/typescript/trace_ui.css', `${tokens}\n${styles}`);
 
 await build({
   entryPoints: {
@@ -23,16 +52,19 @@ const files = [
   'eslint.config.mjs',
   '.node-version',
   'config/application.toml',
+  'config/ui-theme.json',
   'plugins/agent_codex/plugin.toml',
   'src/game_automation/errors.py',
   'var/cache/typescript/agent_codex.mjs',
   'var/cache/typescript/control_plane.mjs',
+  'var/cache/typescript/trace_ui.js',
+  'var/cache/typescript/trace_ui.css',
 ];
 async function sources(directory) {
   for (const entry of await readdir(directory, { withFileTypes: true })) {
     const path = `${directory}/${entry.name}`;
     if (entry.isDirectory() && entry.name !== '__pycache__') await sources(path);
-    else if (/\.(ts|mjs|py|json)$/.test(entry.name)) files.push(path);
+    else if (/\.(tsx?|css|mjs|py|json)$/.test(entry.name)) files.push(path);
   }
 }
 for (const directory of ['apps', 'packages', 'plugins/agent_codex', 'tools'])
