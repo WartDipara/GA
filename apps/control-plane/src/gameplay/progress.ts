@@ -7,6 +7,7 @@ import type { Decision, Progress } from './types.js';
 export class ProgressStore {
   readonly key: string;
   readonly data: Progress;
+  private readonly catalogMode: boolean;
 
   constructor(
     readonly store: Store,
@@ -14,6 +15,7 @@ export class ProgressStore {
     task: Fields,
     revision: string,
   ) {
+    this.catalogMode = task['goal'] === 'explore';
     this.key = [
       store.run(runId)['task_id'],
       task['instance_id'],
@@ -116,11 +118,20 @@ export class ProgressStore {
         throw new FrameworkError(ErrorCode.AI_OUTPUT_INVALID, 'Subgoal prerequisites are unmet');
     }
     for (const proposal of decision.progress_update ?? []) {
-      if (!proposal.evidence_refs.includes(observationId))
+      if (!proposal.evidence_refs.includes(observationId)) {
+        if (this.catalogMode) {
+          this.store.event(this.runId, 'gameplay.progress.rejected', {
+            id: proposal.id,
+            reason: 'missing-current-observation',
+            code: ErrorCode.AI_OUTPUT_INVALID,
+          });
+          continue;
+        }
         throw new FrameworkError(
           ErrorCode.AI_OUTPUT_INVALID,
           'Progress update must cite the current observation',
         );
+      }
       milestones[proposal.id] = { ...proposal, run_id: this.runId };
     }
     if (Object.keys(milestones).length > 500)

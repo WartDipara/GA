@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { decode, text, type ContractMap } from '@game-automation/contracts';
 import { ErrorCode, FrameworkError } from '@game-automation/contracts/errors';
+import { object } from '@game-automation/contracts';
 import { parsed, uid } from '../storage/values.js';
 import type { Runtime } from '../gameplay/runtime.js';
 import type { Facts, Observation, Pending } from '../gameplay/types.js';
@@ -366,6 +367,37 @@ export class Catalog {
     this.save([session]);
   }
 
+  reconcileLedger(): void {
+    const changes: Record[] = [];
+    for (const element of this.records()) {
+      if (element.kind !== 'element' || element.status !== 'in_progress' || !element.data.action_id)
+        continue;
+      const row = this.runtime.store.database.one(
+        'SELECT a.status,a.result FROM actions a JOIN runs r ON r.id=a.run_id WHERE r.task_id=? AND a.action_id=?',
+        text(this.runtime.store.run(this.runtime.runId)['task_id']),
+        element.data.action_id,
+      );
+      if (!row || !['verified', 'reconciled'].includes(text(row['status']))) continue;
+      const evidence = object(parsed(row['result'])['result']);
+      if (!evidence['observation_id']) continue;
+      element.status =
+        element.data.kind === 'scroll'
+          ? 'pending'
+          : row['status'] === 'verified'
+            ? 'verified'
+            : 'unknown';
+      if (element.status === 'verified') element.data.ever_verified = true;
+      changes.push(element);
+      this.runtime.record('exploration.association.restored', {
+        element_id: element.id,
+        action_id: element.data.action_id,
+        ledger_status: row['status'],
+        evidence,
+      });
+    }
+    this.save(changes);
+  }
+
   backTarget(page: Page, observation: Observation): Element {
     const known = this.records().find(
       (record): record is Element =>
@@ -408,10 +440,25 @@ export class Catalog {
     const link = pending.exploration;
     if (!link || link.workspace_key !== this.key || !pending.action_id) return;
     const records = this.records();
-    const element = records.find(
-      (record): record is Element => record.kind === 'element' && record.id === link.element_id,
+    const assigned = records.filter(
+      (record): record is Element =>
+        record.kind === 'element' && record.data.action_id === pending.action_id,
     );
+    if (assigned.length > 1) throw new FrameworkError(ErrorCode.INVALID_STATE);
+    const element =
+      assigned[0] ??
+      records.find(
+        (record): record is Element => record.kind === 'element' && record.id === link.element_id,
+      );
     if (!element) throw new FrameworkError(ErrorCode.INVALID_STATE);
+    if (element.id !== link.element_id) {
+      this.runtime.record('exploration.association.reconciled', {
+        action_id: pending.action_id,
+        previous_element_id: link.element_id,
+        element_id: element.id,
+      });
+      link.element_id = element.id;
+    }
     const locator = records.find(
       (record): record is Locator => record.kind === 'locator' && record.id === link.locator_id,
     );
