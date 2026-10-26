@@ -16,10 +16,11 @@ from .agent_sessions import session_replay
 from .diagnostics import writer_health
 from .execution import snapshot_metadata
 from .gameplay import action_path
+from .task_session import task_session
 from .trace_projection import project_trace
 
 
-def agent_view(store, run_id, *, projector=None, detail_views=None):
+def agent_view(store, run_id, *, projector=None, detail_views=None, session_before=0):
     view = projector.project(store, run_id) if projector else project_trace(store, run_id)
     loaded = {"calls", "performance", "quality", "insights"}
     loaded.update(("sessions", "actions") if detail_views is None else detail_views)
@@ -33,6 +34,8 @@ def agent_view(store, run_id, *, projector=None, detail_views=None):
     view["replay"] = (
         session_replay(store, run_id, view["spans"]) if "sessions" in loaded else {"sessions": []}
     )
+    if "sessions" in loaded:
+        view["replay"]["business_session"] = task_session(store, run_id, before=session_before)
     view["actions"] = (
         action_path(store, run_id)
         if "actions" in loaded and store.run(run_id)["mode"] == "gameplay"

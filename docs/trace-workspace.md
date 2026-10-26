@@ -76,6 +76,23 @@ Unchanged revisions return 204; hidden or closed tabs cancel pending refreshes a
 Offline exports retain complete views and do not require the live service. Writer health is shown
 under Performance, with missing historical measurements explicitly unavailable.
 
+Each invocation or resume records an execution segment with its own attempt ID and monotonic
+duration. Calls attach to that segment unless they already have a more specific parent. Later
+segments link to earlier segments; crash recovery explicitly closes interrupted segments with an
+unknown duration. Report publication remains outside the measured gameplay segment. Segment
+measurements never include time spent blocked between invocations, and nested spans must not be
+summed into elapsed time. Historical executions without segments retain unknown measurements.
+
+Session replay also includes a paged business-task timeline across execution batches. Select a
+segment to open its call span, or another execution to inspect its model session. The timeline
+shows the latest 20 segments per execution with an explicit truncation notice; the call trace
+retains the complete segment chain. Read the same projection from the CLI:
+
+```powershell
+uv run game-auto trace-session <run_id> --limit 50
+uv run game-auto trace-session <run_id> --before <next_before> --limit 50
+```
+
 ## Find a game or task
 
 The task-history table has a sticky search field. Type any part of a recorded game name, package

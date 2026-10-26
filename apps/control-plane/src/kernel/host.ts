@@ -237,7 +237,7 @@ export class Host {
       const span = options.span && attempt === 1 ? options.span : uid('span');
       const ids: TraceIds = {
         span_id: span,
-        parent_span_id: options.parent,
+        parent_span_id: options.parent ?? this.store.segmentSpan(this.runId),
         request_id: uid('req'),
       };
       const started = performance.now();

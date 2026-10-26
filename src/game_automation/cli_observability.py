@@ -13,9 +13,16 @@ from game_automation.kernel.agent_quality import (
 from game_automation.kernel.workflow.runner import execute, new_run
 from game_automation.reporting.agent_trace import agent_view
 from game_automation.reporting.diagnostics import trace_diagnostics, writer_health
+from game_automation.reporting.task_session import task_session
 
 
 def add_commands(commands):
+    session = commands.add_parser(
+        "trace-session", help="Inspect a task's execution and recovery timeline"
+    )
+    session.add_argument("run_id")
+    session.add_argument("--before", type=int, default=0)
+    session.add_argument("--limit", type=int, default=50)
     doctor = commands.add_parser("trace-doctor", help="Check retained trace integrity without AI")
     doctor.add_argument("run_id")
     health = commands.add_parser("trace-health", help="Read recorded writer overhead measurements")
@@ -52,6 +59,8 @@ def add_commands(commands):
 
 
 def handle(store, args):
+    if args.command == "trace-session":
+        return task_session(store, args.run_id, before=args.before, limit=args.limit)
     if args.command == "trace-doctor":
         return trace_diagnostics(store, args.run_id)
     if args.command == "trace-health":

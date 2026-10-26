@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://game-automation.local/contracts/v1/execution-segment",
+  "type": "object",
+  "properties": {
+    "capability": { "const": "workflow.attempt" },
+    "attempt_id": { "type": "string", "minLength": 1 },
+    "previous_span_id": { "type": ["string", "null"] },
+    "status": { "enum": ["running", "succeeded", "blocked", "failed", "cancelled", "unknown"] },
+    "duration_ms": { "type": ["integer", "null"], "minimum": 0 },
+    "error": { "type": "object" }
+  },
+  "required": ["capability", "attempt_id", "previous_span_id", "status", "duration_ms"],
+  "additionalProperties": false
+}

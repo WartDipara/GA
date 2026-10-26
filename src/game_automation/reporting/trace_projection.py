@@ -6,12 +6,15 @@ from copy import deepcopy
 from .pricing import reference_cost
 
 STARTS = {
+    "execution.segment.started": "chain",
     "call.started": "tool",
     "gameplay.step.started": "step",
     "workflow.stage.started": "chain",
     "report.component.started": "chain",
 }
 ENDS = {
+    "execution.segment.finished": "ok",
+    "execution.segment.incomplete": "incomplete",
     "call.completed": "ok",
     "call.failed": "error",
     "call.incomplete": "incomplete",
@@ -103,8 +106,19 @@ def enrich_span(span, event):
         span["links"].append({"run_id": payload["child_run"], "relation": "stage_execution"})
     if payload.get("retry_of"):
         span["links"].append({"span_id": payload["retry_of"], "relation": "retry_of"})
+    if payload.get("attempt_id"):
+        attributes["game_automation.attempt_id"] = payload["attempt_id"]
+    if payload.get("previous_span_id") and kind == "execution.segment.started":
+        span["links"].append({"span_id": payload["previous_span_id"], "relation": "resumed_after"})
     if kind in ENDS:
         span["status"] = ENDS[kind]
+        if kind == "execution.segment.finished":
+            span["status"] = {
+                "succeeded": "ok",
+                "blocked": "error",
+                "failed": "error",
+                "cancelled": "incomplete",
+            }.get(payload.get("status"), "unknown")
         if kind == "report.component.finished" and payload.get("status") != "complete":
             span["status"] = "error"
         span["end_time"] = event["timestamp"]

@@ -21,6 +21,7 @@ from .exploration import exploration_view, render_exploration
 from .history import execution_index, history_view, render_execution, render_history, task_document
 from .navigation import decorate_document, page_document, theme_document
 from .navigation_tree import live_workspace
+from .task_session import task_session
 from .trace import render_context, render_trace
 from .trace_cache import TraceProjectionCache, view_revision
 from .workspace import workspace_view
@@ -305,9 +306,24 @@ class TraceHandler(BaseHTTPRequestHandler):
             if query.get("after") == [str(revision)]:
                 self.respond(204, b"", "application/json")
                 return
-            view = agent_view(store, run_id, projector=self.server.projections, detail_views=detail)
+            view = agent_view(
+                store,
+                run_id,
+                projector=self.server.projections,
+                detail_views=detail,
+                session_before=int(query.get("before", ["0"])[0]),
+            )
             view["revision"] = revision
             self.respond(200, json.dumps(view, ensure_ascii=False), "application/json")
+            return
+        if relative == "reports/session.json":
+            page = task_session(
+                store,
+                run_id,
+                before=int(query.get("before", ["0"])[0]),
+                limit=int(query.get("limit", ["50"])[0]),
+            )
+            self.respond(200, json.dumps(page), "application/json")
             return
         if relative == "reports/events.json":
             span_id = query.get("span", [None])[0]
