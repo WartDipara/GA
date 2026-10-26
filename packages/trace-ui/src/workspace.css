@@ -17,6 +17,9 @@
 * {
   box-sizing: border-box;
 }
+html {
+  scrollbar-gutter: stable;
+}
 body {
   background: var(--bg);
   color: var(--text);
@@ -82,6 +85,11 @@ body.ui-ready {
   background: var(--surface-hover);
 }
 .history-page .history-search-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 176px;
+  grid-template-rows: auto 18px;
+  gap: var(--space-2) var(--space-4);
+  align-items: end;
   position: sticky;
   top: 0;
   z-index: 3;
@@ -92,16 +100,26 @@ body.ui-ready {
 }
 .history-search-toolbar label {
   display: grid;
+  min-width: 0;
   gap: var(--space-2);
   color: var(--muted);
   font-size: 11px;
 }
 .history-search-toolbar .history-query {
-  flex: 1;
-  min-width: min(100%, 260px);
+  min-width: 0;
 }
-.history-search-toolbar input {
+.history-search-toolbar input,
+.history-search-toolbar select {
   width: 100%;
+  min-width: 0;
+  height: 40px;
+}
+#history-count,
+#history-connection {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 #history-count,
 #history-connection,
@@ -638,6 +656,12 @@ body.ui-ready {
 
 @view-transition {
   navigation: auto;
+}
+@media (max-width: 600px) {
+  .history-page .history-search-toolbar {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto 18px 18px;
+  }
 }
 ::view-transition-group(root) {
   animation-duration: var(--duration-fast);
