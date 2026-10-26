@@ -5,6 +5,7 @@
   let selected = data.spans[0].span_id;
   let activeView = 'calls';
   let selectedAction = '';
+  let sessionBefore = 0;
   const collapsed = new Set();
   let busy = false;
   let refreshQueued = false;
@@ -39,6 +40,7 @@
     state.set('kind', byId('span-kind').value);
     state.set('status', byId('span-state').value);
     if (selectedAction) state.set('action', selectedAction);
+    if (sessionBefore) state.set('session_before', String(sessionBefore));
     history.replaceState(null, '', `#${state}`);
   }
 
@@ -322,6 +324,62 @@
   }
 
   function renderSessions() {
+    const navigation = element('article', undefined, 'session-card');
+    const timeline = data.replay.business_session;
+    if (timeline) {
+      navigation.append(element('h3', 'Business task session'));
+      navigation.append(
+        element(
+          'p',
+          'Execution batches and recovery segments; active timings exclude blocked waiting.',
+          'muted',
+        ),
+      );
+      for (const execution of timeline.executions) {
+        const row = element('div', undefined, 'turn');
+        const link = element('a', `${execution.mode} · ${execution.status} · ${execution.run_id}`);
+        link.href = execution.href;
+        row.append(link);
+        if (!execution.total_segments)
+          row.append(
+            element(
+              'p',
+              'Recovery-segment measurements unavailable for this historical execution.',
+              'muted',
+            ),
+          );
+        for (const segment of execution.segments) {
+          const attempt = element(
+            'a',
+            `${segment.attempt_id} · ${segment.status} · ${duration(segment.duration_ms)}`,
+          );
+          attempt.href = segment.href;
+          const line = element('p');
+          line.append(attempt);
+          row.append(line);
+        }
+        if (execution.segments_truncated)
+          row.append(
+            element(
+              'p',
+              `Showing the latest 20 of ${execution.total_segments} segments; open the call trace for all segments.`,
+              'muted',
+            ),
+          );
+        navigation.append(row);
+      }
+      if (location.protocol !== 'file:') {
+        const page = (before) => {
+          sessionBefore = before;
+          data.loaded_views = (data.loaded_views || []).filter((view) => view !== 'sessions');
+          remember();
+          void refresh();
+        };
+        if (timeline.before) navigation.append(button('Newest executions', () => page(0)));
+        if (timeline.next_before !== null)
+          navigation.append(button('Older executions', () => page(timeline.next_before)));
+      }
+    }
     const cards = data.replay.sessions.map((session) => {
       const card = element('article', undefined, 'session-card');
       card.append(element('h3', `Session ${session.session_id}`));
@@ -359,7 +417,7 @@
       });
       return card;
     });
-    byId('session-list').replaceChildren(...cards);
+    byId('session-list').replaceChildren(...(timeline ? [navigation] : []), ...cards);
     if (!cards.length)
       byId('session-list').append(
         element('p', 'No model sessions recorded in this execution.', 'empty'),
@@ -516,6 +574,8 @@
         after: String(loaded(activeView) ? (data.revision ?? -1) : -1),
       });
       if (['sessions', 'actions'].includes(activeView)) parameters.set('detail', activeView);
+      if (activeView === 'sessions' && sessionBefore)
+        parameters.set('before', String(sessionBefore));
       const response = await fetch(`agent-trace.json?${parameters}`, {
         cache: 'no-store',
         signal: refreshController.signal,
@@ -590,6 +650,12 @@
     const state = new URLSearchParams(location.hash.slice(1));
     selected = state.get('span') || data.spans[0].span_id;
     selectedAction = state.get('action') || '';
+    const before = Number(state.get('session_before') || 0);
+    if (Number.isSafeInteger(before) && before >= 0 && before !== sessionBefore) {
+      sessionBefore = before;
+      if (data.loaded_views)
+        data.loaded_views = data.loaded_views.filter((view) => view !== 'sessions');
+    }
     byId('span-search').value = state.get('q') || '';
     byId('span-kind').value = state.get('kind') || 'all';
     byId('span-state').value = state.get('status') || 'all';

@@ -11,6 +11,7 @@ import { blockedErrors, settledStatuses } from './state-policy.js';
 
 export type Tool = (operation: string, runId: string, input: Fields) => Promise<unknown>;
 const boundaries: Record<string, string[]> = {
+  'execution.segment.started': ['execution.segment.finished', 'execution.segment.incomplete'],
   'call.started': ['call.completed', 'call.failed', 'call.incomplete'],
   'gameplay.step.started': [
     'gameplay.step.completed',
@@ -170,6 +171,7 @@ export class Execution {
     const mode = text(run['mode']);
     if (['succeeded', 'failed', 'cancelled'].includes(text(run['status'])))
       throw new FrameworkError(ErrorCode.RUN_TERMINAL);
+    this.store.beginSegment(runId);
     try {
       if (
         ![
@@ -283,6 +285,7 @@ export class Execution {
         status = 'blocked';
       this.store.command('transition', { run_id: runId, status, reason: failure.details() });
     } finally {
+      this.store.finishSegment(runId);
       if (settledStatuses.has(text(this.store.run(runId)['status']))) await this.publish(runId);
     }
     return this.store.run(runId);

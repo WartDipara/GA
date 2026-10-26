@@ -23,6 +23,7 @@ from game_automation.reporting.trace import export_trace
 from game_automation.storage.store import Store
 
 READ_ONLY_COMMANDS = {
+    "trace-session",
     "trace-doctor",
     "trace-health",
     "exploration",
@@ -508,6 +509,7 @@ def main(argv=None):
             store.cancel(args.run_id)
             print_json({"cancel_requested": True, "run_id": args.run_id})
         elif args.command in (
+            "trace-session",
             "trace-doctor",
             "trace-health",
             "agent-trace",

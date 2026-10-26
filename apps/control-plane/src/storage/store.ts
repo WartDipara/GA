@@ -48,9 +48,47 @@ function subject(task: Fields): string {
 
 export class Store {
   readonly database: Database;
+  private readonly segments = new Map<
+    string,
+    { span: string; started: number; payload: ContractMap['execution-segment'] }
+  >();
 
   constructor(readonly root: string) {
     this.database = new Database(join(root, 'var'));
+  }
+
+  segmentSpan(runId: string): string | null {
+    return this.segments.get(runId)?.span ?? null;
+  }
+
+  beginSegment(runId: string): void {
+    if (this.segments.has(runId)) throw new FrameworkError(ErrorCode.RUN_BUSY);
+    const previous = this.events(runId, { kinds: ['execution.segment.started'], limit: 1 }).at(-1);
+    const payload = decode('execution-segment', {
+      capability: 'workflow.attempt',
+      attempt_id: uid('attempt'),
+      previous_span_id: previous?.span_id ?? null,
+      status: 'running',
+      duration_ms: null,
+    });
+    const span = uid('span');
+    this.event(runId, 'execution.segment.started', object(payload), { span_id: span });
+    this.segments.set(runId, { span, started: performance.now(), payload });
+  }
+
+  finishSegment(runId: string): void {
+    const segment = this.segments.get(runId);
+    if (!segment) return;
+    try {
+      const payload = decode('execution-segment', {
+        ...segment.payload,
+        status: this.run(runId)['status'],
+        duration_ms: Math.round(performance.now() - segment.started),
+      });
+      this.event(runId, 'execution.segment.finished', object(payload), { span_id: segment.span });
+    } finally {
+      this.segments.delete(runId);
+    }
   }
 
   run(runId: string): Fields {
@@ -249,7 +287,11 @@ export class Store {
           task_id: taskId,
           run_id: runId,
           span_id: ids.span_id ?? null,
-          parent_span_id: ids.parent_span_id ?? null,
+          parent_span_id:
+            ids.parent_span_id ??
+            (ids.span_id && ids.span_id !== this.segmentSpan(runId)
+              ? this.segmentSpan(runId)
+              : null),
           request_id: ids.request_id ?? null,
           kind,
           timestamp: new Date().toISOString(),
