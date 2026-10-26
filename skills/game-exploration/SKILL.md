@@ -117,6 +117,8 @@ to existing memory when evidence identifies the same page or item. A resource co
 particle effect or badge does not create a new page. Distinguish a layout variant from a different
 content item. Preserve numbers that identify stages/items. A newly unlocked control is new content.
 Set viewport_key to a short stable identifier for the current visible content where useful.
+Reuse known_pages.page_key and variant exactly when current evidence identifies a retained page,
+including after a new model session or execution batch. The opaque page ID is not a page_key.
 
 Follow exploration_memory.recommendation when it is supported by current evidence. Process pending
 items on the current page before leaving. Use known safe transitions to reach other pending pages.

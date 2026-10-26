@@ -118,6 +118,10 @@
             "motion_samples": {
               "type": "integer",
               "minimum": 0
+            },
+            "semantic_key": {
+              "type": "string",
+              "maxLength": 240
             }
           },
           "required": [
