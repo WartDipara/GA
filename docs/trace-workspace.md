@@ -13,6 +13,29 @@ first task exists and discovers later tasks through SQLite. The service is loopb
 polls committed records. Stopping it does not stop a workflow.
 Use `npm.cmd` when forwarding flags in PowerShell so npm receives the argument separator unchanged.
 
+## Recording and failure boundaries
+
+The plugin host records calls, input/output references, measured durations, errors and retries in
+code. The TypeScript store owns event sequencing, validation, deduplication and transactional
+state updates. Provider messages are captured by the adapter; model decisions and public summaries
+are recorded content, not evidence that a suggested action executed or succeeded. Missing timings,
+usage and endings remain unknown or incomplete. No model fills gaps or writes the factual log.
+
+Metrics, session replay, HTML reports and periodic viewer refresh are deterministic projections.
+They do not invoke AI. `analyze-trace` is a separate, explicitly requested AI analysis of retained
+evidence; its conclusions do not replace source events or become prerequisites for logging.
+
+Provider wire messages and their normalized events can share a bounded batch transaction; the
+host acknowledges persistence only after commit. Calls retain large inputs/outputs as referenced
+files. Critical records are not sampled away. SQLite uses WAL with full synchronization, so
+durability has real disk cost; bounded batching reduces repeated commits without claiming zero
+overhead. Resource-use or latency guarantees require measurements on the actual workload.
+
+A trace or evidence write failure prevents new device actions. Unknown action outcomes must be
+observed and reconciled before continuing. Report components fail independently, retain fallback
+outcome records where possible and support report-only recovery after storage becomes available.
+The read-only viewer can stop or fail without stopping the workflow's authoritative recording.
+
 ## Find a game or task
 
 The task-history table has a sticky search field. Type any part of a recorded game name, package
