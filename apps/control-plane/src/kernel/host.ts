@@ -91,6 +91,7 @@ export class Host {
   private record(kind: string, payload: Fields, ids: TraceIds): void {
     try {
       this.store.event(this.runId, kind, payload, ids);
+      this.store.health(this.runId);
     } catch (error) {
       this.failure ??= frameworkError(error);
       throw this.failure;

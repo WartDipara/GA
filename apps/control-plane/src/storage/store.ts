@@ -4,6 +4,7 @@ import { join, relative } from 'node:path';
 import { decode, object, text, type ContractMap } from '@game-automation/contracts';
 import { ErrorCode, FrameworkError } from '@game-automation/contracts/errors';
 import { Database } from './database.js';
+import { performance } from 'node:perf_hooks';
 import { elementVerification } from '../exploration/verification.js';
 import {
   atomicJson,
@@ -210,33 +211,60 @@ export class Store {
   }
 
   artifact(runId: string, reference: string, value: unknown): string {
+    const started = performance.now();
+    let failed = true;
     try {
       const directory = this.runDirectory(runId);
       mkdirSync(directory, { recursive: true });
       const path = within(directory, reference);
       atomicJson(path, redact(value));
+      failed = false;
       return relative(directory, path).replaceAll('\\', '/');
     } catch (error) {
       this.database.failure ??= new FrameworkError(ErrorCode.TRACE_UNAVAILABLE, undefined, false, {
         cause: error,
       });
       throw this.database.failure;
+    } finally {
+      this.database.health.record('artifact_write', started, failed);
     }
+  }
+
+  health(runId: string, force = false): void {
+    if (this.database.failure) return;
+    const snapshot = this.database.health.snapshot(this.database.directory, force);
+    if (snapshot) this.event(runId, 'trace.writer.health', object(snapshot));
   }
 
   event(runId: string, kind: string, payload: Fields, ids: TraceIds = {}): Fields {
     return this.database.transaction(() => {
-      const event: Fields = {
-        event_id: ids.event_id || uid('evt'),
-        task_id: this.run(runId)['task_id'],
-        run_id: runId,
-        span_id: ids.span_id ?? null,
-        parent_span_id: ids.parent_span_id ?? null,
-        request_id: ids.request_id ?? null,
-        kind,
-        timestamp: new Date().toISOString(),
-        payload: redact(payload),
-      };
+      const taskId = this.run(runId)['task_id'];
+      const started = performance.now();
+      let failed = true;
+      let encoded: string | undefined;
+      let event: Fields;
+      try {
+        event = {
+          event_id: ids.event_id || uid('evt'),
+          task_id: taskId,
+          run_id: runId,
+          span_id: ids.span_id ?? null,
+          parent_span_id: ids.parent_span_id ?? null,
+          request_id: ids.request_id ?? null,
+          kind,
+          timestamp: new Date().toISOString(),
+          payload: redact(payload),
+        };
+        encoded = JSON.stringify(event);
+        failed = false;
+      } finally {
+        this.database.health.record(
+          'event_encode',
+          started,
+          failed,
+          encoded === undefined ? null : Buffer.byteLength(encoded),
+        );
+      }
       const previous = this.database.one(
         'SELECT data FROM events WHERE event_id=?',
         text(event['event_id']),
@@ -254,7 +282,7 @@ export class Store {
         runId,
         ids.span_id ?? null,
         kind,
-        JSON.stringify(event),
+        encoded,
       );
       return event;
     });

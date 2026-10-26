@@ -5,8 +5,11 @@ import { object, text } from '@game-automation/contracts';
 import { ErrorCode, FrameworkError } from '@game-automation/contracts/errors';
 import { counters, schema } from './schema.js';
 import { parsed, type Fields } from './values.js';
+import { performance } from 'node:perf_hooks';
+import { WriterHealth } from '../observability/writer-health.js';
 
 export class Database {
+  readonly health = new WriterHealth();
   private readonly connection: DatabaseSync;
   private depth = 0;
   failure: FrameworkError | undefined;
@@ -54,10 +57,20 @@ export class Database {
     if (this.failure) throw this.failure;
     if (this.depth > 0) return operation();
     this.depth++;
+    const started = performance.now();
+    let failed = true;
     try {
       this.connection.exec('BEGIN IMMEDIATE');
       const result = operation();
-      this.connection.exec('COMMIT');
+      const committing = performance.now();
+      let commitFailed = true;
+      try {
+        this.connection.exec('COMMIT');
+        commitFailed = false;
+      } finally {
+        this.health.record('commit', committing, commitFailed);
+      }
+      failed = false;
       return result;
     } catch (error) {
       try {
@@ -71,6 +84,7 @@ export class Database {
       });
       throw this.failure;
     } finally {
+      this.health.record('transaction', started, failed);
       this.depth--;
     }
   }

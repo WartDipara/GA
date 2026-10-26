@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://game-automation.local/contracts/v1/writer-health",
+  "type": "object",
+  "properties": {
+    "collector_id": { "type": "string", "minLength": 1 },
+    "scope": { "const": "cumulative_writer_process" },
+    "elapsed_ms": { "type": "number", "minimum": 0 },
+    "metrics": {
+      "type": "object",
+      "properties": {
+        "transaction": { "$ref": "#/$defs/measurement" },
+        "commit": { "$ref": "#/$defs/measurement" },
+        "event_encode": { "$ref": "#/$defs/measurement" },
+        "artifact_write": { "$ref": "#/$defs/measurement" }
+      },
+      "required": ["transaction", "commit", "event_encode", "artifact_write"],
+      "additionalProperties": false
+    },
+    "database_bytes": { "type": ["integer", "null"], "minimum": 0 },
+    "wal_bytes": { "type": ["integer", "null"], "minimum": 0 },
+    "rss_bytes": { "type": "integer", "minimum": 0 },
+    "event_loop_utilization": { "type": "number", "minimum": 0, "maximum": 1 }
+  },
+  "required": [
+    "collector_id",
+    "scope",
+    "elapsed_ms",
+    "metrics",
+    "database_bytes",
+    "wal_bytes",
+    "rss_bytes",
+    "event_loop_utilization"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "measurement": {
+      "type": "object",
+      "properties": {
+        "operations": { "type": "integer", "minimum": 0 },
+        "failures": { "type": "integer", "minimum": 0 },
+        "total_ms": { "type": "number", "minimum": 0 },
+        "max_ms": { "type": "number", "minimum": 0 },
+        "bytes": {
+          "type": ["integer", "null"],
+          "minimum": 0,
+          "description": "Encoded payload bytes where measured; not physical disk IO."
+        }
+      },
+      "required": ["operations", "failures", "total_ms", "max_ms", "bytes"],
+      "additionalProperties": false
+    }
+  }
+}
