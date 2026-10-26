@@ -13,6 +13,32 @@ first task exists and discovers later tasks through SQLite. The service is loopb
 polls committed records. Stopping it does not stop a workflow.
 Use `npm.cmd` when forwarding flags in PowerShell so npm receives the argument separator unchanged.
 
+## Find a game or task
+
+The task-history table has a sticky search field. Type any part of a recorded game name, package
+name or task ID; results update without Enter or a submit button. Matching ignores case, normalizes
+Unicode and combines space-separated terms. It matches substrings, without guessing misspellings.
+Status filters compose with the query. Search and pagination remain in the URL for return navigation.
+
+One persistent browser Web Worker holds the compact search index; it never receives call logs or
+screenshots. Each input schedules the latest query at the next animation frame. There is at most
+one in-flight query and one pending replacement, and stale query/data revisions cannot update the
+table. Only a page of at most 50 row indices returns to the UI. Narrower queries reuse the previous
+matches; page changes reuse the current result set. No HTTP request or thread is created per key.
+
+History metadata is selected in one batch query rather than one query per task. The three-second
+refresh uses an ETag to skip unchanged response bodies and rebuilds the index only when metadata changes.
+Navigation terminates the worker and pending polling; returning through the browser cache restores
+them. If workers are unavailable or fail, the same matcher scans in cooperative chunks on the main
+thread and keeps the last visible results while updating. This is a read-only projection and does
+not change task execution, trace persistence or the single state writer.
+
+Heavy native computation remains a capability boundary: add Node-API/C++ only for an observed CPU
+bottleneck with measured benefit. Do not share a live SQLite connection or mutable business state
+across that boundary. The current search needs no native addon or shared-memory protocol; immutable
+index snapshots and small query/results messages avoid cross-thread ownership and synchronization
+hazards.
+
 ## Navigation
 
 Task history links to a task overview and its live workspace. Each execution has an overview,
@@ -76,7 +102,7 @@ Screenshot evidence is unchanged; only annotation overlays follow the shared the
 
 The built JavaScript and CSS live once in `var/cache/typescript/`. Reports reference these shared
 assets, rather than copying React or a theme into each execution. Keep this directory alongside
-retained reports for offline viewing. The service exposes only the two exact UI asset paths;
+retained reports for offline viewing. The service exposes only the exact UI and search-worker assets;
 dependencies and fonts are local, with no CDN requests. Schema validation is precompiled so the
 browser does not require `unsafe-eval`. Theme restoration runs immediately after the CSP declaration,
 before styles or content are painted. Navigation and layout do not wait for React. Shell styles are

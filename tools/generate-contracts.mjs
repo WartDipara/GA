@@ -34,13 +34,19 @@ await writeFile(`${directory}/schemas.ts`, `export const schemas = ${JSON.string
 
 // Precompile the browser boundary so reports never need unsafe-eval.
 const validator = new Ajv2020({ code: { source: true, esm: true } });
-const workspaceCheck = validator.compile(schemas['workspace-view']);
-await writeFile(`${directory}/workspace-validator.js`, standaloneCode(validator, workspaceCheck));
-await writeFile(
-  `${directory}/workspace-validator.d.ts`,
-  "import type { WorkspaceView } from './workspace-view.js';\n" +
-    'export default function check(value: unknown): value is WorkspaceView;\n',
-);
+for (const name of ['workspace-view', 'history-view', 'history-search']) {
+  const check = validator.compile(schemas[name]);
+  const type = name
+    .split('-')
+    .map((part) => part[0].toUpperCase() + part.slice(1))
+    .join('');
+  await writeFile(`${directory}/${name}-validator.js`, standaloneCode(validator, check));
+  await writeFile(
+    `${directory}/${name}-validator.d.ts`,
+    `import type { ${type} } from './${name}.js';\n` +
+      `export default function check(value: unknown): value is ${type};\n`,
+  );
+}
 
 const exported = spawnSync('uv', ['run', 'python', 'tools/export-error-codes.py'], {
   encoding: 'utf8',

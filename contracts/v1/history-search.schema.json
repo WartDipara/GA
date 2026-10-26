@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://game-automation.local/contracts/v1/history-search",
+  "oneOf": [
+    {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "index"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "text": {
+                "type": "string"
+              },
+              "running": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "issues": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "required": ["text", "running", "issues"],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": ["type", "revision", "items"],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "query"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "request_id": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "query": {
+          "type": "string",
+          "maxLength": 256
+        },
+        "state": {
+          "enum": ["all", "running", "issues"]
+        },
+        "offset": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": ["type", "revision", "request_id", "query", "state", "offset"],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "result"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "request_id": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "offset": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "total": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "indices": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "required": ["type", "revision", "request_id", "offset", "total", "indices"],
+      "additionalProperties": false
+    }
+  ]
+}

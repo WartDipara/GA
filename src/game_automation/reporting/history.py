@@ -1,15 +1,12 @@
 """Read models and automatic indexes over recorded tasks and executions."""
 
-import hashlib
 import html
 import json
-from base64 import b64encode
 
 from game_automation.common import atomic_json, atomic_text
 from game_automation.contracts import validate
 
 from .navigation import (
-    ASSETS,
     REPORTS,
     decorate_document,
     navigation_script,
@@ -24,28 +21,28 @@ def history_view(store):
         result = {"tasks": [], "authority": "No recorded task database yet"}
         return result
     rows = store.db.execute(
+        "WITH metadata AS (SELECT r.task_id,json_extract(i.spec,'$.metadata.apkName') AS title,"
+        "json_extract(i.spec,'$.metadata.packageName') AS package_name,"
+        "ROW_NUMBER() OVER (PARTITION BY r.task_id ORDER BY r.rowid DESC) AS position "
+        "FROM run_inputs i JOIN runs r ON r.id=i.run_id "
+        "WHERE json_extract(i.spec,'$.metadata.apkName') IS NOT NULL) "
         "SELECT t.id AS task_id,COUNT(r.id) AS executions,MIN(r.created_at) AS created_at,"
         "MAX(r.updated_at) AS updated_at,"
         "SUM(CASE WHEN r.status='running' THEN 1 ELSE 0 END) AS running,"
-        "SUM(CASE WHEN r.status IN ('blocked','failed') THEN 1 ELSE 0 END) AS issues "
+        "SUM(CASE WHEN r.status IN ('blocked','failed') THEN 1 ELSE 0 END) AS issues,"
+        "COALESCE(m.title,'Game testing task') AS title,m.package_name "
         "FROM tasks t LEFT JOIN runs r ON r.task_id=t.id "
+        "LEFT JOIN metadata m ON m.task_id=t.id AND m.position=1 "
         "WHERE NOT EXISTS (SELECT 1 FROM task_aliases a WHERE a.alias_id=t.id) "
         "GROUP BY t.id ORDER BY MAX(r.rowid) DESC,t.rowid DESC"
     )
     tasks = []
     for row in rows:
         item = dict(row)
-        title = store.db.execute(
-            "SELECT json_extract(i.spec,'$.metadata.apkName') FROM run_inputs i "
-            "JOIN runs r ON r.id=i.run_id WHERE r.task_id=? "
-            "AND json_extract(i.spec,'$.metadata.apkName') IS NOT NULL "
-            "ORDER BY r.rowid DESC LIMIT 1",
-            (item["task_id"],),
-        ).fetchone()
-        item["title"] = title[0] if title else "Game testing task"
         item["href"] = f"../tasks/{item['task_id']}/reports/task.html"
         tasks.append(item)
     result = {"tasks": tasks, "authority": "Committed task and execution records in SQLite"}
+    validate(store.root / "contracts/v1", "history-view", result)
     return result
 
 
@@ -55,26 +52,26 @@ def render_history(store):
     body = (
         '<p><a data-report-back href="history.html">Back</a></p>'
         "<p>Browse retained tasks, execution attempts and their recorded evidence.</p>"
-        '<div class="history-toolbar"><input id="history-search" type="search" '
-        'placeholder="Search task or game"><select id="history-state">'
+        '<div class="history-toolbar history-search-toolbar">'
+        '<label class="history-query" for="history-search">Search games and tasks'
+        '<input id="history-search" type="search" maxlength="256" autocomplete="off" '
+        'placeholder="Game name, package or task ID" aria-describedby="history-search-help">'
+        '</label><label for="history-state">Task state<select id="history-state">'
         '<option value="all">All tasks</option><option value="running">Running</option>'
-        '<option value="issues">With recorded issues</option></select>'
-        '<span id="history-count"></span>'
+        '<option value="issues">With recorded issues</option></select></label>'
+        '<span id="history-count" role="status">Loading recorded tasks…</span>'
         '<span id="history-connection">Recorded snapshot</span></div>'
-        "<table><thead><tr><th>Task / game</th><th>Executions</th><th>Running</th>"
+        '<p id="history-search-help" class="muted">Partial names match as you type. '
+        "Use spaces to combine terms.</p>"
+        '<table aria-label="Recorded tasks"><thead><tr><th>Task / game</th>'
+        "<th>Executions</th><th>Running</th>"
         "<th>Blocked / failed</th><th>Last recorded update</th></tr></thead>"
         '<tbody id="history-rows"></tbody></table>'
         '<div class="history-toolbar"><button id="history-previous">Previous</button>'
         '<button id="history-next">Next</button></div>'
         f'<script type="application/json" id="history-data">{data}</script>'
     )
-    script = (ASSETS / "history.js").read_text(encoding="utf-8")
-    digest = b64encode(hashlib.sha256(script.encode()).digest()).decode("ascii")
     document = page_document("Task history", body)
-    document = document.replace(
-        "default-src 'none';", f"default-src 'none'; script-src 'sha256-{digest}';", 1
-    )
-    document = document.replace("</body>", f"<script>{script}</script></body>", 1)
     document = workspace_document(document, store)
     return navigation_script(document)
 

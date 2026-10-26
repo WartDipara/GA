@@ -65,6 +65,10 @@
   both, preserves credentials and shared resources, and must finish pending deletion before work resumes.
 - AI decisions are proposals. Only post-action evidence can verify outcomes. Never fabricate
   summaries, usage, costs, or coverage.
+- Keep observability computation off workflow-critical paths. Reuse bounded indexes, coalesce stale
+  queries and keep worker counts bounded. Introduce Node-API/C++ for measured CPU bottlenecks rather
+  than by default. Define buffer ownership before using transfer or shared memory; never share live
+  SQLite connections or mutable writer state across workers or native capabilities.
 - Never replay actions with unknown outcomes. Observe and reconcile before continuing.
 - Store test credentials only in the current Windows user's DPAPI-encrypted local vault. Never
   include plaintext credentials in arguments, prompts, traces, screenshots, or tracked files.

@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://game-automation.local/contracts/v1/history-view",
+  "type": "object",
+  "properties": {
+    "tasks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "task_id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "href": {
+            "type": "string",
+            "pattern": "^\\.\\./tasks/task_[A-Za-z0-9_-]+/reports/task\\.html$"
+          },
+          "executions": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "running": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "issues": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "created_at": {
+            "type": ["string", "null"]
+          },
+          "updated_at": {
+            "type": ["string", "null"]
+          },
+          "package_name": {
+            "type": ["string", "null"]
+          }
+        },
+        "required": [
+          "task_id",
+          "title",
+          "href",
+          "executions",
+          "running",
+          "issues",
+          "created_at",
+          "updated_at"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "authority": {
+      "type": "string"
+    }
+  },
+  "required": ["tasks", "authority"],
+  "additionalProperties": false
+}
