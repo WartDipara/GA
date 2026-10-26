@@ -230,10 +230,17 @@ export class CodexAdapter {
           /* Shutdown continues after the separately traced interruption attempt. */
         }
       }
-      await peer.close();
-      await terminate(child);
-      await stderr.catch(() => undefined);
-      this.active = undefined;
+      try {
+        await peer.close();
+        await terminate(child);
+        await stderr.catch(() => undefined);
+      } finally {
+        try {
+          await events.finish();
+        } finally {
+          this.active = undefined;
+        }
+      }
     }
   }
 

@@ -4,6 +4,8 @@ from enum import StrEnum
 class ErrorCode(StrEnum):
     """Stable wire codes with default messages shared by the kernel and plugins."""
 
+    RPC_BACKPRESSURE = ("RPC_BACKPRESSURE", "RPC queue capacity was exceeded")
+
     WORKFLOW_INVALID = ("WORKFLOW_INVALID", "Workflow stages or instance assignments are invalid")
     WORKFLOW_BLOCKED = ("WORKFLOW_BLOCKED", "A workflow stage needs attention before continuing")
     TRACE_VIEWER_CONFIG = (

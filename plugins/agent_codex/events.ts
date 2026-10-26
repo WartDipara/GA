@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { object, text } from '@game-automation/contracts';
 import { ErrorCode, FrameworkError } from '@game-automation/contracts/errors';
 import type { Peer } from '@game-automation/plugin-sdk/rpc';
+import { TraceBuffer } from './trace-buffer.js';
 
 type Entry = { kind: string; payload: Record<string, unknown> };
 
@@ -13,6 +14,8 @@ export class ProviderEvents {
   summaryAvailable = false;
   usage: Record<string, unknown> | null = null;
   private failure: FrameworkError | undefined;
+  private readonly buffer: TraceBuffer;
+  private wireSequence = 0;
   private complete: (() => void) | undefined;
   private readonly completion = new Promise<void>((resolve) => {
     this.complete = resolve;
@@ -21,7 +24,15 @@ export class ProviderEvents {
   constructor(
     private readonly host: Peer,
     readonly batches: boolean,
-  ) {}
+  ) {
+    this.buffer = new TraceBuffer(
+      async (events) => {
+        const result = object(await this.host.request('host.events', { events }));
+        if (result['persisted'] !== true) throw new FrameworkError(ErrorCode.TRACE_UNAVAILABLE);
+      },
+      (error) => this.abort(error),
+    );
+  }
 
   abort(error: FrameworkError): void {
     this.failure = error;
@@ -29,12 +40,13 @@ export class ProviderEvents {
   }
 
   async emit(kind: string, payload: Record<string, unknown>): Promise<void> {
+    await this.buffer.flush();
     const request = { kind, payload, event_id: `provider_${randomUUID().replaceAll('-', '')}` };
     const result = object(await this.host.request('host.event', request));
     if (result['persisted'] !== true) throw new FrameworkError(ErrorCode.TRACE_UNAVAILABLE);
   }
 
-  private async persist(entries: Entry[]): Promise<void> {
+  private async persist(entries: Entry[], durable = true): Promise<void> {
     if (!this.batches) {
       for (const entry of entries) await this.emit(entry.kind, entry.payload);
       return;
@@ -43,15 +55,29 @@ export class ProviderEvents {
       ...entry,
       event_id: `provider_${randomUUID().replaceAll('-', '')}`,
     }));
-    const result = object(await this.host.request('host.events', { events }));
-    if (result['persisted'] !== true) throw new FrameworkError(ErrorCode.TRACE_UNAVAILABLE);
+    const source = events.find((entry) => entry.kind === 'provider.wire');
+    if (source)
+      for (const entry of events)
+        if (['ai.progress', 'ai.reasoning_summary'].includes(entry.kind))
+          entry.payload['source_event_id'] = source.event_id;
+    await this.buffer.append(events, durable);
+  }
+
+  async finish(): Promise<void> {
+    await this.buffer.flush();
+    if (this.batches) await this.emit('ai.trace.buffer', this.buffer.stats());
   }
 
   async observe(direction: 'in' | 'out', message: Record<string, unknown>): Promise<void> {
     const entries: Entry[] = [
       {
         kind: 'provider.wire',
-        payload: { direction, message, received_at: new Date().toISOString() },
+        payload: {
+          direction,
+          message,
+          source_seq: ++this.wireSequence,
+          received_at: new Date().toISOString(),
+        },
       },
     ];
     let completed: Record<string, unknown> | undefined;
@@ -119,7 +145,12 @@ export class ProviderEvents {
       await this.persist(entries.slice(0, 1));
       throw error;
     }
-    await this.persist(entries);
+    const streaming =
+      direction === 'in' &&
+      ['item/agentMessage/delta', 'item/reasoning/summaryTextDelta'].includes(
+        String(message['method']),
+      );
+    await this.persist(entries, !streaming);
     if (completed) {
       this.turn = completed;
       this.complete?.();

@@ -1,5 +1,5 @@
 name = "agent_codex"
-version = "0.3.0"
+version = "0.3.1"
 protocol_version = "1.0"
 command = ["{node}", "{project}/var/cache/typescript/agent_codex.mjs"]
 capabilities = ["ai.decide"]

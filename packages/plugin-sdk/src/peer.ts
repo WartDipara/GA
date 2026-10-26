@@ -4,6 +4,8 @@ import { object, text } from '@game-automation/contracts';
 import { ErrorCode, FrameworkError, frameworkError } from '@game-automation/contracts/errors';
 
 const MAX_MESSAGE = 8 * 1024 * 1024;
+const MAX_PENDING = 64;
+const MAX_WRITE_BYTES = 16 * 1024 * 1024;
 type Message = Record<string, unknown>;
 type RpcId = string | number;
 type Pending = {
@@ -21,6 +23,8 @@ export class Peer {
   private readonly handlers = new Set<Promise<void>>();
   private closing = false;
   private writes: Promise<void> = Promise.resolve();
+  private queuedWriteBytes = 0;
+  private queuedWrites = 0;
 
   constructor(
     private readonly reader: Readable,
@@ -39,6 +43,7 @@ export class Peer {
   }
 
   async request(method: string, params: Message, timeoutMs = 30_000): Promise<unknown> {
+    if (this.pending.size >= MAX_PENDING) throw new FrameworkError(ErrorCode.RPC_BACKPRESSURE);
     const id = `rpc_${randomUUID().replaceAll('-', '')}`;
     const response = new Promise<unknown>((resolve, reject) => {
       const timer =
@@ -71,6 +76,10 @@ export class Peer {
     const envelope = this.provider ? message : { jsonrpc: '2.0', ...message };
     const bytes = Buffer.from(`${JSON.stringify(envelope)}\n`);
     if (bytes.length > MAX_MESSAGE) throw new FrameworkError(ErrorCode.MESSAGE_TOO_LARGE);
+    if (this.queuedWriteBytes + bytes.length > MAX_WRITE_BYTES || this.queuedWrites >= MAX_PENDING)
+      throw new FrameworkError(ErrorCode.RPC_BACKPRESSURE);
+    this.queuedWriteBytes += bytes.length;
+    this.queuedWrites++;
     const write = this.writes.then(async () => {
       if (this.failure) throw this.failure;
       if (this.closing) throw new FrameworkError(ErrorCode.CLOSED);
@@ -82,7 +91,12 @@ export class Peer {
     this.writes = write.catch((error: unknown) => {
       this.fail(error);
     });
-    await write;
+    try {
+      await write;
+    } finally {
+      this.queuedWriteBytes -= bytes.length;
+      this.queuedWrites--;
+    }
   }
 
   private async read(): Promise<void> {
@@ -125,7 +139,7 @@ export class Peer {
       if (typeof id !== 'string' && typeof id !== 'number') {
         throw new FrameworkError(ErrorCode.INVALID_PROTOCOL);
       }
-      if (this.handlers.size >= 64) throw new FrameworkError(ErrorCode.MESSAGE_TOO_LARGE);
+      if (this.handlers.size >= MAX_PENDING) throw new FrameworkError(ErrorCode.RPC_BACKPRESSURE);
       const task = this.dispatch(text(message['method']), object(message['params'] ?? {}), id);
       this.handlers.add(task);
       void task.then(

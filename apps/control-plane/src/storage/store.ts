@@ -289,22 +289,10 @@ export class Store {
   }
 
   eventBatch(runId: string, value: unknown, ids: TraceIds): void {
-    if (!Array.isArray(value) || value.length < 1 || value.length > 16)
-      throw new FrameworkError(ErrorCode.INVALID_EVENT);
+    const entries = decode('plugin-event-batch', value);
     this.database.transaction(() => {
-      for (const value_ of value) {
-        const entry = object(value_);
-        const kind = text(entry['kind']);
-        const eventId = text(entry['event_id']);
-        if (
-          Object.keys(entry).sort().join(',') !== 'event_id,kind,payload' ||
-          !/^(provider|ai|plugin)\./.test(kind) ||
-          kind === 'ai.session' ||
-          !eventId
-        ) {
-          throw new FrameworkError(ErrorCode.INVALID_EVENT);
-        }
-        this.event(runId, kind, object(entry['payload']), { ...ids, event_id: eventId });
+      for (const entry of entries) {
+        this.event(runId, entry.kind, object(entry.payload), { ...ids, event_id: entry.event_id });
       }
     });
   }

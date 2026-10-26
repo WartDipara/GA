@@ -57,6 +57,7 @@ export const blockedErrors = new Set<ErrorCode>([
   ErrorCode.PREPROCESSING_BLOCKED,
   ErrorCode.PREPROCESSING_INTERRUPTED,
   ErrorCode.TRACE_UNAVAILABLE,
+  ErrorCode.RPC_BACKPRESSURE,
   ErrorCode.DISK_SPACE_INSUFFICIENT,
   ErrorCode.DISK_SPACE_UNAVAILABLE,
   ErrorCode.DISK_BUDGET_EXCEEDED,
