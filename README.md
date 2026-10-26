@@ -22,6 +22,7 @@ npm run build
 
 1. Check `config/application.toml` for budgets, timeouts and workflow stages.
    `[codex]` selects `model = "gpt-6-luna"` and `reasoning_effort = "medium"`.
+   `[gameplay].max_turns = 0` allows unlimited planning; use a positive limit to bound it.
 2. Keep enabled capabilities in `config/plugins.toml` and Skill bindings in
    `config/skills.toml`.
 3. Save test credentials using the hidden local prompts:
@@ -55,8 +56,8 @@ Assign one distinct running instance per URL, in the same order:
 uv run game-auto workflow --input var/inputs/apks.json --instances <index> --goal explore
 ```
 
-Use `--credentials <profile>` for another vault profile, `--max-turns 30` to bound
-one invocation, or `--goal login-and-interact` for login and one benign interaction.
+Use `--credentials <profile>` for another vault profile, `--max-turns <count>` to override
+the planning limit, or `--goal login-and-interact` for login and one benign interaction.
 For downloads only, use `game-auto preprocess --input var/inputs/apks.json`.
 
 ## Inspect and recover
