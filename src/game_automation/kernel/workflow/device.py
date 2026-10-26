@@ -172,6 +172,16 @@ async def prepare_device(store, run_id, host, manifest, task):
             previous["run_id"], previous["action_id"], "rejected", not_dispatched
         )
         previous = store.latest_device_action(run_id)
+    if previous and previous["status"] == "verified" and not before["installed"]:
+        missing = {
+            "previous_action_run": previous["run_id"],
+            "previous_action_id": previous["action_id"],
+            "installed": False,
+            "new_installation_requires_authorization": True,
+        }
+        host.record("device.installation.missing", missing)
+        # A settled past installation is not an unresolved action to replay.
+        previous = None
     if previous and previous["status"] in ("unknown", "executed", "verified"):
         if not before["installed"] or before["sha256"] != metadata["sha256"]:
             raise FrameworkError(ErrorCode.DEVICE_INSTALL_UNKNOWN)

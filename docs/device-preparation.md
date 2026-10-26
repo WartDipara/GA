@@ -120,4 +120,9 @@ rotation in degrees, and locally verified screenshot reference. `device.observed
 capacity checks, action records, and all adapter commands appear in the offline trace. No model call
 or screenshot upload is involved.
 
+If a previously verified installation is now absent, preparation records that fresh observation
+and creates a new installation intent under its normal authorization checks. The settled historical
+action is preserved. Unknown or executed installations still require reconciliation before another
+installation; a missing package does not make those uncertain actions safe to replay.
+
 References: [Android Debug Bridge](https://developer.android.com/tools/adb).
