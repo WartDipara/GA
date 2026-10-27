@@ -87,7 +87,7 @@ summary:focus-visible {
 }
 .metric,
 .panel {
-  background: white;
+  background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
   padding: 20px;
@@ -126,7 +126,12 @@ select {
   border-radius: var(--radius-sm);
   padding: 8px 10px;
   background: var(--surface);
+  color: var(--text);
   min-width: 0;
+}
+input::placeholder {
+  color: var(--muted);
+  opacity: 1;
 }
 .search {
   width: 100%;
@@ -155,7 +160,7 @@ select {
   border-left-width: 4px;
 }
 .legend-item:not(.segment) {
-  background: white;
+  background: var(--surface);
 }
 .cat-instructions {
   background: var(--accent);
@@ -268,7 +273,7 @@ pre {
   border-left: 2px solid var(--line);
   margin: 8px 0 8px 10px;
   padding: 8px;
-  background: white;
+  background: var(--surface-raised);
 }
 .raw summary {
   cursor: pointer;
