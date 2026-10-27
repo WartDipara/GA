@@ -26,6 +26,19 @@
       : value < 1000
         ? `${number(value)} ms`
         : `${(value / 1000).toFixed(2)} s`;
+  const executionTimingDescription = (span) => {
+    const timing = span.attributes['game_automation.execution_timing'];
+    if (!timing) return '';
+    if (timing.complete)
+      return 'Sum of measured execution segments. Blocked waiting and report publication are excluded.';
+    if (!timing.recorded_segments)
+      return 'No execution segments were recorded. Total active execution time is unknown.';
+    if (timing.unsegmented_execution)
+      return 'Some execution activity has no segment record. Total active execution time is unknown.';
+    if (timing.open_segments)
+      return 'An execution segment has no recorded ending. Total active execution time is unknown.';
+    return 'Some execution segments have missing or invalid timings. Total active execution time is unknown.';
+  };
   const pretty = (value) => element('pre', JSON.stringify(value, null, 2));
   const button = (label, action) => {
     const node = element('button', label);
@@ -245,6 +258,8 @@
           bar.style.left = `${Math.max(0, (start / extent) * 100)}%`;
           bar.style.width = `${Math.max(0.4, Math.min(100, (boundary / extent) * 100))}%`;
           bar.title = `${span.name}: ${duration(span.duration_ms)}; ${span.status}`;
+          const timingDescription = executionTimingDescription(span);
+          if (timingDescription) bar.title += `. ${timingDescription}`;
           track.append(bar);
           row.append(label, track, element('span', duration(span.duration_ms), 'span-time'));
           const choose = () => {
@@ -274,12 +289,18 @@
     const node = byId('span-inspector');
     node.dataset.disclosureScope = span.span_id;
     const metadata = element('dl');
+    const timing = span.attributes['game_automation.execution_timing'];
     const fields = [
       ['Span', span.span_id],
       ['Parent', span.parent_span_id || 'Root'],
-      ['Duration', duration(span.duration_ms)],
+      [timing ? 'Active execution time' : 'Duration', duration(span.duration_ms)],
       ['Events', span.events.length],
     ];
+    if (timing) {
+      fields.push(['Measured segments', `${timing.measured_segments} / ${timing.recorded_segments}`]);
+      if (!timing.complete && timing.measured_duration_ms !== null)
+        fields.push(['Measured portion', duration(timing.measured_duration_ms)]);
+    }
     fields.forEach(([label, value]) =>
       metadata.append(element('dt', label), element('dd', String(value))),
     );
@@ -288,6 +309,7 @@
       element('h3', span.name),
       metadata,
     );
+    if (timing) node.append(element('p', executionTimingDescription(span)));
     if (span.parent_span_id) {
       const parent = element('a', 'Inspect parent call');
       parent.href = `#view=calls&span=${encodeURIComponent(span.parent_span_id)}`;

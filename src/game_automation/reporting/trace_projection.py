@@ -145,10 +145,81 @@ class TraceFold:
         self.baselines = {}
         self.root_events = []
         self.root_attributes = {}
+        self.execution_segments = {}
+        self.active_segment = None
+        self.unsegmented_execution = False
 
     def size(self):
         encoded = json.dumps(self.__dict__, ensure_ascii=False).encode("utf-8")
         return len(encoded)
+
+    def track_execution(self, event):
+        kind = event["kind"]
+        span_id = event["span_id"]
+        payload = event["payload"]
+        if kind == "execution.segment.started":
+            if self.active_segment is not None:
+                self.execution_segments[self.active_segment]["invalid"] = True
+            previous = self.execution_segments.get(span_id)
+            self.execution_segments[span_id] = {
+                "attempt_id": payload.get("attempt_id"),
+                "closed": False,
+                "invalid": previous is not None or self.active_segment is not None or not span_id,
+                "duration_ms": None,
+            }
+            self.active_segment = span_id
+        elif kind in ("execution.segment.finished", "execution.segment.incomplete"):
+            segment = self.execution_segments.get(span_id)
+            if segment is None:
+                self.unsegmented_execution = True
+                return
+            duration = payload.get("duration_ms")
+            valid = (
+                kind == "execution.segment.finished"
+                and self.active_segment == span_id
+                and not segment["closed"]
+                and not segment["invalid"]
+                and isinstance(segment["attempt_id"], str)
+                and bool(segment["attempt_id"])
+                and segment["attempt_id"] == payload.get("attempt_id")
+                and payload.get("status") in ("succeeded", "blocked", "failed", "cancelled")
+                and type(duration) is int
+                and duration >= 0
+            )
+            segment["closed"] = True
+            segment["invalid"] = not valid
+            segment["duration_ms"] = duration if valid else None
+            if self.active_segment == span_id:
+                self.active_segment = None
+        elif (
+            kind == "run.state"
+            and self.active_segment is None
+            and (
+                not self.execution_segments
+                or payload.get("from") == "running"
+                or payload.get("to") == "running"
+            )
+        ):
+            self.unsegmented_execution = True
+
+    def execution_timing(self):
+        segments = list(self.execution_segments.values())
+        durations = [
+            item["duration_ms"]
+            for item in segments
+            if not item["invalid"] and item["duration_ms"] is not None
+        ]
+        timing = {
+            "recorded_segments": len(segments),
+            "measured_segments": len(durations),
+            "open_segments": sum(not item["closed"] for item in segments),
+            "unsegmented_execution": self.unsegmented_execution,
+            "measured_duration_ms": sum(durations) if durations else None,
+            "complete": bool(segments)
+            and len(durations) == len(segments)
+            and not self.unsegmented_execution,
+        }
+        return timing
 
     def update(self, store, run_id, watermark):
         kinds = (*STARTS, *ENDS, *DETAILS)
@@ -171,6 +242,7 @@ class TraceFold:
                 span["attributes"]["gen_ai.step.id"] = event["span_id"]
             self.spans[event["span_id"]] = span
         for event in store.iter_events(run_id, kinds=kinds, after=self.through, through=watermark):
+            self.track_execution(event)
             target = self.spans.get(event["span_id"])
             if target is not None:
                 enrich_span(target, event)
@@ -240,6 +312,12 @@ def project_trace(store, run_id, *, fold=None):
     spans = deepcopy(fold.spans)
     root["events"] = list(fold.root_events)
     root["attributes"].update(fold.root_attributes)
+    if run["mode"] == "gameplay":
+        timing = fold.execution_timing()
+        root["attributes"]["game_automation.duration_scope"] = "measured_execution_segments"
+        root["attributes"]["game_automation.execution_timing"] = timing
+        if timing["complete"]:
+            root["duration_ms"] = timing["measured_duration_ms"]
     for span in spans.values():
         if span["parent_span_id"] not in spans:
             recorded_parent = span["parent_span_id"]
