@@ -83,6 +83,12 @@ segments link to earlier segments; crash recovery explicitly closes interrupted 
 unknown duration. Report publication remains outside the measured gameplay segment. Segment
 measurements never include time spent blocked between invocations, and nested spans must not be
 summed into elapsed time. Historical executions without segments retain unknown measurements.
+The top-level gameplay duration sums completed, measured segments from that execution only.
+It excludes blocked waiting, report publication and nested call durations. The inspector shows
+segment coverage and any measured portion separately. A running or interrupted segment, missing
+or inconsistent timing, or execution activity outside recorded segments keeps the total unknown;
+resuming an older execution never treats its missing history as zero. Report-only rebuilding
+uses the same recorded segments and cannot change the measured gameplay duration.
 Before starting a resumed segment, the writer also closes an unfinished prior segment even if
 its business state had already settled before the original process stopped. The duration remains
 unknown; an observed old start is never converted into a successful ending.

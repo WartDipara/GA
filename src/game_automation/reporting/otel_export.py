@@ -29,6 +29,7 @@ SAFE_ATTRIBUTES = {
     "gen_ai.usage.cache_read.input_tokens",
     "gen_ai.usage.reasoning_output_tokens",
     "game_automation.attempt_id",
+    "game_automation.duration_scope",
     "error.type",
 }
 
