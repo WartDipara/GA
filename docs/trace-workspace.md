@@ -224,21 +224,38 @@ coverage, translation-hook delivery or correctness of a model's decision.
 
 Reports render their shared shell from `reporting/web/workspace-shell.template.html` before the
 first paint. `packages/trace-ui` enhances charts over the existing read-only projections.
-`config/ui-theme.json` is the single palette, typography, spacing, radius and motion configuration.
-Both theme modes are validated against `contracts/v1/ui-theme.schema.json` during the normal build.
-Edit this configuration, run `npm run build`, and reload the viewer. Its Gothic defaults use
-obsidian surfaces, purple panels, fine gold borders, angular controls and local serif fonts; the
-light mode uses parchment surfaces. The visual reference is
-[StyleKit Gothic](https://www.stylekit.top/zh/styles/gothic). Component styles reference semantic
-tokens rather than defining palettes. Screenshot evidence is unchanged; only annotation overlays
-follow the shared theme.
+`config/ui-theme.json` manages the style catalog, default style, palettes, typography, spacing,
+geometry and motion. Presets override the shared tokens and provide light and dark palettes;
+existing configurations without a style catalog keep their original behavior. Configuration is
+validated against `contracts/v1/ui-theme.schema.json` during the build and report rendering.
+Edit the configuration, run `npm run build`, and reload the viewer.
 
-Open **Appearance** in the header to choose a theme, adjust text size or reduce motion. Text scaling
-includes navigation, tables, controls and report details. Settings apply immediately and persist
-locally across reports and tabs. **Project default** follows the configured theme; **Reset
-defaults** restores the configuration's appearance values. OS reduced-motion settings remain
+| Style reference | Adaptation for the trace workspace |
+| --- | --- |
+| [Gothic](https://www.stylekit.top/zh/styles/gothic) | Serif text, gold borders, architectural details and obsidian or parchment surfaces. |
+| [Corporate Clean](https://www.stylekit.top/zh/styles/corporate-clean) | Blue accents, restrained rounding, compact panels and balanced columns. |
+| [Editorial](https://www.stylekit.top/styles/editorial) | Paper surfaces, serif headlines, generous spacing and stacked reading panels. |
+| [Neo-Brutalist](https://www.stylekit.top/zh/styles/neo-brutalist) | Heavy outlines, hard shadows, square controls and bold typography. |
+| [Bento Grid](https://www.stylekit.top/styles/bento-grid) | Rounded tiles, a larger first summary card and asymmetric overview grids. |
+| [Soft UI](https://www.stylekit.top/styles/soft-ui) | Muted lavender surfaces, large radii, soft shadows and relaxed spacing. |
+
+The presets adapt these references for evidence inspection. Status labels and semantic colors
+remain available in every style. CSS layouts live in `packages/trace-ui/src/layouts.css`; shared
+controls and picker styling stay in the UI package. Styles never replace report DOM, reorder the
+evidence, change filters, remount charts or start requests. They use the same content, navigation,
+selection and expanded records. Narrow layouts collapse to one column while retaining every
+section. Screenshot evidence is unchanged; only annotation overlays follow shared theme tokens.
+
+Open **Appearance** in the header to choose a style, color mode, text size or reduced motion. Native
+radio controls provide keyboard navigation between style previews. **Style default** uses the
+selected preset's color mode; an explicit **Light** or **Dark** selection persists across styles.
+Text scaling includes navigation, tables, controls and report details. Settings apply immediately and persist
+locally across reports and tabs. **Reset defaults** restores the configured style, its default
+color mode and the configuration's appearance values. OS reduced-motion settings remain
 respected. Restoring preferences runs before painting, including retained report pages served by the
-viewer; it never modifies the business records.
+viewer; it never modifies the business records. The live viewer upgrades the appearance controls
+of retained HTML on delivery. Rebuild an older offline report with `game-auto report <run_id>`
+to embed the current picker and bootstrap.
 
 The built JavaScript and CSS live once in `var/cache/typescript/`. Reports reference these shared
 assets, rather than copying React or a theme into each execution. Keep this directory alongside

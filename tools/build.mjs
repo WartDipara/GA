@@ -7,6 +7,8 @@ const theme = JSON.parse(await readFile('config/ui-theme.json', 'utf8'));
 const themeSchema = JSON.parse(await readFile('contracts/v1/ui-theme.schema.json', 'utf8'));
 const validateTheme = new Ajv2020().compile(themeSchema);
 if (!validateTheme(theme)) throw new Error('Invalid UI theme configuration');
+if (theme.default_style && !Object.hasOwn(theme.styles, theme.default_style))
+  throw new Error('The default UI style is not defined');
 
 await build({
   entryPoints: {
@@ -26,10 +28,8 @@ const properties = (values) =>
   Object.entries(values)
     .map(([name, value]) => `--${name}:${value};`)
     .join('');
+const defaultStyle = theme.styles?.[theme.default_style] ?? {};
 const sharedTokens = { ...theme.tokens };
-sharedTokens['font-body'] ??= sharedTokens['font-sans'];
-sharedTokens['font-sans'] ??= sharedTokens['font-body'];
-sharedTokens['font-display'] ??= sharedTokens['font-body'];
 if (theme.appearance) {
   sharedTokens['default-font-scale'] = String(
     theme.appearance.font_size / theme.appearance.design_font_size,
@@ -37,10 +37,26 @@ if (theme.appearance) {
   sharedTokens['default-font-min'] =
     `${theme.appearance.font_size * theme.appearance.minimum_text_ratio}px`;
 }
-let tokens = `:root{${properties(sharedTokens)}}`;
-for (const [mode, values] of Object.entries(theme.themes)) {
-  const selector = `${mode === theme.default_mode ? ':root,' : ''}:root[data-theme="${mode}"]`;
-  tokens += `${selector}{color-scheme:${mode};${properties(values)}}`;
+function styleRules(selector, preset, preview = false) {
+  const values = { ...sharedTokens, ...preset.tokens };
+  values['font-body'] ??= values['font-sans'];
+  values['font-sans'] = values['font-body'];
+  values['font-display'] ??= values['font-body'];
+  const palettes = preset.themes ?? theme.themes;
+  const mode = preset.default_mode ?? theme.default_mode;
+  let rules = `${selector}{${properties(values)}color-scheme:${mode};${properties(palettes[mode])}}`;
+  for (const [name, palette] of Object.entries(palettes)) {
+    const target = preview
+      ? `:root[data-theme="${name}"] ${selector}`
+      : `${selector}[data-theme="${name}"]`;
+    rules += `${target}{color-scheme:${name};${properties(palette)}}`;
+  }
+  return rules;
+}
+let tokens = styleRules(':root', defaultStyle);
+for (const [id, preset] of Object.entries(theme.styles ?? {})) {
+  tokens += styleRules(`:root[data-style="${id}"]`, preset);
+  tokens += styleRules(`#appearance-settings [data-style-preview="${id}"]`, preset, true);
 }
 const styles = await readFile('var/cache/typescript/trace_ui.css', 'utf8');
 await writeFile('var/cache/typescript/trace_ui.css', `${tokens}\n${styles}`);

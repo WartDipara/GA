@@ -2,9 +2,12 @@
   'use strict';
   const root = document.documentElement;
   const themeKey = 'game-auto-theme';
+  const styleKey = 'game-auto-style';
   const appearanceKey = 'game-auto-appearance';
   let configuration = null;
   let preferences = null;
+  let styles = [];
+  let preferredStyle = null;
   try {
     const value = JSON.parse(document.getElementById('appearance-config')?.textContent || 'null');
     if (
@@ -15,8 +18,17 @@
       Number.isFinite(value.minimum_text_ratio) &&
       Number.isFinite(value.min_font_size) &&
       Number.isFinite(value.max_font_size)
-    )
+    ) {
       configuration = value;
+      if (Array.isArray(value.styles))
+        styles = value.styles.filter(
+          (style) =>
+            style &&
+            typeof style.id === 'string' &&
+            /^[a-z][a-z0-9-]{0,39}$/.test(style.id) &&
+            ['balanced', 'reading', 'bento'].includes(style.layout),
+        );
+    }
   } catch {
     /* Older reports can retain their configured CSS defaults. */
   }
@@ -26,6 +38,8 @@
       const saved = localStorage.getItem(themeKey);
       if (saved === 'light' || saved === 'dark') root.dataset.theme = saved;
       else delete root.dataset.theme;
+      const savedStyle = localStorage.getItem(styleKey);
+      preferredStyle = styles.some((style) => style.id === savedStyle) ? savedStyle : null;
       const value = JSON.parse(localStorage.getItem(appearanceKey) || 'null');
       preferences = configuration
         ? {
@@ -42,6 +56,7 @@
           }
         : null;
     } catch {
+      preferredStyle = null;
       preferences = configuration
         ? { fontSize: configuration.font_size, reduceMotion: configuration.reduce_motion }
         : null;
@@ -50,6 +65,16 @@
   }
 
   function apply() {
+    const style = styles.find(
+      (candidate) => candidate.id === (preferredStyle || configuration?.default_style),
+    );
+    if (style) {
+      root.dataset.style = style.id;
+      root.dataset.layout = style.layout;
+    } else {
+      delete root.dataset.style;
+      delete root.dataset.layout;
+    }
     if (!preferences || !configuration) return;
     root.style.setProperty(
       '--font-scale',
@@ -74,6 +99,8 @@
     if (legacy) legacy.textContent = mode() === 'dark' ? 'Light' : 'Dark';
     const selector = document.getElementById('appearance-theme');
     if (selector) selector.value = root.dataset.theme || 'default';
+    for (const choice of document.querySelectorAll('input[name="appearance-style"]'))
+      choice.checked = choice.value === root.dataset.style;
     if (!preferences || !configuration) return;
     const size = document.getElementById('appearance-font-size');
     if (size) {
@@ -106,6 +133,18 @@
     } catch {
       /* The current page still applies the selected theme. */
     }
+    sync();
+  }
+
+  function selectStyle(value) {
+    if (!styles.some((style) => style.id === value)) return;
+    preferredStyle = value;
+    try {
+      localStorage.setItem(styleKey, value);
+    } catch {
+      /* The selected style still applies while this page is open. */
+    }
+    apply();
     sync();
   }
 
@@ -157,6 +196,10 @@
     document
       .getElementById('appearance-theme')
       ?.addEventListener('change', (event) => selectTheme(event.target.value));
+    for (const choice of document.querySelectorAll('input[name="appearance-style"]'))
+      choice.addEventListener('change', () => {
+        if (choice.checked) selectStyle(choice.value);
+      });
     document.getElementById('appearance-font-size')?.addEventListener('input', (event) => {
       if (!preferences || !configuration) return;
       const size = Number(event.target.value);
@@ -193,6 +236,12 @@
         fontSize: configuration.font_size,
         reduceMotion: configuration.reduce_motion,
       };
+      preferredStyle = null;
+      try {
+        localStorage.removeItem(styleKey);
+      } catch {
+        /* Reset still applies to the current page. */
+      }
       selectTheme('default');
       save();
     });
@@ -204,7 +253,7 @@
     navigationState(true);
   });
   addEventListener('storage', (event) => {
-    if (event.key === themeKey || event.key === appearanceKey || event.key === null) {
+    if ([themeKey, styleKey, appearanceKey, null].includes(event.key)) {
       restore();
       sync();
     }
