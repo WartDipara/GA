@@ -9,6 +9,8 @@ from pathlib import Path
 from string import Template
 from urllib.parse import quote
 
+from game_automation.contracts import validate
+
 from .workspace import workspace_view
 
 ASSETS = Path(__file__).parent / "web"
@@ -170,6 +172,32 @@ def workspace_shell(view, *, navigation=None):
     return document
 
 
+def appearance_panel(style_choices):
+    cards = []
+    for choice in style_choices:
+        identifier = html.escape(choice["id"], quote=True)
+        layout = html.escape(choice["layout"], quote=True)
+        cards.append(
+            '<label class="appearance-style">'
+            f'<input type="radio" name="appearance-style" value="{identifier}">'
+            f'<span class="style-preview" data-style-preview="{identifier}" '
+            f'data-preview-layout="{layout}" aria-hidden="true">'
+            '<span class="style-preview-nav"></span><span class="style-preview-cards">'
+            "<i></i><i></i><i></i></span></span>"
+            f"<strong>{html.escape(choice['name'])}</strong>"
+            f"<small>{html.escape(choice['description'])}</small></label>"
+        )
+    picker = (
+        '<fieldset class="appearance-styles"><legend>Workspace style</legend>'
+        f'<div class="appearance-style-grid">{"".join(cards)}</div></fieldset>'
+        if cards
+        else ""
+    )
+    template = Template((ASSETS / "appearance.template.html").read_text(encoding="utf-8"))
+    panel = template.substitute(style_picker=picker)
+    return panel
+
+
 def theme_document(document, prefix):
     existing = re.search(
         r'<script id="workspace-theme-bootstrap">(.*?)</script>', document, re.DOTALL
@@ -184,7 +212,7 @@ def theme_document(document, prefix):
     document = re.sub(r'<link\b[^>]*href="[^"]*/trace_ui.css"[^>]*>', "", document)
     document = re.sub(r'<script\b[^>]*src="[^"]*/trace_ui.js"[^>]*></script>', "", document)
     assets = f"{prefix}cache/typescript/trace_ui"
-    style = f'<link rel="stylesheet" href="{assets}.css">'
+    stylesheet = f'<link rel="stylesheet" href="{assets}.css">'
     script = f'<script defer blocking="render" src="{assets}.js"></script>'
     bootstrap = (ASSETS / "theme.js").read_text(encoding="utf-8")
     digest = b64encode(hashlib.sha256(bootstrap.encode()).digest()).decode("ascii")
@@ -192,14 +220,35 @@ def theme_document(document, prefix):
     configuration = json.loads(
         (ASSETS.parents[3] / "config/ui-theme.json").read_text(encoding="utf-8")
     )
+    validate(ASSETS.parents[3] / "contracts/v1", "ui-theme", configuration)
     appearance = configuration.get("appearance")
-    settings = json.dumps(appearance).replace("<", "\\u003c")
+    style_catalog = configuration.get("styles", {})
+    style_choices = []
+    for identifier, definition in style_catalog.items():
+        choice = {
+            "id": identifier,
+            "name": definition["name"],
+            "description": definition["description"],
+            "layout": definition["layout"],
+        }
+        style_choices.append(choice)
+    settings = dict(appearance) if appearance else None
+    if settings is not None:
+        settings["default_style"] = configuration.get("default_style")
+        settings["styles"] = style_choices
+    settings_json = json.dumps(settings).replace("<", "\\u003c")
     bootstrap_element = (
-        f'<script id="appearance-config" type="application/json">{settings}</script>'
+        f'<script id="appearance-config" type="application/json">{settings_json}</script>'
         + bootstrap_element
     )
-    if appearance and 'id="appearance-settings"' not in document:
-        panel = (ASSETS / "appearance.template.html").read_text(encoding="utf-8")
+    if appearance:
+        document = re.sub(
+            r'<dialog\b[^>]*id="appearance-settings"[^>]*>.*?</dialog>',
+            "",
+            document,
+            flags=re.DOTALL,
+        )
+        panel = appearance_panel(style_choices)
         document = document.replace("</body>", f"{panel}</body>", 1)
     sources = re.search(r"script-src ([^;]+)", document)
     if sources and "'self'" not in sources[1]:
@@ -208,8 +257,8 @@ def theme_document(document, prefix):
         document = document.replace(
             "default-src 'none';", "default-src 'none'; script-src 'self' file:;", 1
         )
-    styles = re.search(r"style-src ([^;]+)", document)
-    if styles and "'self'" not in styles[1]:
+    style_sources = re.search(r"style-src ([^;]+)", document)
+    if style_sources and "'self'" not in style_sources[1]:
         document = document.replace("style-src ", "style-src 'self' file: ", 1)
     if "worker-src " not in document:
         document = document.replace(
@@ -224,9 +273,9 @@ def theme_document(document, prefix):
         flags=re.IGNORECASE,
     )
     if "</head>" in document:
-        document = document.replace("</head>", f"{style}{script}</head>", 1)
+        document = document.replace("</head>", f"{stylesheet}{script}</head>", 1)
     else:
-        document = document.replace("</style>", f"</style>{style}{script}", 1)
+        document = document.replace("</style>", f"</style>{stylesheet}{script}", 1)
     return document
 
 

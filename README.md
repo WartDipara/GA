@@ -94,7 +94,9 @@ after success, failure, cancellation or a blocked checkpoint. Press `Ctrl+C` in 
 to stop the viewer; the workflow continues independently.
 
 Expand the sidebar's **Task → Executions → Reports** hierarchy to navigate retained records.
-Open **Appearance** to adjust text size, theme and motion; preferences persist in this browser.
+Open **Appearance** to choose a workspace style, light/dark mode, text size and motion.
+Gothic, Corporate Clean, Editorial, Neo-Brutalist, Bento Grid and Soft UI are included.
+Preferences persist in this browser across reports and tabs.
 Edit `config/ui-theme.json` and run `npm run build` to change the shared design defaults.
 
 To open a specific execution's task using a free port, use this alternative in PowerShell:

@@ -1,0 +1,76 @@
+/* Layout choices change presentation without replacing report content or controls. */
+.ui-ready :is(.grid, .trace-layout, .columns) {
+  gap: var(--panel-gap, 20px);
+}
+.ui-ready .grid > div > .panel {
+  padding: var(--panel-padding, 20px);
+}
+:root[data-layout='reading'] .ui-summary {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+:root[data-layout='reading'] .ui-ready :is(.ui-chart-grid, .trace-layout, .grid, .columns) {
+  grid-template-columns: minmax(0, 1fr);
+}
+:root[data-layout='reading'] .ui-ready .inspector {
+  position: static;
+  max-height: none;
+}
+:root[data-layout='reading'] .ui-card-heading {
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--border);
+}
+:root[data-layout='reading'] .ui-ready .metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
+}
+:root[data-layout='bento'] .ui-ready :is(.ui-summary, .metrics) {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--panel-gap);
+  align-items: stretch;
+}
+:root[data-layout='bento'] .ui-summary > .ui-card:first-child,
+:root[data-layout='bento'] .metrics > .metric:first-child {
+  grid-column: span 2;
+  grid-row: span 2;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  background: var(--accent-soft);
+}
+:root[data-layout='bento'] .ui-summary > .ui-card:nth-child(4) {
+  grid-column: span 2;
+}
+:root[data-layout='bento'] .ui-chart-grid {
+  grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr);
+}
+:root[data-layout='bento'] .ui-ready .metric {
+  min-width: 0;
+}
+@media (max-width: 1150px) {
+  :root[data-layout='bento'] .ui-ready :is(.ui-summary, .metrics) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  :root[data-layout='bento'] .ui-summary > .ui-card:first-child,
+  :root[data-layout='bento'] .metrics > .metric:first-child {
+    grid-row: auto;
+  }
+  :root[data-layout='bento'] .ui-summary > .ui-card:nth-child(4) {
+    grid-column: auto;
+  }
+}
+@media (max-width: 850px) {
+  :root[data-layout='bento'] .ui-chart-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 600px) {
+  :root[data-layout] .ui-ready :is(.ui-summary, .metrics) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+  :root[data-layout='bento'] .ui-summary > .ui-card:first-child,
+  :root[data-layout='bento'] .metrics > .metric:first-child {
+    grid-column: auto;
+  }
+}

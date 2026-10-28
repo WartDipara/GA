@@ -4,73 +4,13 @@
   "type": "object",
   "properties": {
     "default_mode": {
-      "enum": ["dark", "light"]
+      "enum": [
+        "dark",
+        "light"
+      ]
     },
     "tokens": {
       "type": "object",
-      "properties": {
-        "font-sans": {
-          "type": "string"
-        },
-        "font-mono": {
-          "type": "string"
-        },
-        "radius-sm": {
-          "type": "string"
-        },
-        "radius-md": {
-          "type": "string"
-        },
-        "radius-lg": {
-          "type": "string"
-        },
-        "space-1": {
-          "type": "string"
-        },
-        "space-2": {
-          "type": "string"
-        },
-        "space-3": {
-          "type": "string"
-        },
-        "space-4": {
-          "type": "string"
-        },
-        "space-5": {
-          "type": "string"
-        },
-        "space-6": {
-          "type": "string"
-        },
-        "duration-fast": {
-          "type": "string"
-        },
-        "duration-normal": {
-          "type": "string"
-        },
-        "duration-enter": {
-          "type": "string"
-        },
-        "motion-distance": {
-          "type": "string"
-        },
-        "font-body": {
-          "type": "string",
-          "minLength": 1
-        },
-        "font-display": {
-          "type": "string",
-          "minLength": 1
-        },
-        "sidebar-width": {
-          "type": "string",
-          "minLength": 1
-        },
-        "duration-navigation": {
-          "type": "string",
-          "minLength": 1
-        }
-      },
       "required": [
         "font-mono",
         "radius-sm",
@@ -87,15 +27,19 @@
         "duration-enter",
         "motion-distance"
       ],
-      "additionalProperties": false,
       "anyOf": [
         {
-          "required": ["font-body"]
+          "required": [
+            "font-body"
+          ]
         },
         {
-          "required": ["font-sans"]
+          "required": [
+            "font-sans"
+          ]
         }
-      ]
+      ],
+      "$ref": "#/$defs/styleTokens"
     },
     "themes": {
       "type": "object",
@@ -107,7 +51,10 @@
           "$ref": "#/$defs/palette"
         }
       },
-      "required": ["dark", "light"],
+      "required": [
+        "dark",
+        "light"
+      ],
       "additionalProperties": false
     },
     "appearance": {
@@ -151,9 +98,28 @@
         "reduce_motion"
       ],
       "additionalProperties": false
+    },
+    "default_style": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{0,39}$"
+    },
+    "styles": {
+      "type": "object",
+      "minProperties": 1,
+      "maxProperties": 12,
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9-]{0,39}$"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/style"
+      }
     }
   },
-  "required": ["default_mode", "tokens", "themes"],
+  "required": [
+    "default_mode",
+    "tokens",
+    "themes"
+  ],
   "additionalProperties": false,
   "$defs": {
     "palette": {
@@ -224,6 +190,203 @@
         "overlay-contrast"
       ],
       "additionalProperties": false
+    },
+    "styleTokens": {
+      "type": "object",
+      "properties": {
+        "font-sans": {
+          "type": "string"
+        },
+        "font-mono": {
+          "type": "string"
+        },
+        "radius-sm": {
+          "type": "string"
+        },
+        "radius-md": {
+          "type": "string"
+        },
+        "radius-lg": {
+          "type": "string"
+        },
+        "space-1": {
+          "type": "string"
+        },
+        "space-2": {
+          "type": "string"
+        },
+        "space-3": {
+          "type": "string"
+        },
+        "space-4": {
+          "type": "string"
+        },
+        "space-5": {
+          "type": "string"
+        },
+        "space-6": {
+          "type": "string"
+        },
+        "duration-fast": {
+          "type": "string"
+        },
+        "duration-normal": {
+          "type": "string"
+        },
+        "duration-enter": {
+          "type": "string"
+        },
+        "motion-distance": {
+          "type": "string"
+        },
+        "font-body": {
+          "type": "string",
+          "minLength": 1
+        },
+        "font-display": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sidebar-width": {
+          "type": "string",
+          "minLength": 1
+        },
+        "duration-navigation": {
+          "type": "string",
+          "minLength": 1
+        },
+        "content-width": {
+          "type": "string",
+          "minLength": 1
+        },
+        "panel-padding": {
+          "type": "string",
+          "minLength": 1
+        },
+        "panel-gap": {
+          "type": "string",
+          "minLength": 1
+        },
+        "panel-border-width": {
+          "type": "string",
+          "minLength": 1
+        },
+        "heading-size": {
+          "type": "string",
+          "minLength": 1
+        },
+        "heading-weight": {
+          "type": "string",
+          "minLength": 1
+        },
+        "heading-tracking": {
+          "type": "string",
+          "minLength": 1
+        },
+        "heading-color": {
+          "type": "string",
+          "minLength": 1
+        },
+        "card-background-image": {
+          "type": "string",
+          "minLength": 1
+        },
+        "card-decoration": {
+          "type": "string",
+          "minLength": 1
+        },
+        "logo-radius": {
+          "type": "string",
+          "minLength": 1
+        },
+        "logo-background": {
+          "type": "string",
+          "minLength": 1
+        },
+        "control-border-width": {
+          "type": "string",
+          "minLength": 1
+        },
+        "control-shadow": {
+          "type": "string",
+          "minLength": 1
+        },
+        "control-hover-shadow": {
+          "type": "string",
+          "minLength": 1
+        },
+        "control-active-shadow": {
+          "type": "string",
+          "minLength": 1
+        },
+        "control-active-transform": {
+          "type": "string",
+          "minLength": 1
+        },
+        "nav-active-shadow": {
+          "type": "string",
+          "minLength": 1
+        },
+        "nav-marker": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "style": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 50
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 180
+        },
+        "reference": {
+          "type": "string",
+          "pattern": "^https://www\\.stylekit\\.top/(zh/)?styles/[a-z0-9-]+$"
+        },
+        "default_mode": {
+          "enum": [
+            "dark",
+            "light"
+          ]
+        },
+        "layout": {
+          "enum": [
+            "balanced",
+            "reading",
+            "bento"
+          ]
+        },
+        "tokens": {
+          "$ref": "#/$defs/styleTokens"
+        },
+        "themes": {
+          "$ref": "#/properties/themes"
+        }
+      },
+      "required": [
+        "name",
+        "description",
+        "reference",
+        "default_mode",
+        "layout"
+      ],
+      "additionalProperties": false
     }
+  },
+  "dependentRequired": {
+    "default_style": [
+      "styles"
+    ],
+    "styles": [
+      "default_style"
+    ]
   }
 }
