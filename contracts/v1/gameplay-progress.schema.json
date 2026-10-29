@@ -717,6 +717,58 @@
     },
     "planner_coordinate_action_dispatched": {
       "type": "boolean"
+    },
+    "exploration_supervisor": {
+      "type": "object",
+      "properties": {
+        "scope": {
+          "type": "string"
+        },
+        "history": {
+          "type": "array",
+          "maxItems": 48,
+          "items": {
+            "type": "string"
+          }
+        },
+        "feedback": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "element_id": {
+              "type": "string"
+            },
+            "reason": {
+              "type": "string"
+            },
+            "recovery_round": {
+              "type": "integer"
+            },
+            "quarantined": {
+              "type": "boolean"
+            },
+            "observation_id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "element_id",
+            "reason",
+            "recovery_round",
+            "quarantined",
+            "observation_id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "scope",
+        "history",
+        "feedback"
+      ],
+      "additionalProperties": false
     }
   },
   "required": [

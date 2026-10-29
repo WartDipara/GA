@@ -46,7 +46,13 @@ export function destination(catalog: Catalog): Destination | null {
     for (const edge of edges) {
       if (edge.data.from_page !== entry.page || seen.has(edge.data.to_page)) continue;
       const element = elements.find((element) => element.id === edge.data.element_id);
-      if (!element || element.data.risk !== 'none' || element.status === 'unknown') continue;
+      if (
+        !element ||
+        element.data.risk !== 'none' ||
+        ['unknown', 'limited', 'prohibited', 'locked'].includes(element.status) ||
+        element.data.supervision?.quarantined
+      )
+        continue;
       seen.add(edge.data.to_page);
       queue.push({ page: edge.data.to_page, first: entry.first ?? edge });
     }

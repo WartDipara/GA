@@ -9,6 +9,7 @@ import { Catalog, signature, type Element, type Locator, type Page } from './cat
 import { canComplete, destination } from './frontier.js';
 import { locate } from './locating.js';
 import { reviewScroll, scrollViewport } from './scrolling.js';
+import { ExplorationSupervisor } from './supervision.js';
 
 function pendingAction(runtime: Runtime): Pending | null {
   return runtime.progress.data.pending;
@@ -16,11 +17,13 @@ function pendingAction(runtime: Runtime): Pending | null {
 
 export class Exploration {
   readonly catalog: Catalog;
+  readonly supervisor: ExplorationSupervisor;
   private previousNovelty = 0;
   private scrollKey: string | null = null;
-  madeProgress = false;
   constructor(readonly runtime: Runtime) {
     this.catalog = new Catalog(runtime);
+    this.supervisor = new ExplorationSupervisor(this.catalog);
+    this.previousNovelty = this.catalog.session()?.data.novelty ?? 0;
   }
 
   page(): Page | null {
@@ -167,7 +170,6 @@ export class Exploration {
   }
 
   async review(decision: Decision, view: View, pending: Pending | null): Promise<Page | null> {
-    this.madeProgress = false;
     this.scrollKey = null;
     this.catalog.reconcileLedger();
     const inventory = decision.exploration;
@@ -185,6 +187,7 @@ export class Exploration {
   }
 
   outcome(decision: Decision, view: View, pending: Pending, page: Page | null): void {
+    const previouslyVerified = this.wasVerified(pending);
     const verified = decision.previous_outcome.status === 'verified';
     this.catalog.outcome(pending, page, view.observation, verified);
     if (verified && decision.exploration && this.scrollKey)
@@ -198,12 +201,28 @@ export class Exploration {
       );
     if (pending.exploration?.mode === 'external_close') this.finishExternal(view.observation);
     this.trackProgress();
+    this.supervisor.review(
+      pending,
+      page,
+      view.observation,
+      !previouslyVerified && this.wasVerified(pending),
+    );
+  }
+
+  private wasVerified(pending: Pending): boolean {
+    return this.catalog
+      .records()
+      .some(
+        (record) =>
+          record.kind === 'element' &&
+          record.id === pending.exploration?.element_id &&
+          record.data.ever_verified === true,
+      );
   }
 
   private trackProgress(): void {
     const novelty = this.catalog.session()?.data.novelty ?? 0;
     if (novelty > this.previousNovelty) {
-      this.madeProgress = true;
       this.previousNovelty = novelty;
       this.runtime.record('exploration.progress', { novelty });
     }
@@ -245,11 +264,18 @@ export class Exploration {
       business_goal_verified: false,
     };
     this.runtime.store.database.transaction(() => {
+      const previouslyVerified = this.wasVerified(pending);
       this.runtime.outcome(pending.run_id, text(pending.action_id), 'verified', outcome);
       this.catalog.outcome(pending, page, view.observation, true);
       this.catalog.move(page, view.observation);
       this.runtime.progress.data.pending = null;
       this.runtime.checkpoint(view.observation);
+      this.supervisor.review(
+        pending,
+        page,
+        view.observation,
+        !previouslyVerified && this.wasVerified(pending),
+      );
     });
     return true;
   }

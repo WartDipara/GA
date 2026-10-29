@@ -49,7 +49,8 @@ export class Watchdog {
       assessment.status === 'verified' &&
       assessment.evidence_refs.includes(observation.observation_id);
     const previous = this.data.state;
-    if (verified && previous && state !== previous && state !== 'unknown') {
+    const exploring = this.runtime.task['goal'] === 'explore';
+    if (!exploring && verified && previous && state !== previous && state !== 'unknown') {
       const signature = checkpointHash([previous, state, pending.action.type]);
       if (!this.data.proofs.includes(signature)) {
         this.data.proofs = [...this.data.proofs, signature].slice(-256);
@@ -60,7 +61,7 @@ export class Watchdog {
     if (verified && pending.action.type !== 'launch')
       this.runtime.progress.data.recovery_rounds = 0;
     this.data.state = state;
-    if (decision.action && decision.action.type !== 'wait') {
+    if (!exploring && decision.action && decision.action.type !== 'wait') {
       const fingerprint = checkpointHash([state, decision.action]);
       this.data.history = [...this.data.history, fingerprint].slice(-16);
       const count = this.data.history.filter((value) => value === fingerprint).length;
