@@ -15,17 +15,44 @@ function outcome(execution: Execution, runId: string, snapshot: Fields): string 
     "SELECT action_id,status FROM actions WHERE run_id=? AND status IN ('prepared','unknown','executed') ORDER BY rowid",
     runId,
   );
+  const actionCounts = store.database.all(
+    'SELECT status,COUNT(*) AS count FROM actions WHERE run_id=? GROUP BY status',
+    runId,
+  );
+  const lifecycle = store.events(runId, {
+    kinds: [
+      'gameplay.lifecycle.started',
+      'gameplay.lifecycle.finished',
+      'gameplay.lifecycle.incomplete',
+      'gameplay.finalization.issue',
+      'gameplay.diagnostics.incomplete',
+    ],
+  });
+  const closing = lifecycle.filter((event) => event.payload['operation'] === 'close').at(-1);
   const report = {
     run_id: runId,
     task_id: run['task_id'],
     mode: run['mode'],
     snapshot,
+    summary: {
+      business_status: run['status'],
+      action_states: actionCounts,
+      unresolved_actions: unresolved.length,
+      game_shutdown:
+        closing?.payload['status'] ??
+        (lifecycle.some((event) => event.kind === 'gameplay.finalization.issue')
+          ? 'unknown'
+          : 'not_recorded'),
+      application_data_policy: 'preserve',
+      scope: 'Package-scoped lifecycle; emulator remains running',
+    },
     reason: states.at(-1)?.payload['reason'] ?? null,
     recent_call_failures: store.events(runId, {
       kinds: ['call.failed', 'call.incomplete'],
       limit: 20,
     }),
     unresolved_actions: unresolved,
+    lifecycle,
     recent_supervision: store.events(runId, {
       kinds: [
         'exploration.supervision.intervention',

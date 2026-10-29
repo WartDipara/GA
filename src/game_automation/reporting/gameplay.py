@@ -29,6 +29,10 @@ REPORT_KINDS = (
     "gameplay.progress.restored",
     "gameplay.observation",
     "gameplay.recovery",
+    "gameplay.lifecycle.finished",
+    "gameplay.lifecycle.incomplete",
+    "gameplay.finalization.issue",
+    "gameplay.diagnostics.incomplete",
 )
 
 
@@ -147,6 +151,8 @@ def write_html(store, run_id, report):
             "wait_duration_ms",
             "verified_business_goals",
             "stage_advances",
+            "lifecycle",
+            "finalization_issues",
         )
     }
     evidence_style = (Path(__file__).parent / "web/action-evidence.css").read_text(encoding="utf-8")
@@ -237,6 +243,10 @@ def gameplay_report(store, run_id):
             None,
         ),
         "restored_from": selected("gameplay.progress.restored"),
+        "lifecycle": selected("gameplay.lifecycle.finished"),
+        "finalization_issues": selected("gameplay.lifecycle.incomplete")
+        + selected("gameplay.finalization.issue")
+        + selected("gameplay.diagnostics.incomplete"),
         "observations": [
             {"observation_id": item["observation_id"], "evidence_ref": item["evidence_ref"]}
             for item in selected("gameplay.observation")

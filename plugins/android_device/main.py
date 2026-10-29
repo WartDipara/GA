@@ -8,6 +8,7 @@ from actions import execute
 from capture import capture
 from display import observe
 from logs import collect
+from lifecycle import lifecycle
 from packages import inspect, install
 from runtime import inspect_runtime
 
@@ -47,6 +48,7 @@ def create_handler(peer):
             "device.capture": capture,
             "device.execute": execute,
             "device.logs": collect,
+            "device.lifecycle": lifecycle,
         }
         if method != "invoke" or params["capability"] not in handlers:
             raise FrameworkError(ErrorCode.METHOD_NOT_FOUND, method)

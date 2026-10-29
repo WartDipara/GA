@@ -185,3 +185,9 @@ Provide state_key as a stable functional state label, ignoring animations and ch
 Set progress_observed only for evidence of meaningful movement toward the objective, such as a
 verified transition, skill change or battle progress. Animation, elapsed waiting and a repeated
 click are not progress. Repeated unchanged state/goal labels enter kernel stall handling.
+
+The kernel closes the target game when execution settles and may restore it on explicit resume.
+Lifecycle records are separate from gameplay actions. A reopened game or changed process is not
+proof that a pending purchase, reward, tap or navigation succeeded. Reconcile pending outcomes
+from current business evidence and retained pre-action evidence; leave them unknown when that
+evidence is insufficient. Do not replay an unresolved action after restoration.

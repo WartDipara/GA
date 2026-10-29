@@ -16,6 +16,7 @@ def event_page(store, task_id, after, revision):
         "AND (e.kind LIKE 'call.%' OR e.kind='run.state' "
         "OR e.kind LIKE 'workflow.stage.%' OR e.kind LIKE 'action.%' "
         "OR e.kind LIKE 'exploration.supervision.%' OR e.kind LIKE 'gameplay.watchdog.%' "
+        "OR e.kind LIKE 'gameplay.lifecycle.%' OR e.kind='gameplay.finalization.issue' "
         "OR e.kind IN ('report.requested','report.finished')) "
         f"ORDER BY e.seq {ordering} LIMIT 201",
         (task_id, max(after, 0)),

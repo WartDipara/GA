@@ -7,6 +7,7 @@ import { integer, optionalText, within, type Fields } from '../storage/values.js
 import { requireDiskSpace } from '../storage/disk.js';
 import { Scheduler } from './scheduler.js';
 import { play } from '../gameplay/play.js';
+import { finalizeGames, recoverFinalization } from '../gameplay/finalization.js';
 import { blockedErrors, settledStatuses } from './state-policy.js';
 
 export type Tool = (operation: string, runId: string, input: Fields) => Promise<unknown>;
@@ -111,6 +112,7 @@ export class Execution {
         reason: { code: ErrorCode.PREVIOUS_PROCESS_EXITED },
       });
     }
+    recoverFinalization(this);
   }
 
   async repairReports(): Promise<unknown[]> {
@@ -172,6 +174,7 @@ export class Execution {
     if (['succeeded', 'failed', 'cancelled'].includes(text(run['status'])))
       throw new FrameworkError(ErrorCode.RUN_TERMINAL);
     this.store.beginSegment(runId);
+    let loadedManifest: Fields | null = null;
     try {
       if (
         ![
@@ -189,6 +192,7 @@ export class Execution {
         throw new FrameworkError(ErrorCode.RUN_MODE_REMOVED);
       this.check(runId);
       const manifest = await this.manifest(runId);
+      loadedManifest = manifest;
       const unknown = this.store.database.one(
         "SELECT 1 FROM actions WHERE run_id=? AND status='unknown'",
         runId,
@@ -285,8 +289,13 @@ export class Execution {
         status = 'blocked';
       this.store.command('transition', { run_id: runId, status, reason: failure.details() });
     } finally {
-      this.store.finishSegment(runId);
-      if (settledStatuses.has(text(this.store.run(runId)['status']))) await this.publish(runId);
+      try {
+        if (loadedManifest && settledStatuses.has(text(this.store.run(runId)['status'])))
+          await finalizeGames(this, runId, loadedManifest);
+      } finally {
+        this.store.finishSegment(runId);
+        if (settledStatuses.has(text(this.store.run(runId)['status']))) await this.publish(runId);
+      }
     }
     return this.store.run(runId);
   }

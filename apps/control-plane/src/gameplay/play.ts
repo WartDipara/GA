@@ -1,9 +1,10 @@
 import { readFile } from 'node:fs/promises';
 import { relative } from 'node:path';
 import { decode, object, text } from '@game-automation/contracts';
-import { ErrorCode, FrameworkError } from '@game-automation/contracts/errors';
+import { ErrorCode, FrameworkError, frameworkError } from '@game-automation/contracts/errors';
 import { Host } from '../kernel/host.js';
 import { within, type Fields } from '../storage/values.js';
+import { previousClose } from '../storage/lifecycle.js';
 import type { Execution } from '../workflow/execution.js';
 import { executeRoutine, Perception } from './local.js';
 import { runLoop } from './loop.js';
@@ -151,23 +152,7 @@ export async function play(
   task: Fields,
 ): Promise<void> {
   const store = execution.store;
-  const providers: Fields = {};
-  for (const value of Object.values(object(manifest['plugins']))) {
-    const plugin = object(value);
-    const capabilities = plugin['capabilities'];
-    if (!Array.isArray(capabilities)) throw new FrameworkError(ErrorCode.INVALID_PLUGIN);
-    for (const capability of capabilities) {
-      const name = text(capability);
-      if (providers[name]) throw new FrameworkError(ErrorCode.AMBIGUOUS_CAPABILITY);
-      providers[name] = { ...plugin };
-    }
-  }
-  const host = new Host(
-    store,
-    runId,
-    { application: manifest['application'], providers },
-    execution.signal,
-  );
+  const host = Host.fromManifest(store, runId, manifest, execution.signal);
   const call = (capability: string, input: Fields): Promise<unknown> =>
     host.execute('call', input, {
       capability,
@@ -218,6 +203,18 @@ export async function play(
   store.event(runId, 'device.package.observed', installed);
   if (installed.sha256 !== object(task['metadata'])['sha256'])
     throw new FrameworkError(ErrorCode.DEVICE_PACKAGE_CONFLICT);
+  if (
+    previousClose(store, runId) &&
+    !['capture', 'activate-game', 'return-to-game', 'routine'].includes(text(task['goal']))
+  ) {
+    const restoration = {
+      session,
+      package_name: task['target'],
+      operation: 'restore',
+      sha256: installed.sha256,
+    };
+    await host.lifecycle(restoration);
+  }
   const profile = text(task['credential_profile']);
   if (!/^[a-z0-9_-]{1,64}$/.test(profile))
     throw new FrameworkError(ErrorCode.CREDENTIAL_UNAVAILABLE);
@@ -249,6 +246,13 @@ export async function play(
     runtime.finish(error);
     throw error;
   } finally {
-    await runtime.diagnostics.close();
+    try {
+      await runtime.diagnostics.close();
+    } catch (error) {
+      if (store.database.failure) throw error;
+      store.event(runId, 'gameplay.diagnostics.incomplete', {
+        error: frameworkError(error).details(),
+      });
+    }
   }
 }

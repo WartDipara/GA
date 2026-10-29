@@ -154,3 +154,20 @@ Its resizable charts show call activity, measured call duration and action outco
 Axes state their units; duration gaps mean no measured sample. Charts use only the retained
 200-event window, not whole-task totals. Report publication events do not move the activity
 window. Full trace analysis remains a settled-execution report.
+
+## Gameplay finalization
+
+After an exploration, login or battle execution settles, the control plane drains diagnostics,
+retains the checkpoint and action ledger, and closes only its bound game package. APK identity
+and the explicit emulator session are checked before shutdown; process inspection verifies the
+result. App data and the emulator are preserved. Standalone capture, activation, return and short
+routine helpers do not close the game. Workflow finalization also covers a stop between launch
+and play. Each lifecycle call has a separate durable intent, dispatch, result and measured span.
+
+Cleanup has a separate 90-second deadline, including after cancellation. Failure leaves the
+business outcome unchanged and is included in the report; it does not suppress report publication.
+Process crashes leave shutdown unknown. Report-only recovery marks incomplete lifecycle spans
+and repairs reports without contacting a device. Explicit gameplay resume checks current state
+and may reopen a game previously closed by this task; it never replays unresolved gameplay actions
+or resets their recovery counters. Older batches lacking the capability remain unknown rather
+than silently using a different plugin. Compilation alone does not validate device shutdown.

@@ -11,6 +11,7 @@ STARTS = {
     "gameplay.step.started": "step",
     "workflow.stage.started": "chain",
     "report.component.started": "chain",
+    "gameplay.lifecycle.started": "chain",
 }
 ENDS = {
     "execution.segment.finished": "ok",
@@ -26,6 +27,8 @@ ENDS = {
     "workflow.stage.incomplete": "incomplete",
     "report.component.finished": "ok",
     "report.component.incomplete": "incomplete",
+    "gameplay.lifecycle.finished": "ok",
+    "gameplay.lifecycle.incomplete": "incomplete",
 }
 DETAILS = (
     "workflow.stage.bound",
@@ -39,6 +42,7 @@ DETAILS = (
     "action.intent",
     "action.dispatched",
     "action.result",
+    "gameplay.lifecycle.dispatched",
     "ai.runtime",
     "ai.session",
     "ai.item.started",

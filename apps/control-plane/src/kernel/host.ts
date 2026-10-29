@@ -6,6 +6,8 @@ import { ErrorCode, FrameworkError, frameworkError } from '@game-automation/cont
 import { Peer } from '@game-automation/plugin-sdk/rpc';
 import { start, terminate } from '@game-automation/plugin-sdk/process';
 import { Store, type TraceIds } from '../storage/store.js';
+import { previousClose } from '../storage/lifecycle.js';
+import { settledStatuses } from '../workflow/state-policy.js';
 import {
   canonical,
   integer,
@@ -35,6 +37,7 @@ const capabilityContracts: Record<string, [keyof ContractMap, keyof ContractMap]
   'device.capture': ['device-capture-request', 'device-capture-result'],
   'device.execute': ['device-execute-request', 'device-execute-result'],
   'device.logs': ['device-logs-request', 'device-logs-result'],
+  'device.lifecycle': ['device-lifecycle-request', 'device-lifecycle-result'],
   'perception.analyze': ['perception-request', 'perception-result'],
   'perception.locate': ['perception-locate-request', 'perception-locate-result'],
   'perception.viewport': ['perception-viewport-request', 'perception-viewport-result'],
@@ -48,7 +51,12 @@ type CallOptions = {
   action: string | null;
   signal: AbortSignal;
 };
-const mutations = new Set(['device.install', 'device.execute', 'emulator.activate']);
+const mutations = new Set([
+  'device.install',
+  'device.execute',
+  'device.lifecycle',
+  'emulator.activate',
+]);
 
 export class Host {
   readonly artifacts = new Set<string>();
@@ -56,6 +64,26 @@ export class Host {
   private readonly application: Fields;
   private readonly workflowRun: string | null;
   failure: FrameworkError | undefined;
+  private lifecycleIntent:
+    | {
+        input: ContractMap['device-lifecycle-request'];
+        span: string;
+        dispatched: boolean;
+      }
+    | undefined;
+
+  static fromManifest(store: Store, runId: string, manifest: Fields, signal: AbortSignal): Host {
+    const providers: Fields = {};
+    for (const value of Object.values(object(manifest['plugins']))) {
+      const plugin = object(value);
+      for (const capability of strings(plugin['capabilities'])) {
+        if (providers[capability]) throw new FrameworkError(ErrorCode.AMBIGUOUS_CAPABILITY);
+        providers[capability] = { ...plugin };
+      }
+    }
+    const configuration = { application: manifest['application'], providers };
+    return new Host(store, runId, configuration, signal);
+  }
 
   constructor(
     private readonly store: Store,
@@ -82,10 +110,114 @@ export class Host {
     if (
       this.signal.aborted ||
       signal.aborted ||
-      this.store.run(this.runId)['cancel_requested'] ||
-      (this.workflowRun && this.store.run(this.workflowRun)['cancel_requested'])
+      (this.lifecycleIntent?.input.operation !== 'close' &&
+        (this.store.run(this.runId)['cancel_requested'] ||
+          (this.workflowRun && this.store.run(this.workflowRun)['cancel_requested'])))
     )
       throw new FrameworkError(ErrorCode.CANCELLED);
+  }
+
+  async lifecycle(value: Fields): Promise<void> {
+    if (this.lifecycleIntent) throw new FrameworkError(ErrorCode.RUN_BUSY);
+    const input = decode('device-lifecycle-request', value);
+    const task = this.store.input(this.runId);
+    const state = text(this.store.run(this.runId)['status']);
+    const bound = this.store
+      .events(this.runId, { kinds: ['device.session.bound'], limit: 1 })
+      .at(-1);
+    const binding = this.store.database.one(
+      'SELECT apk_key FROM device_bindings WHERE instance_id=?',
+      input.session.instance_id,
+    );
+    if (
+      task['kind'] !== 'gameplay' ||
+      input.package_name !== task['target'] ||
+      input.sha256 !== object(task['metadata'])['sha256'] ||
+      input.session.instance_id !== task['instance_id'] ||
+      canonical(bound?.payload['request']) !== canonical(input.session) ||
+      binding?.['apk_key'] !== `${String(task['source_run'])}:${String(task['apk_index'])}` ||
+      (input.operation === 'close'
+        ? !settledStatuses.has(state)
+        : state !== 'running' || !previousClose(this.store, this.runId))
+    )
+      throw new FrameworkError(ErrorCode.CAPABILITY_DENIED);
+    const span = uid('span');
+    const ids = { span_id: span, parent_span_id: this.store.segmentSpan(this.runId) };
+    const started = performance.now();
+    const inputRef = this.artifact(`calls/${span}/input.json`, input);
+    const intent = {
+      capability: `gameplay.${input.operation}`,
+      operation: input.operation,
+      package_name: input.package_name,
+      sha256: input.sha256,
+      instance_id: input.session.instance_id,
+      input_ref: inputRef,
+      state_event_id:
+        this.store.events(this.runId, { kinds: ['run.state'], limit: 1 }).at(-1)?.event_id ?? null,
+    };
+    this.record('gameplay.lifecycle.started', intent, ids);
+    this.lifecycleIntent = { input, span, dispatched: false };
+    try {
+      const options: CallOptions = {
+        parent: span,
+        timeout: 90,
+        ancestry: [],
+        span: null,
+        action: null,
+        signal: this.signal,
+      };
+      const result = decode(
+        'device-lifecycle-result',
+        await this.call('device.lifecycle', object(input), options),
+      );
+      const expected =
+        input.operation === 'close'
+          ? ['closed', 'already_closed']
+          : ['restored', 'already_running'];
+      if (
+        result.session.instance_id !== input.session.instance_id ||
+        result.session.serial !== input.session.serial ||
+        result.before.package_name !== input.package_name ||
+        result.after.package_name !== input.package_name ||
+        ((result.status === 'closed' || result.status === 'restored') &&
+          !this.lifecycleIntent.dispatched) ||
+        (input.operation === 'close' &&
+          result.after.processes.some((process) => !process.state.startsWith('Z'))) ||
+        (input.operation === 'restore' && !result.after.alive)
+      )
+        throw new FrameworkError(ErrorCode.INVALID_ADB_OUTPUT);
+      if (!expected.includes(result.status))
+        throw new FrameworkError(
+          ErrorCode.GAMEPLAY_BLOCKED,
+          'Target process lifecycle could not be verified',
+        );
+      const outputRef = this.artifact(`calls/${span}/output.json`, result);
+      this.record(
+        'gameplay.lifecycle.finished',
+        {
+          ...intent,
+          status: result.status,
+          output_ref: outputRef,
+          duration_ms: Math.round(performance.now() - started),
+        },
+        ids,
+      );
+    } catch (error) {
+      this.record(
+        'gameplay.lifecycle.incomplete',
+        {
+          ...intent,
+          status: 'unknown',
+          dispatched: this.lifecycleIntent.dispatched,
+          duration_ms: Math.round(performance.now() - started),
+          error: frameworkError(error).details(),
+        },
+        ids,
+      );
+      throw error;
+    } finally {
+      this.lifecycleIntent = undefined;
+    }
   }
 
   private record(kind: string, payload: Fields, ids: TraceIds): void {
@@ -192,13 +324,37 @@ export class Host {
 
   private async call(capability: string, input: Fields, options: CallOptions): Promise<unknown> {
     this.check(options.signal);
+    const lifecycle = this.lifecycleIntent;
+    if (capability === 'device.lifecycle' && !lifecycle)
+      throw new FrameworkError(ErrorCode.CAPABILITY_DENIED);
+    if (
+      lifecycle &&
+      !['device.lifecycle', 'emulator.session', 'emulator.activate'].includes(capability)
+    )
+      throw new FrameworkError(ErrorCode.CAPABILITY_DENIED);
     if (options.ancestry.includes(capability) || options.ancestry.length >= 8)
       throw new FrameworkError(ErrorCode.DEPENDENCY_CYCLE);
     const plugin = this.resolve(capability);
     const mutating = plugin.mutating.includes(capability);
     if (mutations.has(capability) && !mutating)
       throw new FrameworkError(ErrorCode.CAPABILITY_DENIED);
-    if (mutating) {
+    if (mutating && lifecycle) {
+      const direct =
+        capability === 'device.lifecycle' &&
+        options.ancestry.length === 0 &&
+        canonical(input) === canonical(lifecycle.input);
+      const delegated =
+        capability === 'emulator.activate' &&
+        lifecycle.input.operation === 'restore' &&
+        lifecycle.dispatched &&
+        canonical(options.ancestry) === canonical(['device.lifecycle']) &&
+        canonical(input) ===
+          canonical({
+            session: lifecycle.input.session,
+            package_name: lifecycle.input.package_name,
+          });
+      if (!direct && !delegated) throw new FrameworkError(ErrorCode.CAPABILITY_DENIED);
+    } else if (mutating) {
       const action = this.store.latestAction(this.runId);
       const delegated = capability === 'emulator.activate';
       if (
@@ -343,6 +499,26 @@ export class Host {
         const session = object(input['session']);
         const expected = { instance_id: session['instance_id'], serial: session['serial'] };
         if (
+          capability === 'device.lifecycle' &&
+          this.lifecycleIntent &&
+          !this.lifecycleIntent.dispatched &&
+          canonical(payload) === canonical(expected)
+        ) {
+          this.record(
+            'gameplay.lifecycle.dispatched',
+            {
+              operation: this.lifecycleIntent.input.operation,
+              ...expected,
+            },
+            {
+              span_id: this.lifecycleIntent.span,
+              parent_span_id: this.store.segmentSpan(this.runId),
+            },
+          );
+          this.lifecycleIntent.dispatched = true;
+          return acknowledgement;
+        }
+        if (
           !['device.install', 'device.execute'].includes(capability) ||
           !actionId ||
           canonical(payload) !== canonical(expected)
@@ -383,9 +559,11 @@ export class Host {
         if (needed === 'emulator.activate') {
           const expected = { session: input['session'], package_name: input['package_name'] };
           if (
-            capability !== 'device.execute' ||
+            (capability !== 'device.execute' && capability !== 'device.lifecycle') ||
             canonical(nested) !== canonical(expected) ||
-            !['launch', 'return'].includes(text(object(input['action'])['type']))
+            (capability === 'device.execute'
+              ? !['launch', 'return'].includes(text(object(input['action'])['type']))
+              : input['operation'] !== 'restore' || !this.lifecycleIntent?.dispatched)
           )
             throw new FrameworkError(ErrorCode.CAPABILITY_DENIED);
           action = actionId;

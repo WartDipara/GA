@@ -209,6 +209,17 @@ export class Planner {
       perception,
       progress: progressView,
       last_action_execution: execution,
+      lifecycle: runtime.store
+        .events(runtime.runId, {
+          kinds: ['gameplay.lifecycle.finished', 'gameplay.lifecycle.incomplete'],
+          limit: 4,
+        })
+        .map((event) => ({
+          operation: event.payload['operation'],
+          status: event.payload['status'],
+          event_id: event.event_id,
+          timestamp: event.timestamp,
+        })),
       image_coordinates: imageCoordinates,
       planning_reason: reason,
       execution_conditions: {
