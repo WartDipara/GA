@@ -95,7 +95,8 @@ export function elementVerification(
   const actionType = bound.data.kind === 'scroll' ? 'swipe' : bound.data.kind;
   const [left, top, right, bottom] = bound.data.bounds;
   if (
-    request.action.type !== actionType ||
+    (request.action.type !== actionType &&
+      !(actionType === 'tap' && request.action.type === 'long_press')) ||
     (actionType !== 'back' &&
       !(
         left <= request.action.x &&

@@ -59,6 +59,7 @@ export async function runLoop(runtime: Runtime, initial: Observation): Promise<v
   const watchdog = new Watchdog(
     runtime,
     object(object(runtime.manifest['application'])['gameplay']),
+    () => exploration?.redirectStall() ?? false,
   );
   runtime.watchdog = watchdog;
   let view = await perception.settle(initial);
@@ -207,6 +208,16 @@ export async function runLoop(runtime: Runtime, initial: Observation): Promise<v
           complete(runtime, decision, view.observation, battle);
           return;
         }
+        if (await exploration.redirect(decision, page, view.observation, 'planner-branch-blocked'))
+          continue;
+        if (exploration.hint()) {
+          watchdog.withoutDispatch(
+            view.observation,
+            'planner-ignores-alternative-frontier',
+            page.id,
+          );
+          continue;
+        }
       }
       throw new FrameworkError(ErrorCode.GAMEPLAY_BLOCKED, decision.reason_summary);
     }
@@ -216,7 +227,7 @@ export async function runLoop(runtime: Runtime, initial: Observation): Promise<v
           reason: 'Frontier, viewport scans or root recheck remain',
           next: exploration.hint(),
         });
-        watchdog.withoutDispatch(view.observation, 'unsettled-exploration-frontier');
+        watchdog.withoutDispatch(view.observation, 'unsettled-exploration-frontier', page?.id);
         continue;
       }
       complete(runtime, decision, view.observation, battle);
@@ -244,7 +255,16 @@ export async function runLoop(runtime: Runtime, initial: Observation): Promise<v
           'Enumerate the proposed visible target in this viewport inventory; exclude covered controls. No device input occurred for this proposal.',
         next: exploration.hint(),
       });
-      watchdog.withoutDispatch(view.observation, 'rejected-exploration-proposal');
+      if (
+        await exploration.redirect(
+          decision,
+          page,
+          view.observation,
+          'rejected-exploration-proposal',
+        )
+      )
+        continue;
+      watchdog.withoutDispatch(view.observation, 'rejected-exploration-proposal', page?.id);
       continue;
     }
     let actionId: string;

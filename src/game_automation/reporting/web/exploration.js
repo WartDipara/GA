@@ -132,6 +132,38 @@
           ),
         ),
     );
+    const supervised = data.records.filter(
+      (record) =>
+        record.kind === 'element' &&
+        record.data.supervision &&
+        (record.data.supervision.recovery_rounds || record.data.supervision.quarantined),
+    );
+    get('supervision')?.replaceChildren(
+      ...(supervised.length
+        ? supervised.slice(0, 100).map((record) => {
+            const state = record.data.supervision;
+            const row = node('div', '', 'relation');
+            const button = node('button', record.data.label);
+            button.addEventListener('click', () => inspect(record));
+            row.append(
+              button,
+              node(
+                'span',
+                ` · ${state.quarantined ? 'Isolated' : 'Recovery'} · ${state.recovery_rounds} rounds · ${state.reason}`,
+              ),
+            );
+            return row;
+          })
+        : [node('p', 'No recorded supervision interventions.')]),
+      ...(supervised.length > 100
+        ? [
+            node(
+              'p',
+              'Showing 100 interventions. The element inventory contains all retained supervision records.',
+            ),
+          ]
+        : []),
+    );
   }
   async function refresh() {
     if (busy || !location.protocol.startsWith('http')) return;

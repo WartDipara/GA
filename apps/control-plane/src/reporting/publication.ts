@@ -26,6 +26,17 @@ function outcome(execution: Execution, runId: string, snapshot: Fields): string 
       limit: 20,
     }),
     unresolved_actions: unresolved,
+    recent_supervision: store.events(runId, {
+      kinds: [
+        'exploration.supervision.intervention',
+        'exploration.supervision.redirect',
+        'exploration.supervision.dispatch_denied',
+        'exploration.supervision.stopped',
+      ],
+      limit: 50,
+    }),
+    supervision_detail:
+      'Latest 50 interventions; complete committed events remain in the call trace',
     scope: 'Recorded outcome only; absent evidence does not establish success or coverage',
   };
   const directory = join(store.runDirectory(runId), 'reports');
