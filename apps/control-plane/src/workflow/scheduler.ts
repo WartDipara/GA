@@ -4,6 +4,7 @@ import { ErrorCode, FrameworkError, frameworkError } from '@game-automation/cont
 import { canonical, strings, uid, type Fields } from '../storage/values.js';
 import { buildWorkflow, type Stage } from './assembly.js';
 import type { Execution } from './execution.js';
+import { revalidateDeviceStage } from './revalidation.js';
 
 interface Context {
   outputs: Fields;
@@ -14,6 +15,7 @@ export class Scheduler {
   private readonly children: Map<string, string>;
   private readonly previousChildren = new Map<string, string>();
   private readonly completed = new Set<string>();
+  private readonly invalidated: Set<string>;
 
   constructor(
     private readonly execution: Execution,
@@ -22,6 +24,7 @@ export class Scheduler {
     private readonly sourceFile: string | null,
   ) {
     const store = execution.store;
+    this.invalidated = this.invalidatedChildren(runId);
     this.children = this.stageChildren(runId);
     const continuation = store.events(runId, { kinds: ['run.continued_from'], limit: 1 }).at(-1);
     if (continuation) {
@@ -34,9 +37,13 @@ export class Scheduler {
       )
         throw new FrameworkError(ErrorCode.WORKFLOW_INVALID, 'Continuation input differs');
       this.previousChildren = this.stageChildren(previous);
+      for (const [key, child] of this.previousChildren)
+        if (this.invalidated.has(child)) this.previousChildren.delete(key);
     }
-    for (const event of store.events(runId, { kinds: ['workflow.stage.completed'] }))
-      this.completed.add(text(event.payload['key']));
+    for (const event of store.events(runId, { kinds: ['workflow.stage.completed'] })) {
+      if (!this.invalidated.has(String(event.payload['child_run'])))
+        this.completed.add(text(event.payload['key']));
+    }
     for (const event of store.events(runId, { kinds: ['workflow.stage.started'] })) {
       const span = event.span_id;
       if (!span) continue;
@@ -54,11 +61,22 @@ export class Scheduler {
     }
   }
 
+  private invalidatedChildren(runId: string): Set<string> {
+    const children = new Set(
+      this.execution.store
+        .events(runId, { kinds: ['workflow.stage.invalidated'] })
+        .map((event) => text(event.payload['child_run'])),
+    );
+    return children;
+  }
+
   private stageChildren(runId: string): Map<string, string> {
     const store = this.execution.store;
     const children = new Map<string, string>();
     const taskId = text(store.run(runId)['task_id']);
+    const invalidated = this.invalidatedChildren(runId);
     const bind = (key: string, id: string): void => {
+      if (invalidated.has(id)) return;
       const run = store.run(id);
       const input = store.input(id);
       if (run['task_id'] !== taskId || input['workflow_key'] !== key)
@@ -100,8 +118,10 @@ export class Scheduler {
           ErrorCode.WORKFLOW_INVALID,
           'Completed stage has no successful bound execution',
         );
-      context.outputs[stage.name] = child;
-      return;
+      if (!stage.revalidation) {
+        context.outputs[stage.name] = child;
+        return;
+      }
     }
     const span = uid('span');
     const payload: Fields = {
@@ -115,14 +135,20 @@ export class Scheduler {
     store.event(this.runId, 'workflow.stage.started', payload, { span_id: span });
     const started = performance.now();
     let recovered = false;
+    let revalidated = false;
     try {
       if (stage.mode === null)
         store.event(this.runId, 'workflow.report.requested', {
           publication: 'after_business_outcome',
         });
       else {
-        const previous = this.previousChildren.get(key);
-        if (!child && previous) {
+        const invalidation = store
+          .events(this.runId, { kinds: ['workflow.stage.invalidated'] })
+          .findLast((event) => event.payload['key'] === key);
+        const previous =
+          this.previousChildren.get(key) ??
+          (invalidation ? text(invalidation.payload['child_run']) : undefined);
+        if (!child && previous && !this.invalidated.has(previous)) {
           const old = store.run(previous);
           if (old['mode'] !== stage.mode)
             throw new FrameworkError(ErrorCode.WORKFLOW_INVALID, 'Stage mode changed');
@@ -130,6 +156,31 @@ export class Scheduler {
             child = previous;
             this.children.set(key, child);
             payload['reused_from_previous_batch'] = true;
+          }
+        }
+        const source = child ?? previous;
+        if (child && store.run(child)['status'] === 'succeeded' && stage.revalidation) {
+          revalidated = true;
+          const reusable = await revalidateDeviceStage(
+            this.execution,
+            this.runId,
+            child,
+            span,
+            stage.revalidation,
+          );
+          if (!reusable) {
+            store.event(
+              this.runId,
+              'workflow.stage.invalidated',
+              { key, child_run: child, reason: 'current-device-state-changed' },
+              { parent_span_id: span },
+            );
+            this.invalidated.add(child);
+            this.children.delete(key);
+            this.previousChildren.delete(key);
+            this.completed.delete(key);
+            delete payload['reused_from_previous_batch'];
+            child = null;
           }
         }
         if (!child) {
@@ -142,6 +193,8 @@ export class Scheduler {
           const input = object(await this.execution.tool('workflow_input', this.runId, args));
           input['workflow_run'] = this.runId;
           input['workflow_key'] = key;
+          if (source && stage.mode === 'device')
+            input['preparation_source_run'] = store.input(source)['preparation_source_run'] ?? source;
           child = await this.execution.create(
             text(store.run(this.runId)['task_id']),
             stage.mode,
@@ -149,7 +202,7 @@ export class Scheduler {
             this.runId,
           );
           this.children.set(key, child);
-          if (previous) store.event(child, 'run.continued_from', { run_id: previous });
+          if (source) store.event(child, 'run.continued_from', { run_id: source });
         }
         payload['child_run'] = child;
         store.event(this.runId, 'workflow.stage.bound', payload, { span_id: span });
@@ -168,7 +221,9 @@ export class Scheduler {
           );
         }
       }
-      payload['duration_ms'] = recovered ? null : Math.round(performance.now() - started);
+      payload['duration_ms'] =
+        recovered && !revalidated ? null : Math.round(performance.now() - started);
+      if (revalidated) payload['revalidated'] = true;
       if (recovered) payload['recovered'] = true;
       payload['status'] = 'succeeded';
       store.event(this.runId, 'workflow.stage.completed', payload, { span_id: span });

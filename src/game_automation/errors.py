@@ -105,6 +105,10 @@ class ErrorCode(StrEnum):
         "DEVICE_PACKAGE_CONFLICT",
         "The target package already exists without a matching installation record",
     )
+    DEVICE_PACKAGE_MISSING = (
+        "DEVICE_PACKAGE_MISSING",
+        "The target package is not installed; resume the workflow to prepare the device",
+    )
     DEVICE_SPACE_INSUFFICIENT = (
         "DEVICE_SPACE_INSUFFICIENT",
         "Insufficient Android data space for the estimated installation budget",

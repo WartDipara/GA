@@ -172,7 +172,7 @@ export class Host {
       );
       const expected =
         input.operation === 'close'
-          ? ['closed', 'already_closed']
+          ? ['closed', 'already_closed', 'not_installed']
           : ['restored', 'already_running'];
       if (
         result.session.instance_id !== input.session.instance_id ||
@@ -181,6 +181,7 @@ export class Host {
         result.after.package_name !== input.package_name ||
         ((result.status === 'closed' || result.status === 'restored') &&
           !this.lifecycleIntent.dispatched) ||
+        (result.status === 'not_installed' && this.lifecycleIntent.dispatched) ||
         (input.operation === 'close' &&
           result.after.processes.some((process) => !process.state.startsWith('Z'))) ||
         (input.operation === 'restore' && !result.after.alive)
@@ -197,6 +198,7 @@ export class Host {
         {
           ...intent,
           status: result.status,
+          dispatched: this.lifecycleIntent.dispatched,
           output_ref: outputRef,
           duration_ms: Math.round(performance.now() - started),
         },

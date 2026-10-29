@@ -7,6 +7,7 @@ export interface Stage {
   requires: string[];
   perApk: boolean;
   capabilities: string[];
+  revalidation?: 'installation' | 'foreground';
 }
 
 export class WorkflowBuilder {
@@ -71,6 +72,7 @@ export function buildWorkflow(value: unknown): { task: ContractMap['workflow']; 
     },
     {
       name: 'prepare',
+      revalidation: 'installation',
       mode: 'device',
       requires: ['preprocess', 'environment'],
       perApk: true,
@@ -78,10 +80,19 @@ export function buildWorkflow(value: unknown): { task: ContractMap['workflow']; 
     },
     {
       name: 'launch',
+      revalidation: 'foreground',
       mode: 'gameplay',
       requires: ['prepare'],
       perApk: true,
-      capabilities: ['device.capture', 'device.execute', 'device.logs', 'credential.prepare'],
+      capabilities: [
+        'emulator.session',
+        'device.inspect',
+        'device.runtime',
+        'device.capture',
+        'device.execute',
+        'device.logs',
+        'credential.prepare',
+      ],
     },
     {
       name: 'play',

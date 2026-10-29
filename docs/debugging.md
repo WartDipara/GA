@@ -171,3 +171,24 @@ and repairs reports without contacting a device. Explicit gameplay resume checks
 and may reopen a game previously closed by this task; it never replays unresolved gameplay actions
 or resets their recovery counters. Older batches lacking the capability remain unknown rather
 than silently using a different plugin. Compilation alone does not validate device shutdown.
+
+If inspection confirms the package is absent and no target processes remain, shutdown records
+`not_installed` with `dispatched: false`. This is a completed no-op, not a successful force-stop
+or an unknown result. Failed inspection and conflicting APK fingerprints remain explicit failures.
+
+## Reusing device stages
+
+Workflow resume and new batches revalidate successful preparation and launch stages against the
+explicitly bound instance before reuse. Preparation checks current installation and APK fingerprint;
+launch also checks the target process and foreground package. Each check is a measured child call
+of the workflow stage. Matching APKs retain application data and do not trigger another installation.
+
+When a package is missing, `workflow.stage.invalidated` retires only the old stage binding. A new
+preparation execution uses the existing downloaded APK, checks disk space, and records a fresh
+installation intent. Old executions, actions and reports remain intact. The invalidation survives
+interruption before creation or binding of the replacement. Launch is rechecked before gameplay.
+Unknown dispatched actions still block new mutations; they are never replayed or overwritten.
+
+Standalone gameplay with an absent package reports `DEVICE_PACKAGE_MISSING`; resume its owning
+workflow to prepare the device. A different installed fingerprint remains `DEVICE_PACKAGE_CONFLICT`.
+Use a new batch after code or pinned dependencies change; report-only repair never contacts a device.

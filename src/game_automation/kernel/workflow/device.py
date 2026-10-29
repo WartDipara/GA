@@ -55,6 +55,24 @@ async def device_session(store, run_id, host, manifest, task):
         for event in store.events(run_id, kinds=("device.session.bound",))
         if event["kind"] == "device.session.bound"
     ]
+    if not previous:
+        source_run = task.get("preparation_source_run")
+        if source_run is None:
+            continuations = store.events(run_id, kinds=("run.continued_from",), limit=1)
+            if continuations:
+                source_run = continuations[-1]["payload"]["run_id"]
+        if source_run is not None:
+            source_task = store.run_task(source_run)
+            identity_fields = ("target", "source_run", "apk_index", "instance_index")
+            if (
+                store.run(source_run)["task_id"] != store.run(run_id)["task_id"]
+                or any(source_task.get(key) != task.get(key) for key in identity_fields)
+            ):
+                raise FrameworkError(ErrorCode.DEVICE_IDENTITY_CHANGED)
+            previous = [
+                event["payload"]
+                for event in store.events(source_run, kinds=("device.session.bound",))
+            ]
     if previous:
         request = previous[-1]["request"]
     else:
@@ -82,7 +100,7 @@ async def device_session(store, run_id, host, manifest, task):
         "manager_executable": result.get("manager_executable", request["manager_executable"]),
         "adb_executable": result["adb_executable"],
     }
-    if not previous:
+    if not store.events(run_id, kinds=("device.session.bound",)):
         host.record("device.session.bound", {"request": bound, "session": result})
     return bound
 
@@ -177,7 +195,7 @@ async def prepare_device(store, run_id, host, manifest, task):
             "previous_action_run": previous["run_id"],
             "previous_action_id": previous["action_id"],
             "installed": False,
-            "new_installation_requires_authorization": True,
+            "new_installation_requires_fresh_intent": True,
         }
         host.record("device.installation.missing", missing)
         # A settled past installation is not an unresolved action to replay.

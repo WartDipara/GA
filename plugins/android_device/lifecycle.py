@@ -16,13 +16,18 @@ def has_processes(runtime):
 async def lifecycle(device, request):
     package = request["package_name"]
     installed = await inspect(device, request)
-    if installed["sha256"] != request["sha256"]:
+    closing = request["operation"] == "close"
+    if not installed["installed"] and not closing:
+        raise FrameworkError(ErrorCode.DEVICE_PACKAGE_MISSING)
+    if installed["installed"] and installed["sha256"] != request["sha256"]:
         raise FrameworkError(ErrorCode.DEVICE_PACKAGE_CONFLICT)
     before = await snapshot(device, package)
     after = before
-    closing = request["operation"] == "close"
     status = "unknown"
-    if closing and not has_processes(before):
+    if not installed["installed"]:
+        if not has_processes(before):
+            status = "not_installed"
+    elif closing and not has_processes(before):
         status = "already_closed"
     elif not closing and before["alive"]:
         status = "already_running"

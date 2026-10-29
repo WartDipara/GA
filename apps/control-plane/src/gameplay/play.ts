@@ -201,6 +201,7 @@ export async function play(
   if (installed.package_name !== task['target'])
     throw new FrameworkError(ErrorCode.INVALID_ADB_OUTPUT);
   store.event(runId, 'device.package.observed', installed);
+  if (!installed.installed) throw new FrameworkError(ErrorCode.DEVICE_PACKAGE_MISSING);
   if (installed.sha256 !== object(task['metadata'])['sha256'])
     throw new FrameworkError(ErrorCode.DEVICE_PACKAGE_CONFLICT);
   if (

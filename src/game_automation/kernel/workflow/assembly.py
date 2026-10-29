@@ -138,7 +138,15 @@ def build_workflow(names):
             launch_input,
             requires=("prepare",),
             per_apk=True,
-            capabilities=("device.capture", "device.execute", "device.logs", "credential.prepare"),
+            capabilities=(
+                "emulator.session",
+                "device.inspect",
+                "device.runtime",
+                "device.capture",
+                "device.execute",
+                "device.logs",
+                "credential.prepare",
+            ),
         ),
         Stage(
             "play",

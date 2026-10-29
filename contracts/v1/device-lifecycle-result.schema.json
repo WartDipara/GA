@@ -46,6 +46,7 @@
       "enum": [
         "closed",
         "already_closed",
+        "not_installed",
         "restored",
         "already_running",
         "unknown"
