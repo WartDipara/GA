@@ -37,9 +37,10 @@ export async function revalidateDeviceStage(
     { child_run: child, ...installed },
     { parent_span_id: span },
   );
-  if (installed.installed && installed.sha256 !== object(task['metadata'])['sha256'])
+  const matches = installed.installed && installed.sha256 === object(task['metadata'])['sha256'];
+  if (installed.installed && !matches && (kind !== 'installation' || task['adopt_existing']))
     throw new FrameworkError(ErrorCode.DEVICE_PACKAGE_CONFLICT);
-  let reusable = installed.installed;
+  let reusable = matches;
   if (reusable && kind === 'foreground') {
     const observed = decode('device-runtime-result', await call('device.runtime', request));
     confirmSession(session, observed.session);
@@ -60,9 +61,11 @@ export async function revalidateDeviceStage(
     reusable,
     reason: reusable
       ? 'current-device-state-matches'
-      : installed.installed
-        ? 'target-not-in-foreground'
-        : 'package-not-installed',
+      : installed.installed && !matches
+        ? 'package-fingerprint-changed'
+        : installed.installed
+          ? 'target-not-in-foreground'
+          : 'package-not-installed',
     target: text(task['target']),
   };
   store.event(runId, 'workflow.stage.revalidated', result, { parent_span_id: span });

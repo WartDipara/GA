@@ -31,8 +31,10 @@ with the same limit, rather than granting a lifetime quota for the entire task. 
 for prepared gameplay, start another `play --prepared-run <run_id> --goal explore` execution under
 the same task, with the desired override; its verified progress and element catalog are retained.
 There is no new overall workflow deadline. `--adopt-existing` requires the installed APK fingerprint
-to match, and preserves application data. Default preparation follows the existing guarded install
-policy. Completing the selected goal does not establish whole-game coverage or battle settlement.
+to match, and preserves application data. Default fresh preparation removes an existing package
+with the same package name, verifies its absence, then installs the downloaded APK. This clears
+local app data; a resumed verified installation is retained. Completing the selected goal does not
+establish whole-game coverage or battle settlement.
 
 ## Composition
 

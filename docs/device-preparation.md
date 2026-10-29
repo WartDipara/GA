@@ -60,9 +60,19 @@ record. Exclusive use and a clean starting environment remain caller duties.
 
 ## Installation and recovery
 
-Android user 0 is the current supported installation target. Existing target packages without a
-matching framework action record block preparation. The installer does not replace or uninstall
-them, clear app data, grant permissions, enable root, or launch the application.
+Android user 0 is the current supported installation target. Fresh preparation inspects the exact
+target package name and removes an existing installation before installing the downloaded APK.
+Removal clears that package's local data on the dedicated instance; it does not reset the emulator.
+The installed fingerprint is pinned before removal and checked again immediately before dispatch.
+Use `--adopt-existing` to preserve a matching installation instead. Resume rechecks and retains a
+previously verified matching installation; it does not clear progress on every retry.
+
+Removal and installation are separate durable actions, not an atomic Android transaction. Source
+integrity and conservative disk admission are checked before removal. The kernel persists each
+intent and dispatch independently, and package absence must be verified before installation.
+An interrupted removal is reconciled by a fresh package query: absence permits continuation;
+continued presence leaves the result unknown and blocks automatic replay. Installation failure
+does not restore the deleted app or its data. Reports retain both operations and the stop reason.
 
 Before dispatch, the kernel estimates Android `/data` capacity as APK bytes plus twice the ZIP's
 expanded bytes plus a configurable reserve, initially 1 GiB. The estimate and observed available
@@ -78,7 +88,8 @@ installation is retried automatically.
 
 The host first persists an action intent. The plugin performs read-only preconditions, then requests
 `host.action` authorization immediately before the install command. The kernel commits the action as
-`unknown` before acknowledging authorization. Without this acknowledgement no install is sent.
+`unknown` before acknowledging authorization. Without this acknowledgement no install or removal
+is sent. Removal is available only to preparation, never to the gameplay planner.
 
 | Action state | Meaning                                                           | Recovery                                                 |
 | ------------ | ----------------------------------------------------------------- | -------------------------------------------------------- |

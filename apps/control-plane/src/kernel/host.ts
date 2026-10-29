@@ -32,6 +32,7 @@ const capabilityContracts: Record<string, [keyof ContractMap, keyof ContractMap]
   'emulator.activate': ['emulator-activate-request', 'emulator-activate-result'],
   'device.inspect': ['device-inspect-request', 'device-inspect-result'],
   'device.install': ['device-install-request', 'device-install-result'],
+  'device.uninstall': ['device-uninstall-request', 'device-uninstall-result'],
   'device.observe': ['device-observe-request', 'device-observe-result'],
   'device.runtime': ['device-runtime-request', 'device-runtime-result'],
   'device.capture': ['device-capture-request', 'device-capture-result'],
@@ -53,6 +54,7 @@ type CallOptions = {
 };
 const mutations = new Set([
   'device.install',
+  'device.uninstall',
   'device.execute',
   'device.lifecycle',
   'emulator.activate',
@@ -270,19 +272,28 @@ export class Host {
       signal,
     };
     if (operation === 'call') return this.call(text(context['capability']), input, options);
-    if (operation !== 'install' && operation !== 'perform')
+    if (!['install', 'uninstall', 'perform'].includes(operation))
       throw new FrameworkError(ErrorCode.METHOD_NOT_FOUND);
-    const capability = operation === 'install' ? 'device.install' : 'device.execute';
+    const capability = operation === 'perform' ? 'device.execute' : `device.${operation}`;
     this.check();
     if (!this.resolve(capability).mutating.includes(capability))
       throw new FrameworkError(ErrorCode.CAPABILITY_DENIED);
     const contract = capabilityContracts[capability];
     if (contract) decode(contract[0], input);
-    const maximum = operation === 'install' ? integer(this.application['max_actions']) : null;
+    if (operation === 'uninstall') {
+      const task = this.store.input(this.runId);
+      if (
+        task['kind'] !== 'device_preparation' ||
+        task['adopt_existing'] === true ||
+        input['package_name'] !== task['target']
+      )
+        throw new FrameworkError(ErrorCode.CAPABILITY_DENIED);
+    }
+    const maximum = operation === 'perform' ? null : integer(this.application['max_actions']);
     if (maximum !== null && maximum <= 0) throw new FrameworkError(ErrorCode.BUDGET_EXHAUSTED);
     const span = uid('span');
     const reference = this.artifact(
-      `artifacts/${uid(operation === 'install' ? 'install' : 'action')}/input.json`,
+      `artifacts/${uid(operation === 'perform' ? 'action' : operation)}/input.json`,
       input,
     );
     const intent = {
@@ -301,7 +312,7 @@ export class Host {
       if (this.store.latestAction(this.runId)?.['status'] !== 'unknown')
         throw new FrameworkError(ErrorCode.CAPABILITY_DENIED);
       const status =
-        operation === 'install' && result['status'] !== 'installed' ? 'rejected' : 'executed';
+        operation !== 'perform' && result['status'] === 'rejected' ? 'rejected' : 'executed';
       this.store.command('finish_device_action', {
         run_id: this.runId,
         action_id: action,
@@ -521,7 +532,7 @@ export class Host {
           return acknowledgement;
         }
         if (
-          !['device.install', 'device.execute'].includes(capability) ||
+          !['device.install', 'device.uninstall', 'device.execute'].includes(capability) ||
           !actionId ||
           canonical(payload) !== canonical(expected)
         )

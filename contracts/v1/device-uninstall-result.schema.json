@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://game-automation.local/contracts/v1/device-uninstall-result",
+  "type": "object",
+  "properties": {
+    "session": {
+      "type": "object",
+      "properties": {
+        "instance_index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "instance_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "serial": {
+          "type": "string",
+          "minLength": 1
+        },
+        "adb_executable": {
+          "type": "string",
+          "minLength": 1
+        },
+        "manager_executable": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "instance_index",
+        "instance_id",
+        "serial",
+        "adb_executable"
+      ],
+      "additionalProperties": false
+    },
+    "status": {
+      "enum": [
+        "removed",
+        "rejected"
+      ]
+    },
+    "rejection_code": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1
+    }
+  },
+  "required": [
+    "session",
+    "status",
+    "rejection_code"
+  ],
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "removed"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "rejection_code": {
+            "type": "null"
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "rejection_code": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    }
+  ]
+}

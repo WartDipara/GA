@@ -148,6 +148,13 @@ class Host:
         context = {"parent_span_id": self.context_span_id}
         return await self._execute("install", params, context)
 
+    async def uninstall(self, params):
+        from game_automation.prompting.snapshots import load
+
+        load(self.store, self.run_id)
+        context = {"parent_span_id": self.context_span_id}
+        return await self._execute("uninstall", params, context)
+
     async def perform(self, params, *, parent_span_id=None):
         from game_automation.prompting.snapshots import load
 

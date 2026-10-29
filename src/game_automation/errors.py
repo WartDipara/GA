@@ -121,6 +121,14 @@ class ErrorCode(StrEnum):
         "DEVICE_INSTALL_UNKNOWN",
         "Installation outcome is unknown; inspection is required before another action",
     )
+    DEVICE_UNINSTALL_UNKNOWN = (
+        "DEVICE_UNINSTALL_UNKNOWN",
+        "Removal outcome is unknown; inspect the package before another action",
+    )
+    DEVICE_UNINSTALL_REJECTED = (
+        "DEVICE_UNINSTALL_REJECTED",
+        "Android rejected package removal; inspect the package manager response",
+    )
     DEVICE_OBSERVATION_UNSTABLE = (
         "DEVICE_OBSERVATION_UNSTABLE",
         "Focused display changed during capture; obtain a fresh observation",

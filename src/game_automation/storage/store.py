@@ -350,7 +350,7 @@ class Store:
             "json_extract(i.spec,'$.source_run')||':'||"
             "json_extract(i.spec,'$.apk_index')=b.apk_key "
             "AND (?='gameplay' OR "
-            "json_extract(a.result,'$.capability')='device.install') "
+            "json_extract(a.result,'$.capability') IN ('device.install','device.uninstall')) "
             "ORDER BY a.rowid DESC LIMIT 1",
             (apk_key, task.get("kind")),
         ).fetchone()

@@ -98,3 +98,28 @@ async def install(device, request):
         rejection = failure[1]
     response = {"session": device.session, "status": status, "rejection_code": rejection}
     return response
+
+
+async def uninstall(device, request):
+    state = await inspect(device, request)
+    if not state["installed"]:
+        raise FrameworkError(ErrorCode.DEVICE_PACKAGE_MISSING)
+    if state["sha256"] != request["installed_sha256"]:
+        raise FrameworkError(ErrorCode.DEVICE_PACKAGE_CONFLICT)
+    intent = {"instance_id": device.session["instance_id"], "serial": device.session["serial"]}
+    acknowledgement = await device.peer.request("host.action", intent)
+    if acknowledgement != {"persisted": True}:
+        raise FrameworkError(ErrorCode.TRACE_UNAVAILABLE)
+    result = await device.run("uninstall", request["package_name"], allow_failure=True)
+    output = result["stdout"] + "\n" + result["stderr"]
+    if result["exit_code"] == 0 and re.search(r"(?m)^Success\s*$", output):
+        status = "removed"
+        rejection = None
+    else:
+        failure = re.search(r"\bFailure \[([A-Z][A-Z0-9_]*)(?::[^\]\r\n]*)?\]", output)
+        if failure is None:
+            raise FrameworkError(ErrorCode.DEVICE_UNINSTALL_UNKNOWN)
+        status = "rejected"
+        rejection = failure[1]
+    response = {"session": device.session, "status": status, "rejection_code": rejection}
+    return response

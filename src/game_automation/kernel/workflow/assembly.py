@@ -130,7 +130,12 @@ def build_workflow(names):
             preparation_input,
             requires=("preprocess", "environment"),
             per_apk=True,
-            capabilities=("emulator.session", "device.inspect", "device.install"),
+            capabilities=(
+                "emulator.session",
+                "device.inspect",
+                "device.uninstall",
+                "device.install",
+            ),
         ),
         Stage(
             "launch",

@@ -9,7 +9,7 @@ from capture import capture
 from display import observe
 from logs import collect
 from lifecycle import lifecycle
-from packages import inspect, install
+from packages import inspect, install, uninstall
 from runtime import inspect_runtime
 
 from game_automation.common import FrameworkError
@@ -43,6 +43,7 @@ def create_handler(peer):
         handlers = {
             "device.inspect": inspect,
             "device.install": install,
+            "device.uninstall": uninstall,
             "device.observe": observe,
             "device.runtime": inspect_runtime,
             "device.capture": capture,

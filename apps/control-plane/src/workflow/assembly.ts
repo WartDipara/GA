@@ -76,7 +76,7 @@ export function buildWorkflow(value: unknown): { task: ContractMap['workflow']; 
       mode: 'device',
       requires: ['preprocess', 'environment'],
       perApk: true,
-      capabilities: ['emulator.session', 'device.inspect', 'device.install'],
+      capabilities: ['emulator.session', 'device.inspect', 'device.uninstall', 'device.install'],
     },
     {
       name: 'launch',

@@ -1,9 +1,9 @@
 name = "android_device"
-version = "0.3.1"
+version = "0.4.0"
 protocol_version = "1.0"
 command = ["{python}", "{plugin}/main.py"]
-capabilities = ["device.inspect", "device.install", "device.observe", "device.runtime", "device.capture", "device.execute", "device.logs", "device.lifecycle"]
+capabilities = ["device.inspect", "device.install", "device.uninstall", "device.observe", "device.runtime", "device.capture", "device.execute", "device.logs", "device.lifecycle"]
 required_capabilities = ["emulator.session"]
 optional_capabilities = ["emulator.activate"]
 retry_safe = []
-mutating = ["device.install", "device.execute", "device.lifecycle"]
+mutating = ["device.install", "device.uninstall", "device.execute", "device.lifecycle"]

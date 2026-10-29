@@ -162,6 +162,31 @@ async def inspect_package(host, session, package_name):
     return result
 
 
+async def remove_existing_package(store, run_id, host, session, before):
+    request = {
+        "session": session,
+        "package_name": before["package_name"],
+        "installed_sha256": before["sha256"],
+    }
+    result = await host.uninstall(request)
+    confirm_session(session, result["session"])
+    if result["status"] == "rejected":
+        raise FrameworkError(ErrorCode.DEVICE_UNINSTALL_REJECTED)
+    after = await inspect_package(host, session, before["package_name"])
+    if after["installed"]:
+        raise FrameworkError(ErrorCode.DEVICE_UNINSTALL_UNKNOWN)
+    action = store.latest_device_action(run_id)
+    store.finish_device_action(run_id, action["action_id"], "verified", after)
+    removal = {
+        "action_id": action["action_id"],
+        "installed": False,
+        "previous_sha256": before["sha256"],
+        "application_data_removed": True,
+    }
+    host.record("device.removal.verified", removal)
+    return after
+
+
 async def prepare_device(store, run_id, host, manifest, task):
     item = ready_apk(store, task["source_run"], task["apk_index"])
     metadata = task["metadata"]
@@ -190,14 +215,30 @@ async def prepare_device(store, run_id, host, manifest, task):
             previous["run_id"], previous["action_id"], "rejected", not_dispatched
         )
         previous = store.latest_device_action(run_id)
-    if previous and previous["status"] == "verified" and not before["installed"]:
+    if previous and previous["capability"] == "device.uninstall":
+        if previous["status"] in ("unknown", "executed", "verified"):
+            if before["installed"]:
+                raise FrameworkError(ErrorCode.DEVICE_UNINSTALL_UNKNOWN)
+            if previous["status"] != "verified":
+                store.finish_device_action(
+                    previous["run_id"], previous["action_id"], "verified", before
+                )
+            removal = {**history, "installed": False, "verified": True}
+            host.record("device.removal.reconciled", removal)
+        previous = None
+    if (
+        previous
+        and previous["status"] == "verified"
+        and before["sha256"] != metadata["sha256"]
+    ):
         missing = {
             "previous_action_run": previous["run_id"],
             "previous_action_id": previous["action_id"],
-            "installed": False,
+            "installed": before["installed"],
+            "observed_sha256": before["sha256"],
             "new_installation_requires_fresh_intent": True,
         }
-        host.record("device.installation.missing", missing)
+        host.record("device.installation.changed", missing)
         # A settled past installation is not an unresolved action to replay.
         previous = None
     if previous and previous["status"] in ("unknown", "executed", "verified"):
@@ -222,12 +263,12 @@ async def prepare_device(store, run_id, host, manifest, task):
             {"sha256": before["sha256"], "preserved_application_data": True},
         )
     else:
-        if before["installed"]:
-            raise FrameworkError(ErrorCode.DEVICE_PACKAGE_CONFLICT)
         budget["available_bytes"] = before["available_bytes"]
         host.record("device.storage.checked", budget)
         if before["available_bytes"] < budget["required_bytes"]:
             raise FrameworkError(ErrorCode.DEVICE_SPACE_INSUFFICIENT)
+        if before["installed"]:
+            before = await remove_existing_package(store, run_id, host, session, before)
         request = {
             "session": session,
             "package_name": metadata["packageName"],

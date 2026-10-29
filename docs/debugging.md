@@ -190,5 +190,7 @@ interruption before creation or binding of the replacement. Launch is rechecked 
 Unknown dispatched actions still block new mutations; they are never replayed or overwritten.
 
 Standalone gameplay with an absent package reports `DEVICE_PACKAGE_MISSING`; resume its owning
-workflow to prepare the device. A different installed fingerprint remains `DEVICE_PACKAGE_CONFLICT`.
+workflow to prepare the device. A changed fingerprint invalidates default preparation and enters
+the guarded removal/install sequence. Adoption and standalone gameplay still report
+`DEVICE_PACKAGE_CONFLICT` instead of replacing an unexpected APK.
 Use a new batch after code or pinned dependencies change; report-only repair never contacts a device.
