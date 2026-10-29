@@ -118,13 +118,14 @@ function createLiveCharts(container) {
           svgNode('text', { x: left - 10, y: y + fontSize / 3, 'text-anchor': 'end' },
             formatValue(tick * step)));
       }
-      const tickCount = width < fontSize * 42 ? 2 : width < fontSize * 65 ? 3 : 5;
+      const tickCount = start === end ? 1 : Math.max(2,
+        Math.min(5, Math.floor((right - left) / (fontSize * 10)) + 1));
       for (let tick = 0; tick < tickCount; tick += 1) {
-        const ratio = tick / (tickCount - 1);
+        const ratio = tick / Math.max(1, tickCount - 1);
         const time = new Date(start + ratio * (end - start));
         svg.append(svgNode('text', { x: left + ratio * (right - left), y: bottom + fontSize * 2,
           'text-anchor': tick === 0 ? 'start' : tick === tickCount - 1 ? 'end' : 'middle' },
-        time.toLocaleTimeString(undefined, { hour12: false })));
+        time.toLocaleTimeString(undefined, { hour12: false, hour: '2-digit', minute: '2-digit' })));
       }
       svg.append(svgNode('text', { x: (left + right) / 2, y: height - fontSize,
         'text-anchor': 'middle' }, 'Time (local)'));
