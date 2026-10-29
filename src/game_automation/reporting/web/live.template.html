@@ -60,25 +60,10 @@
             records.</noscript
           >
           <section class="metrics" id="live-metrics" aria-label="Task overview"></section>
-          <section class="panel activity-panel">
-            <div class="panel-heading">
-              <h2>Activity over time</h2><span id="activity-scale">Events / 10s</span>
-            </div>
-            <p class="activity-legend"><span>Calls started</span><span>Call failures</span>
-              <span>Model calls started</span></p>
-            <svg id="activity-chart" viewBox="0 0 1000 190" role="img"
-              aria-label="Waiting for recorded events" preserveAspectRatio="none">
-              <path class="activity-grid" d="M20 20H980 M20 70H980 M20 120H980 M20 170H980" />
-              <polyline id="activity-series-0" class="activity-line calls" />
-              <polyline id="activity-series-1" class="activity-line failures" />
-              <polyline id="activity-series-2" class="activity-line models" />
-            </svg>
-            <div class="activity-axis"><time id="activity-start"></time>
-              <time id="activity-end"></time></div>
-            <p class="panel-footnote">Latest 200 selected events, up to 20 minutes. Counts describe
-              this retained window, not task totals. Detailed analysis is published after execution
-              stops. No automatic full-trace reconstruction.</p>
-          </section>
+          <section id="monitor-charts" class="monitor-charts" aria-label="Recorded activity charts"></section>
+          <p class="chart-scope">Latest 200 selected events, at most 20 minutes of recorded activity.
+            Charts use local time and stay anchored to recorded operations when execution stops.
+            Expand a chart for more space. Full analysis is published after execution stops.</p>
           <section class="trace-layout">
             <article class="panel trace-panel">
               <div class="panel-heading">
@@ -104,7 +89,7 @@
               <div class="event-columns"><span>Recorded at · local time</span><span>Event / operation</span><span>Duration</span></div>
               <div id="live-events" class="event-list" aria-label="Recorded events"></div>
               <div class="panel-footnote" id="window-note">
-                Committed evidence only · Oldest → newest by event sequence
+                Committed evidence only · Newest → oldest by event sequence
               </div>
             </article>
             <aside class="panel inspector" aria-label="Event details">

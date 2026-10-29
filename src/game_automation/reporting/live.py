@@ -69,7 +69,9 @@ def task_snapshot(store, task_id, *, after=-1, revision=0):
 
 def viewer_document(interval):
     assets = Path(__file__).parent / "web"
-    script = (assets / "live.js").read_text(encoding="utf-8")
+    script = "\n".join(
+        (assets / name).read_text(encoding="utf-8") for name in ("live-charts.js", "live.js")
+    )
     script_element = f"<script>{script}</script>"
     script_hash = b64encode(hashlib.sha256(script.encode()).digest()).decode("ascii")
     template = Template((assets / "live.template.html").read_text(encoding="utf-8"))

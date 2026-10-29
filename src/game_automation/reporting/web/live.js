@@ -93,6 +93,7 @@
     selectedEvent = undefined;
     rememberSelection();
     renderNavigation();
+    renderCharts();
     renderEvents();
   }
 
@@ -130,36 +131,9 @@
     renderEvents();
   }
 
+  const updateCharts = createLiveCharts(element('monitor-charts'));
   function renderCharts() {
-    const events = snapshot.events.filter((event) => Number.isFinite(Date.parse(event.timestamp)));
-    const chart = element('activity-chart');
-    if (!events.length) return;
-    const timestamps = events.map((event) => Date.parse(event.timestamp));
-    const latest = Math.max(...timestamps);
-    const earliest = Math.max(Math.min(...timestamps), latest - 119 * 10000);
-    const start = Math.floor(earliest / 10000) * 10000;
-    const end = Math.floor(latest / 10000) * 10000;
-    const buckets = Array.from({ length: Math.floor((end - start) / 10000) + 1 },
-      () => [0, 0, 0]);
-    for (const event of events) {
-      const index = Math.floor((Date.parse(event.timestamp) - start) / 10000);
-      const bucket = buckets[index];
-      if (!bucket) continue;
-      if (event.kind === 'call.started') bucket[0] += 1;
-      if (event.kind === 'call.failed') bucket[1] += 1;
-      if (event.kind === 'call.started' && event.label === 'ai.decide') bucket[2] += 1;
-    }
-    const maximum = Math.max(1, ...buckets.flat());
-    for (let series = 0; series < 3; series += 1) {
-      const points = buckets.map((bucket, index) =>
-        `${20 + index / Math.max(1, buckets.length - 1) * 960},${170 - bucket[series] / maximum * 150}`,
-      ).join(' ');
-      element(`activity-series-${series}`).setAttribute('points', points);
-    }
-    chart.setAttribute('aria-label', `Recorded events per 10 seconds; maximum ${maximum}`);
-    element('activity-scale').textContent = `0–${maximum} events / 10s`;
-    element('activity-start').textContent = localTime(start);
-    element('activity-end').textContent = localTime(end);
+    updateCharts(snapshot.events, selectedRun);
   }
 
   function renderInspector() {
@@ -216,7 +190,10 @@
     if (!snapshot) return;
     const eventList = element('live-events');
     const scrollPosition = eventList.scrollTop;
-    const following = eventList.scrollHeight - scrollPosition - eventList.clientHeight < 40;
+    const following = scrollPosition < 40;
+    const anchor = [...eventList.children].find((row) =>
+      row.getBoundingClientRect().top >= eventList.getBoundingClientRect().top);
+    const anchorOffset = anchor?.getBoundingClientRect().top;
     const query = element('live-search').value.toLowerCase();
     const kind = element('event-category').value;
     const visible = snapshot.events.filter(
@@ -224,7 +201,7 @@
         (!selectedRun || event.run_id === selectedRun) &&
         (kind === 'all' || category(event) === kind) &&
         `${event.kind} ${event.label} ${event.detail}`.toLowerCase().includes(query),
-    );
+    ).sort((left, right) => right.seq - left.seq);
     if (!selectedEvent) selectedEvent = visible[0];
     const rows = visible.map((event) => {
       const existing = eventRows.get(event.seq);
@@ -260,11 +237,13 @@
     for (const sequence of eventRows.keys()) {
       if (!sequences.has(sequence)) eventRows.delete(sequence);
     }
-    element('live-events').scrollTop = following ? eventList.scrollHeight : scrollPosition;
+    eventList.scrollTop = following ? 0 : scrollPosition;
+    if (!following && anchor?.isConnected && anchorOffset !== undefined)
+      eventList.scrollTop += anchor.getBoundingClientRect().top - anchorOffset;
     element('event-count').textContent = visible.length;
     const run = snapshot.executions.find((entry) => entry.run_id === selectedRun);
     element('window-note').textContent =
-      `${run ? runLabel(run) : 'All executions'} / Oldest → newest by event sequence / Local time`;
+      `${run ? runLabel(run) : 'All executions'} / Newest → oldest by event sequence / Local time`;
     renderInspector();
   }
 

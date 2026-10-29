@@ -148,3 +148,9 @@ error cannot be saved.
 Exported HTML only browses saved data; its CSP blocks external code, network access and form
 submission. The local live viewer additionally permits same-origin polling. Neither view starts a
 plugin, invokes AI or operates a device.
+
+The live monitor lists events newest first by committed sequence, with local timestamps.
+Its resizable charts show call activity, measured call duration and action outcome records.
+Axes state their units; duration gaps mean no measured sample. Charts use only the retained
+200-event window, not whole-task totals. Report publication events do not move the activity
+window. Full trace analysis remains a settled-execution report.
