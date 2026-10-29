@@ -9,11 +9,10 @@ export class Watchdog {
   readonly data: NonNullable<Progress['watchdog']>;
   reconciling: boolean;
   private updated = performance.now();
-  private correctionObservation: string | null = null;
-  private correctionAttempts = 0;
   constructor(
     readonly runtime: Runtime,
     readonly settings: Fields,
+    private readonly redirectStall: (() => boolean) | null = null,
   ) {
     const scope = String(runtime.task['goal']);
     const previous = runtime.progress.data.watchdog;
@@ -35,8 +34,21 @@ export class Watchdog {
     if (
       this.data.rounds >= integer(this.settings['no_progress_rounds'] ?? 24) ||
       this.data.elapsed_seconds >= integer(this.settings['no_progress_seconds'] ?? 900)
-    )
+    ) {
+      if (!this.runtime.progress.data.pending && this.redirectStall?.()) {
+        this.runtime.record('gameplay.watchdog.redirected', {
+          reason: 'local-stall-isolated',
+          rounds: this.data.rounds,
+          elapsed_seconds: this.data.elapsed_seconds,
+          verified_progress: false,
+        });
+        this.data.rounds = 0;
+        this.data.elapsed_seconds = 0;
+        this.runtime.progress.save();
+        return;
+      }
       this.block('no-verified-progress');
+    }
   }
 
   review(decision: Decision, observation: Observation, pending: Pending | null): void {
@@ -79,31 +91,45 @@ export class Watchdog {
     this.data.proofs = [...this.data.proofs, proof].slice(-256);
     this.data.rounds = 0;
     this.data.elapsed_seconds = 0;
+    this.updated = performance.now();
     this.data.history = [];
+    this.data.corrections = {};
     this.data.blocked = false;
     this.runtime.progress.save();
   }
 
-  withoutDispatch(observation: Observation, reason: string): void {
-    if (this.correctionObservation !== observation.observation_id) {
-      this.correctionObservation = observation.observation_id;
-      this.correctionAttempts = 0;
-    }
-    this.correctionAttempts += 1;
+  withoutDispatch(observation: Observation, reason: string, scope = 'unidentified-page'): void {
+    const key = checkpointHash([scope, reason]);
+    const corrections = this.data.corrections ?? {};
+    const attempts = (corrections[key] ?? 0) + 1;
+    corrections[key] = attempts;
+    this.data.corrections = corrections;
     this.runtime.record('gameplay.planning.correction', {
       observation_id: observation.observation_id,
       reason,
-      attempt: this.correctionAttempts,
+      scope,
+      attempt: attempts,
       maximum: 2,
       dispatched: false,
     });
-    if (this.correctionAttempts >= 2) this.block('planning-correction-without-new-evidence');
+    this.runtime.progress.save();
+    if (attempts >= 2) this.block('planning-correction-without-new-evidence');
   }
 
   private block(reason: string): never {
     this.data.blocked = true;
-    this.runtime.record('gameplay.watchdog.blocked', { reason, ...this.data });
-    this.runtime.progress.save();
+    this.runtime.store.database.transaction(() => {
+      this.runtime.record('gameplay.watchdog.blocked', { reason, ...this.data });
+      if (this.runtime.task['goal'] === 'explore')
+        this.runtime.record('exploration.supervision.stopped', {
+          reason,
+          feedback: this.runtime.progress.data.exploration_supervisor?.feedback ?? null,
+          pending_action: this.runtime.progress.data.pending?.action_id ?? null,
+          checkpoint: this.runtime.progress.data.checkpoint,
+          report_policy: 'publish-after-business-state-settlement',
+        });
+      this.runtime.progress.save();
+    });
     throw new FrameworkError(ErrorCode.GAMEPLAY_BLOCKED, `Progress watchdog: ${reason}`);
   }
 }

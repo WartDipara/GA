@@ -364,7 +364,7 @@ export class Catalog {
         return area(a) - area(b);
       });
     const element = candidates[0];
-    if (!element || !['tap', 'swipe'].includes(action.type)) return;
+    if (!element || !['tap', 'long_press', 'swipe'].includes(action.type)) return;
     element.status = 'in_progress';
     element.data.action_id = actionId;
     pending.exploration ??= {

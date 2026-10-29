@@ -583,6 +583,13 @@
         },
         "state": {
           "type": "string"
+        },
+        "corrections": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 0
+          }
         }
       },
       "required": [
@@ -761,6 +768,16 @@
             "observation_id"
           ],
           "additionalProperties": false
+        },
+        "last_element_id": {
+          "type": "string"
+        },
+        "evidence_events": {
+          "type": "array",
+          "maxItems": 48,
+          "items": {
+            "type": "string"
+          }
         }
       },
       "required": [

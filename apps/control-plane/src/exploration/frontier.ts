@@ -12,7 +12,14 @@ export function destination(catalog: Catalog): Destination | null {
   const current = session?.data.page_id;
   if (!current) return null;
   const elements = records.filter((record): record is Element => record.kind === 'element');
-  const pending = elements.filter((element) => element.status === 'pending');
+  const supervisor = catalog.runtime.progress.data.exploration_supervisor;
+  const suspended = supervisor?.scope === catalog.key ? supervisor.feedback?.element_id : null;
+  const pending = elements.filter(
+    (element) =>
+      element.status === 'pending' &&
+      !element.data.supervision?.quarantined &&
+      element.id !== suspended,
+  );
   const local = pending.filter((element) => element.parent_id === current);
   local.sort((a, b) => {
     const priority = (element: Element): number =>
@@ -50,7 +57,8 @@ export function destination(catalog: Catalog): Destination | null {
         !element ||
         element.data.risk !== 'none' ||
         ['unknown', 'limited', 'prohibited', 'locked'].includes(element.status) ||
-        element.data.supervision?.quarantined
+        element.data.supervision?.quarantined ||
+        element.id === suspended
       )
         continue;
       seen.add(edge.data.to_page);

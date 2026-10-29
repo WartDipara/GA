@@ -201,11 +201,37 @@ export class Exploration {
       );
     if (pending.exploration?.mode === 'external_close') this.finishExternal(view.observation);
     this.trackProgress();
+    const inventory = decision.exploration;
+    const region = this.catalog
+      .records()
+      .find(
+        (record): record is Element =>
+          record.kind === 'element' && record.id === pending.exploration?.element_id,
+      );
+    const scroll = inventory?.scroll_review.find(
+      (review) =>
+        !review.loading &&
+        (review.key === region?.data.semantic_key || review.key === region?.data.key),
+    );
+    const viewport =
+      verified &&
+      view.facts.stable &&
+      this.scrollKey &&
+      this.scrollKey !== pending.exploration?.viewport &&
+      scroll &&
+      inventory
+        ? signature(
+            inventory.elements
+              .map((element) => [element.container, element.item, element.key])
+              .sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right))),
+          )
+        : null;
     this.supervisor.review(
       pending,
       page,
       view.observation,
       !previouslyVerified && this.wasVerified(pending),
+      viewport,
     );
   }
 
@@ -285,7 +311,7 @@ export class Exploration {
     page: Page | null,
     observation: Observation,
   ): Promise<Pending['exploration'] | null> {
-    if (!page || !['tap', 'swipe', 'back'].includes(action.type)) return null;
+    if (!page || !['tap', 'long_press', 'swipe', 'back'].includes(action.type)) return null;
     const elements = this.catalog.records().filter((record): record is Element => {
       if (
         record.kind !== 'element' ||
@@ -336,8 +362,52 @@ export class Exploration {
     return canComplete(this.catalog, page);
   }
 
+  redirectStall(): boolean {
+    const state = this.runtime.progress.data.exploration_supervisor;
+    if (state?.scope !== this.catalog.key || this.runtime.progress.data.pending) return false;
+    const element = this.catalog
+      .records()
+      .find(
+        (record): record is Element =>
+          record.kind === 'element' && record.id === state.last_element_id,
+      );
+    if (!element || element.data.supervision?.quarantined) return false;
+    const observationId = element.data.supervision?.observation_id;
+    if (!observationId) return false;
+    this.supervisor.redirect(element, observationId, 'no-progress-window-exhausted');
+    return this.hint() !== null;
+  }
+
+  async redirect(
+    decision: Decision,
+    page: Page | null,
+    observation: Observation,
+    reason: string,
+  ): Promise<boolean> {
+    if (!page || this.runtime.progress.data.pending) return false;
+    const link = decision.action ? await this.intent(decision.action, page, observation) : null;
+    const element = this.catalog
+      .records()
+      .find(
+        (record): record is Element => record.kind === 'element' && record.id === link?.element_id,
+      );
+    if (!element) return false;
+    if (element.data.supervision?.quarantined) return false;
+    const recovering = this.supervisor.redirect(element, observation.observation_id, reason);
+    const next = this.hint();
+    this.runtime.record('exploration.supervision.redirect', {
+      element_id: element.id,
+      observation_id: observation.observation_id,
+      reason,
+      recovering,
+      next,
+      dispatched: false,
+    });
+    return recovering || next !== null;
+  }
+
   permit(action: Action, page: Page | null): boolean {
-    if (!page || !['tap', 'swipe'].includes(action.type)) return true;
+    if (!page || !['tap', 'long_press', 'swipe'].includes(action.type)) return true;
     const targets = this.catalog.records().filter((record): record is Element => {
       if (
         record.kind !== 'element' ||
@@ -361,6 +431,11 @@ export class Exploration {
         (b.data.bounds[2] - b.data.bounds[0]) * (b.data.bounds[3] - b.data.bounds[1]),
     )[0];
     if (!selected) return false;
+    if (
+      selected.data.supervision?.quarantined ||
+      this.runtime.progress.data.exploration_supervisor?.feedback?.element_id === selected.id
+    )
+      return false;
     const next = destination(this.catalog);
     return (
       selected.status === 'pending' ||

@@ -19,7 +19,13 @@ export class ExplorationSupervisor {
     return progress.exploration_supervisor;
   }
 
-  review(pending: Pending, page: Page | null, observation: Observation, firstProof: boolean): void {
+  review(
+    pending: Pending,
+    page: Page | null,
+    observation: Observation,
+    firstProof: boolean,
+    viewport: string | null = null,
+  ): void {
     const link = pending.exploration;
     if (!link) return;
     const element = this.catalog
@@ -29,8 +35,14 @@ export class ExplorationSupervisor {
       );
     if (!element) return;
     const state = this.state();
+    state.last_element_id = element.id;
     const prior = element.data.supervision;
-    if (prior?.action_id === pending.action_id) return;
+    if (!pending.action_id || prior?.action_id === pending.action_id) return;
+    const viewports = prior?.viewports ?? [];
+    const newViewport =
+      viewport !== null && !viewports.includes(viewport) && viewports.length < 100;
+    if (newViewport) viewports.push(viewport);
+    const accepted = firstProof || newViewport;
     const transition = signature([link.from_page, element.id, pending.action.type, page?.id]);
     state.history = [...state.history, transition].slice(-48);
     const repeats = state.history.filter((entry) => entry === transition).length;
@@ -38,11 +50,16 @@ export class ExplorationSupervisor {
       recovery_rounds: prior?.recovery_rounds ?? 0,
       repeats,
       quarantined: prior?.quarantined ?? false,
-      reason: firstProof ? 'first-verified-element' : 'no-new-verified-element',
+      reason: firstProof
+        ? 'first-verified-element'
+        : newViewport
+          ? 'verified-semantic-viewport'
+          : 'no-new-verified-content',
+      viewports,
       observation_id: observation.observation_id,
       action_id: pending.action_id ?? null,
     };
-    this.runtime.record('exploration.supervision.progress', {
+    const evidenceEvent = this.runtime.record('exploration.supervision.progress', {
       workspace_key: this.catalog.key,
       element_id: element.id,
       action_id: pending.action_id,
@@ -52,19 +69,32 @@ export class ExplorationSupervisor {
       to_page: page?.id ?? null,
       transition,
       repeats,
-      accepted: firstProof,
+      accepted,
+      viewport,
       reason: element.data.supervision.reason,
     });
-    if (firstProof) {
+    state.evidence_events = [...(state.evidence_events ?? []), evidenceEvent].slice(-48);
+    if (accepted) {
       state.history = [];
+      state.evidence_events = [];
       state.feedback = null;
-      this.runtime.watchdog?.observeProgress(`element:${this.catalog.key}:${element.id}`);
+      this.runtime.watchdog?.observeProgress(
+        `element:${this.catalog.key}:${element.id}:${viewport ?? 'verified'}`,
+      );
     } else if (repeats >= 3) {
       this.intervene(element, observation.observation_id, 'repeated-transition-without-progress');
       state.history = [];
+      state.evidence_events = [];
     }
     this.catalog.save([element]);
     this.runtime.progress.save();
+  }
+
+  redirect(element: Element, observationId: string, reason: string): boolean {
+    if (this.runtime.progress.data.pending) return false;
+    if (!element.data.supervision?.quarantined)
+      this.runtime.store.database.transaction(() => this.intervene(element, observationId, reason));
+    return !element.data.supervision?.quarantined;
   }
 
   intervene(element: Element, observationId: string, reason: string): void {
@@ -99,6 +129,7 @@ export class ExplorationSupervisor {
       ...state.feedback,
       maximum_recovery_rounds: maximum,
       action_id: supervision.action_id,
+      evidence_events: state.evidence_events ?? [],
       instruction:
         'Choose a different evidence-based route or another pending target. Do not repeat the failed action. Quarantined targets cannot be retried.',
     });

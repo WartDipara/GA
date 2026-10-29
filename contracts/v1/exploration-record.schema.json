@@ -385,6 +385,13 @@
                     "string",
                     "null"
                   ]
+                },
+                "viewports": {
+                  "type": "array",
+                  "maxItems": 100,
+                  "items": {
+                    "type": "string"
+                  }
                 }
               },
               "required": [

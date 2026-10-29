@@ -178,6 +178,29 @@ export class Runtime {
   ): Promise<string> {
     await this.admit();
     decode('gameplay-action', action);
+    if (exploration) {
+      const target = this.store
+        .exploration(exploration.workspace_key)
+        .find((record) => record.kind === 'element' && record.id === exploration.element_id);
+      const suspended = this.progress.data.exploration_supervisor;
+      if (
+        target?.kind === 'element' &&
+        (target.data.supervision?.quarantined ||
+          (suspended?.scope === exploration.workspace_key &&
+            suspended.feedback?.element_id === target.id))
+      ) {
+        this.record('exploration.supervision.dispatch_denied', {
+          element_id: target.id,
+          observation_id: observation.observation_id,
+          reason: target.data.supervision?.quarantined ? 'quarantined-target' : 'recovery-required',
+          dispatched: false,
+        });
+        throw new FrameworkError(
+          ErrorCode.STALE_OBSERVATION,
+          'Target suspended by exploration supervision; select another route',
+        );
+      }
+    }
     const data = this.progress.data;
     if (data.pending)
       throw new FrameworkError(
