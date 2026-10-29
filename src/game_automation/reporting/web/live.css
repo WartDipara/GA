@@ -296,12 +296,6 @@ main {
 .metric.warning strong {
   color: var(--amber);
 }
-.analysis-grid {
-  display: grid;
-  grid-template-columns: 0.8fr 1.2fr;
-  gap: 18px;
-  margin-bottom: 20px;
-}
 .panel {
   background: var(--surface);
   border: 1px solid var(--line);
@@ -322,91 +316,6 @@ main {
   letter-spacing: 0.8px;
   color: var(--muted);
   white-space: nowrap;
-}
-.status-breakdown {
-  padding: 27px 20px;
-}
-.status-stack {
-  display: flex;
-  gap: 3px;
-  height: 13px;
-  border-radius: var(--radius-sm);
-  overflow: hidden;
-  background: var(--raised);
-}
-.status-segment {
-  background: var(--muted);
-  min-width: 2px;
-}
-.status-segment.succeeded {
-  background: var(--green);
-}
-.status-segment.running {
-  background: var(--accent-fill);
-}
-.status-segment.blocked {
-  background: var(--amber);
-}
-.status-segment.failed {
-  background: var(--red);
-}
-.status-legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 14px 22px;
-  margin-top: 23px;
-}
-.status-legend > span {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  color: var(--muted);
-  font-size: max(var(--font-min), calc(11px * var(--font-scale)));
-  text-transform: capitalize;
-}
-.status-legend strong {
-  margin-left: 3px;
-  color: var(--text);
-}
-.duration-chart {
-  padding: 12px 18px;
-  min-height: 140px;
-}
-.duration-row {
-  display: grid;
-  grid-template-columns: minmax(90px, 1fr) minmax(60px, 1.3fr) 65px;
-  width: 100%;
-  align-items: center;
-  gap: 14px;
-  border: none;
-  padding: 7px 0;
-  font-size: max(var(--font-min), calc(11px * var(--font-scale)));
-  background: none;
-  text-align: left;
-}
-.duration-row strong {
-  text-align: right;
-  font-weight: 500;
-}
-.bar-label {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.bar-track {
-  height: 5px;
-  border-radius: var(--radius-sm);
-  background: var(--raised);
-  overflow: hidden;
-}
-.bar-fill {
-  display: block;
-  height: 100%;
-  border-radius: var(--radius-sm);
-  background: var(--accent-fill);
-}
-.bar-fill.issues {
-  background: var(--red);
 }
 .trace-layout {
   display: grid;
@@ -637,7 +546,6 @@ footer {
   .sidebar {
     padding: 20px 8px;
   }
-  .analysis-grid,
   .trace-layout {
     grid-template-columns: 1fr;
   }
@@ -697,4 +605,27 @@ footer {
     display: block;
     margin-top: 6px;
   }
+}
+
+.activity-panel { margin-bottom: 20px; }
+#activity-chart { display: block; width: 100%; height: 220px; }
+.activity-grid { fill: none; stroke: var(--line); vector-effect: non-scaling-stroke; }
+.activity-line { fill: none; stroke-width: 2; vector-effect: non-scaling-stroke; }
+.activity-line.calls { stroke: var(--accent); }
+.activity-line.failures { stroke: var(--red); stroke-dasharray: 5 3; }
+.activity-line.models { stroke: var(--green); stroke-dasharray: 2 3; }
+.activity-legend, .activity-axis { display: flex; gap: 20px; padding: 0 18px; }
+.activity-legend { flex-wrap: wrap; }
+.activity-legend span:nth-child(1) { color: var(--accent); }
+.activity-legend span:nth-child(2) { color: var(--red); }
+.activity-legend span:nth-child(3) { color: var(--green); }
+.activity-axis { justify-content: space-between; font-variant-numeric: tabular-nums; }
+.event-row { display: grid; grid-template-columns: 190px 28px minmax(160px, 1fr) 80px; }
+.event-columns { display: grid; grid-template-columns: 190px minmax(190px, 1fr) 80px; gap: 10px; }
+.event-timestamp { font-variant-numeric: tabular-nums; color: var(--text); overflow-wrap: anywhere; }
+.event-list { overflow-x: auto; }
+@media (max-width: 800px) {
+  .event-row { grid-template-columns: 1fr 28px minmax(140px, 2fr) 70px; }
+  .event-columns { grid-template-columns: 1fr minmax(168px, 2fr) 70px; }
+  .activity-axis { flex-wrap: wrap; }
 }

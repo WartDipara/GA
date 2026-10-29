@@ -1,4 +1,3 @@
-import { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { flushSync } from 'react-dom';
 import { workspaceView, type WorkspaceView } from '@game-automation/contracts/workspace';
@@ -114,7 +113,15 @@ function SlowCalls({ view }: { view: WorkspaceView }) {
       {view.latency.map((call) => (
         <a key={call.href} href={call.href}>
           <div>
-            <span>{call.label}</span>
+            <span>
+              {call.label}
+              <small className="ui-call-date">
+                {call.recorded_at ? new Date(call.recorded_at).toLocaleString(undefined, {
+                  hour12: false,
+                }) : 'Unknown time'}
+                {call.sequence !== undefined ? ` · #${call.sequence}` : ''}
+              </small>
+            </span>
             <strong>
               {duration(call.value)}
               <ArrowIcon />
@@ -136,38 +143,8 @@ function SlowCalls({ view }: { view: WorkspaceView }) {
 }
 
 function Insights({ initial }: { initial: WorkspaceView }) {
-  const [view, setView] = useState(initial);
-  const [connection, setConnection] = useState('Recorded snapshot');
-  useEffect(() => {
-    if (location.protocol === 'file:') return;
-    const controller = new AbortController();
-    let timer: ReturnType<typeof setTimeout>;
-    const refresh = async () => {
-      try {
-        const response = await fetch('workspace.json', { signal: controller.signal });
-        if (!response.ok) throw new Error('Workspace unavailable');
-        const value: unknown = await response.json();
-        const next = workspaceView(value);
-        if (!next) throw new Error('Invalid workspace');
-        if (!controller.signal.aborted) {
-          setView(next);
-          setConnection('Live · refreshes every 3s');
-        }
-      } catch {
-        if (!controller.signal.aborted) setConnection('Connection paused · retained snapshot');
-      } finally {
-        if (!controller.signal.aborted)
-          timer = setTimeout(() => {
-            void refresh();
-          }, 3000);
-      }
-    };
-    void refresh();
-    return () => {
-      controller.abort();
-      clearTimeout(timer);
-    };
-  }, []);
+  const view = initial;
+  const connection = 'Recorded snapshot · reload to update';
   const execution = view.kind === 'execution';
   return (
     <div className="ui-insights">

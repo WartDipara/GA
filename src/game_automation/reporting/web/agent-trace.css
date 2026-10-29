@@ -372,3 +372,6 @@ th {
     grid-template-columns: minmax(130px, 1fr) minmax(80px, 1fr) 66px;
   }
 }
+
+.span-label { flex-wrap: wrap; white-space: normal; }
+.span-date { flex-basis: 100%; color: var(--muted); font-variant-numeric: tabular-nums; }

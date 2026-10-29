@@ -71,11 +71,25 @@ without entering the cache. An older request snapshot never consumes a newer cac
 The single writer creates indexes for run/kind/sequence and run/span/sequence queries at startup.
 The viewer never creates indexes or writes projections to the business database.
 
-Live call pages load conversation bodies and action figures only when their views are opened.
-Polling revisions ignore transport-only fragments that do not change the displayed projection.
-Unchanged revisions return 204; hidden or closed tabs cancel pending refreshes and polling.
-Offline exports retain complete views and do not require the live service. Writer health is shown
-under Performance, with missing historical measurements explicitly unavailable.
+During execution, detailed report routes redirect to the task's **Live monitor**. Its cursor
+reads only new selected boundary events, with batches and the visible table capped at 200 records.
+The chart contains at most 120 ten-second buckets derived from that retained event window, not
+whole-task totals. Calls started, failures and model-call starts use separate lines. Existing table
+rows and chart paths are reused; hidden/closed tabs stop scheduling requests, and only one request
+is in flight. Unchanged revisions return 204. The monitor stops polling after executions and report
+publications settle; use Refresh after a later resume.
+
+Full call traces, replay, action evidence and outcomes are published after each execution settles
+(success, failure, cancellation or blocked checkpoint). Detailed pages use retained report data,
+not periodic trace reconstruction. Their charts do not poll. Refresh and on-demand evidence paging
+remain read-only. Missing publications use the existing report-only repair path; viewing a page
+does not dispatch work or silently mark an interrupted process successful. A hard process crash
+still requires kernel recovery to settle interrupted state and publish its pending report.
+
+Both views show local dates/times. Event sequence is authoritative for order, including identical
+or skewed timestamps. Final waterfalls preserve parent hierarchy and order siblings by first
+recorded event; start/end timestamps remain distinct from measured execution duration. Historical
+missing times stay unknown. Offline exports retain complete views and require no live service.
 
 Each invocation or resume records an execution segment with its own attempt ID and monotonic
 duration. Calls attach to that segment unless they already have a more specific parent. Later
@@ -271,8 +285,9 @@ History charts cover all recorded executions, independent of the task table's fi
 charts show recorded module-call durations, their median and nearest-rank P95. Unknown durations
 are excluded and counted explicitly. Slow-call bars link directly to their span in the call trace.
 Nested spans overlap, so these measurements are never summed into task elapsed time. Chart
-projections use `contracts/v1/workspace-view.schema.json`, refresh every three seconds, and retain
-the last valid snapshot during a connection failure. They do not write state or generate evidence.
+projections use `contracts/v1/workspace-view.schema.json` and remain static until explicitly
+reloaded. Slow-call rows include their recorded start and sequence. They do not write state or
+generate evidence. No CPU or memory improvement is claimed without workload measurements.
 
 Supporting browsers use [native cross-document transitions](https://developer.chrome.com/docs/web-platform/view-transitions/cross-document)
 for same-origin report navigation. Other browsers retain normal links. Neither path replaces document

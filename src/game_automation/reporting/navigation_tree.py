@@ -96,12 +96,17 @@ def navigation_tree(store, path):
             selected=identifier == task_id and run_id is None,
             symbol="grid",
         )
-        content = overview + folder(
-            f"executions:{identifier}",
-            "Executions",
-            "".join(executions),
-            opened=identifier == task_id,
-            note=str(len(executions)),
+        monitor = leaf("Live monitor", base, selected=path == base, symbol="grid")
+        content = (
+            overview
+            + monitor
+            + folder(
+                f"executions:{identifier}",
+                "Executions",
+                "".join(executions),
+                opened=identifier == task_id,
+                note=str(len(executions)),
+            )
         )
         groups.append(folder(identifier, task["title"], content, opened=identifier == task_id))
     root = leaf(

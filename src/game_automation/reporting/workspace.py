@@ -42,10 +42,12 @@ def workspace_view(store, *, run_id=None, task_id=None, links=()):
         task_id = run["task_id"]
         result["status"] = run["status"]
         result["subtitle"] = "This execution · measured module calls"
+        if run["status"] in ("queued", "running"):
+            return result
         rows = store.db.execute(
             "WITH endings AS (SELECT span_id,MAX(seq) AS last_seq FROM events "
             "WHERE run_id=? AND kind IN ('call.completed','call.failed','call.incomplete') "
-            "GROUP BY span_id) SELECT s.span_id,s.data,e.data AS ending FROM events s "
+            "GROUP BY span_id) SELECT s.seq,s.span_id,s.data,e.data AS ending FROM events s "
             "LEFT JOIN endings f ON f.span_id=s.span_id LEFT JOIN events e ON e.seq=f.last_seq "
             "WHERE s.run_id=? AND s.kind='call.started' ORDER BY s.seq",
             (run_id, run_id),
@@ -53,7 +55,8 @@ def workspace_view(store, *, run_id=None, task_id=None, links=()):
         durations = []
         states = Counter()
         for row in rows:
-            started = json.loads(row["data"])["payload"]
+            event = json.loads(row["data"])
+            started = event["payload"]
             end = json.loads(row["ending"]) if row["ending"] else None
             unfinished = "running" if run["status"] == "running" else "incomplete"
             states[end["kind"].split(".")[-1] if end else unfinished] += 1
@@ -64,6 +67,8 @@ def workspace_view(store, *, run_id=None, task_id=None, links=()):
                     {
                         "label": started.get("capability", "Unknown operation"),
                         "value": timing,
+                        "recorded_at": event["timestamp"],
+                        "sequence": row["seq"],
                         "href": f"trace.html#view=calls&span={row['span_id']}",
                         "tone": "accent" if started.get("capability") == "ai.decide" else "info",
                     }

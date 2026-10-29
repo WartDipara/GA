@@ -85,7 +85,9 @@ npm run trace
 ```
 
 Open the printed URL (default port: 8767). Select a task, then **Execution overview**.
-Use **Call trace**, **Model context**, **Actions**, **Elements** and **Outcome** to inspect it.
+While running, open **Live monitor** for the incremental activity chart and dated event table.
+After stopping, use **Call trace**, **Model context**, **Actions**, **Elements** and **Outcome**.
+Detailed reports do not poll; reload to view a later publication.
 Calls link to parent calls and retained inputs/outputs; actions link to screenshots.
 Use **Back** to return, or **Task overview** / **Task history** to change execution or task.
 

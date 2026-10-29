@@ -80,6 +80,18 @@ def render_action_cards(store, run_id, actions):
 
 def render_agent_trace(store, run_id, *, projector=None, live=False):
     view = agent_view(store, run_id, projector=projector, detail_views=() if live else None)
+    document = trace_document(store, run_id, view)
+    result = (document, view)
+    return result
+
+
+def render_retained_trace(store, run_id):
+    source = store.run_dir(run_id) / "reports/agent-trace.json"
+    view = json.loads(source.read_text(encoding="utf-8"))
+    return trace_document(store, run_id, view)
+
+
+def trace_document(store, run_id, view):
     assets = Path(__file__).parent / "web"
     script = (assets / "agent-trace.js").read_text(encoding="utf-8")
     script_element = f"<script>{script}</script>"
@@ -99,5 +111,4 @@ def render_agent_trace(store, run_id, *, projector=None, live=False):
         if store.run(run_id)["mode"] in ("gameplay", "workflow")
         else "",
     )
-    result = (document, view)
-    return result
+    return document

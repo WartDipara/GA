@@ -44,9 +44,10 @@
         <div class="workspace-body">
           <section class="task-heading">
             <div>
-              <p class="eyebrow">TASK OVERVIEW</p>
+              <p class="eyebrow">LIVE MONITOR</p>
               <h1 id="task-title">Connecting to task</h1>
               <p class="task-reference" id="task-reference"></p>
+              <a id="selected-report" class="trace-link" hidden>Open settled execution report</a>
             </div>
             <div class="refresh-summary">
               <span class="connection-dot"></span>
@@ -59,21 +60,24 @@
             records.</noscript
           >
           <section class="metrics" id="live-metrics" aria-label="Task overview"></section>
-          <section class="analysis-grid">
-            <article class="panel">
-              <div class="panel-heading">
-                <h2>Execution status</h2>
-                <span class="section-tag">TASK</span>
-              </div>
-              <div id="status-breakdown" class="status-breakdown"></div>
-            </article>
-            <article class="panel">
-              <div class="panel-heading">
-                <h2>Slowest module calls</h2>
-                <span class="section-tag">RECENT WINDOW</span>
-              </div>
-              <div id="duration-chart" class="duration-chart"></div>
-            </article>
+          <section class="panel activity-panel">
+            <div class="panel-heading">
+              <h2>Activity over time</h2><span id="activity-scale">Events / 10s</span>
+            </div>
+            <p class="activity-legend"><span>Calls started</span><span>Call failures</span>
+              <span>Model calls started</span></p>
+            <svg id="activity-chart" viewBox="0 0 1000 190" role="img"
+              aria-label="Waiting for recorded events" preserveAspectRatio="none">
+              <path class="activity-grid" d="M20 20H980 M20 70H980 M20 120H980 M20 170H980" />
+              <polyline id="activity-series-0" class="activity-line calls" />
+              <polyline id="activity-series-1" class="activity-line failures" />
+              <polyline id="activity-series-2" class="activity-line models" />
+            </svg>
+            <div class="activity-axis"><time id="activity-start"></time>
+              <time id="activity-end"></time></div>
+            <p class="panel-footnote">Latest 200 selected events, up to 20 minutes. Counts describe
+              this retained window, not task totals. Detailed analysis is published after execution
+              stops. No automatic full-trace reconstruction.</p>
           </section>
           <section class="trace-layout">
             <article class="panel trace-panel">
@@ -97,10 +101,10 @@
                   <option value="issues">Issues</option>
                 </select>
               </div>
-              <div class="event-columns"><span>Event / operation</span><span>Duration</span></div>
+              <div class="event-columns"><span>Recorded at · local time</span><span>Event / operation</span><span>Duration</span></div>
               <div id="live-events" class="event-list" aria-label="Recorded events"></div>
               <div class="panel-footnote" id="window-note">
-                Committed evidence only - Newest first
+                Committed evidence only · Oldest → newest by event sequence
               </div>
             </article>
             <aside class="panel inspector" aria-label="Event details">

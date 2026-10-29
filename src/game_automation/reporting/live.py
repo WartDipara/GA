@@ -14,15 +14,14 @@ from game_automation.common import FrameworkError, within
 from game_automation.errors import ErrorCode
 from game_automation.storage.store import Store
 
-from .agent_trace import agent_view
+from .agent_trace import agent_view, render_retained_trace
 from .compact_trace import render_compact
-from .execution import publication_status
-from .exploration import exploration_view, render_exploration
+from .execution import SETTLED_STATUSES
+from .live_feed import event_page
 from .history import execution_index, history_view, render_execution, render_history, task_document
 from .navigation import decorate_document, page_document, theme_document
 from .navigation_tree import live_workspace
 from .task_session import task_session
-from .trace import render_context, render_trace
 from .trace_cache import TraceProjectionCache, view_revision
 from .workspace import workspace_view
 
@@ -31,7 +30,7 @@ def trace_url(task_id, run_id):
     return f"/tasks/{task_id}/executions/{run_id}/reports/trace.html"
 
 
-def task_snapshot(store, task_id):
+def task_snapshot(store, task_id, *, after=-1, revision=0):
     executions = store.task_runs(task_id)
     for execution in executions:
         execution["trace_url"] = trace_url(task_id, execution["run_id"])
@@ -45,33 +44,17 @@ def task_snapshot(store, task_id):
         execution["label"] = inputs.get("workflow_key", execution["mode"])
         execution["parent_run"] = inputs.get("workflow_run")
         execution["apk_name"] = inputs.get("metadata", {}).get("apkName")
-        execution["report_publication"] = publication_status(store, execution["run_id"])
-    rows = store.db.execute(
-        "SELECT e.seq,e.data FROM events e JOIN runs r ON r.id=e.run_id "
-        "WHERE r.task_id=? "
-        "AND e.kind NOT IN ('rpc.in','rpc.out','provider.wire','ai.progress',"
-        "'ai.reasoning_summary') "
-        "AND e.kind NOT LIKE 'plugin.%.command.%' "
-        "ORDER BY e.seq DESC LIMIT 200",
-        (task_id,),
-    )
-    events = []
-    for row in rows:
-        event = json.loads(row["data"])
-        payload = event["payload"]
-        detail = json.dumps(payload, ensure_ascii=False, indent=2)
-        preview = {
-            "seq": row["seq"],
-            "run_id": event["run_id"],
-            "kind": event["kind"],
-            "span_id": event["span_id"],
-            "parent_span_id": event["parent_span_id"],
-            "label": payload.get("capability") or payload.get("stage") or event["kind"],
-            "duration_ms": payload.get("duration_ms"),
-            "detail": detail[:4000],
-            "truncated": len(detail) > 4000,
+        publication = store.events(execution["run_id"], kinds=("report.finished",), limit=1)
+        requests = store.events(execution["run_id"], kinds=("report.requested",), limit=1)
+        current = (
+            publication
+            and requests
+            and (publication[0]["payload"]["request_id"] == requests[0]["payload"]["request_id"])
+        )
+        execution["report_publication"] = {
+            "status": publication[0]["payload"].get("status") if current else "pending"
         }
-        events.append(preview)
+    page = event_page(store, task_id, after, revision)
     source_ids = store.task(task_id).get("source_ids", [])
     source_count = len(source_ids)
     apk_label = "APK" if source_count == 1 else "APKs"
@@ -79,7 +62,7 @@ def task_snapshot(store, task_id):
         "task_id": task_id,
         "title": f"{source_count} {apk_label}" if source_ids else "Game testing task",
         "executions": executions,
-        "events": events,
+        **page,
     }
     return snapshot
 
@@ -233,8 +216,10 @@ class TraceHandler(BaseHTTPRequestHandler):
             if query.get("after") == [str(revision)]:
                 self.respond(204, b"", "application/json")
                 return
-            snapshot = task_snapshot(store, task_id)
-            snapshot["revision"] = revision
+            after = int(query.get("after", ["-1"])[0])
+            if after < -1:
+                raise FrameworkError(ErrorCode.NOT_FOUND)
+            snapshot = task_snapshot(store, task_id, after=after, revision=revision)
             self.respond(200, json.dumps(snapshot, ensure_ascii=False), "application/json")
             return
         prefix = f"/tasks/{task_id}/executions/"
@@ -244,6 +229,24 @@ class TraceHandler(BaseHTTPRequestHandler):
         run = store.run(run_id)
         if not separator or run["task_id"] != task_id:
             raise FrameworkError(ErrorCode.NOT_FOUND)
+        detailed = {
+            "reports/trace.html",
+            "reports/context.html",
+            "reports/exploration.html",
+            "reports/agent-trace.json",
+            "reports/exploration.json",
+            "reports/session.json",
+        }
+        if relative in detailed and run["status"] not in SETTLED_STATUSES:
+            if relative.endswith(".html"):
+                self.send_response(303)
+                self.send_header("Location", f"/tasks/{task_id}/#run={run_id}")
+                self.send_header("Content-Length", "0")
+                self.send_header("Cache-Control", "no-store")
+                self.end_headers()
+            else:
+                self.respond(409, "Detailed report awaits execution settlement", "text/plain")
+            return
         if relative == "reports/workspace.json":
             self.respond(200, json.dumps(workspace_view(store, run_id=run_id)), "application/json")
             return
@@ -278,24 +281,22 @@ class TraceHandler(BaseHTTPRequestHandler):
             return
         if relative == "reports/trace.html":
             try:
-                document, _ = render_trace(
-                    store, run_id, projector=self.server.projections, live=True
-                )
+                document = render_retained_trace(store, run_id)
             except Exception:
                 document = render_compact(store, run_id, degraded=True)
             self.respond_document(store, decorate_document(store, run_id, document, "trace.html"))
             return
         if relative == "reports/exploration.html":
-            document, _ = render_exploration(store, run_id, current=True)
+            document = (store.run_dir(run_id) / "reports/exploration.html").read_text("utf-8")
             document = decorate_document(store, run_id, document, "exploration.html")
             self.respond_document(store, document)
             return
         if relative == "reports/exploration.json":
-            view = exploration_view(store, run_id)
-            self.respond(200, json.dumps(view, ensure_ascii=False), "application/json")
+            content = (store.run_dir(run_id) / "reports/exploration.json").read_text("utf-8")
+            self.respond(200, content, "application/json")
             return
         if relative == "reports/context.html":
-            document, _ = render_context(store, run_id)
+            document = (store.run_dir(run_id) / "reports/context.html").read_text("utf-8")
             self.respond_document(store, decorate_document(store, run_id, document, "context.html"))
             return
         if relative == "reports/agent-trace.json":
@@ -306,13 +307,18 @@ class TraceHandler(BaseHTTPRequestHandler):
             if query.get("after") == [str(revision)]:
                 self.respond(204, b"", "application/json")
                 return
-            view = agent_view(
-                store,
-                run_id,
-                projector=self.server.projections,
-                detail_views=detail,
-                session_before=int(query.get("before", ["0"])[0]),
-            )
+            if detail == ["sessions"] and query.get("before"):
+                view = agent_view(
+                    store,
+                    run_id,
+                    projector=self.server.projections,
+                    detail_views=detail,
+                    session_before=int(query["before"][0]),
+                )
+            else:
+                view = json.loads(
+                    (store.run_dir(run_id) / "reports/agent-trace.json").read_text("utf-8")
+                )
             view["revision"] = revision
             self.respond(200, json.dumps(view, ensure_ascii=False), "application/json")
             return

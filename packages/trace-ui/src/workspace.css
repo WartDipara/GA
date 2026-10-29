@@ -968,3 +968,5 @@ p:has(> [data-report-back][hidden]:only-child) {
     padding: 7px 10px;
   }
 }
+
+.ui-call-date { display: block; color: var(--muted); font-variant-numeric: tabular-nums; }

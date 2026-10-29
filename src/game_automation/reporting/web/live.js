@@ -6,6 +6,20 @@
   let pending = false;
   let timer;
   let snapshot;
+  let closed = false;
+  let metadataKey = '';
+  const eventRows = new Map();
+  let inspectorSequence;
+  const localTime = (value) => {
+    const date = new Date(value);
+    return value && Number.isFinite(date.getTime())
+      ? date.toLocaleString(undefined, {
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', second: '2-digit',
+        hour12: false, fractionalSecondDigits: 3,
+      })
+      : 'Unknown time';
+  };
   let revision = -1;
   const initialSelection = new URLSearchParams(location.hash.slice(1));
   let selectedRun = initialSelection.get('run') || '';
@@ -101,6 +115,10 @@
     });
     element('execution-tree').replaceChildren(...entries);
     element('execution-tree').scrollTop = scrollPosition;
+    const report = element('selected-report');
+    const selected = snapshot.executions.find((run) => run.run_id === selectedRun);
+    report.hidden = !selected || ['running', 'queued'].includes(selected.status);
+    if (!report.hidden) report.href = selected.index_url;
     element('execution-count').textContent = snapshot.executions.length;
     element('all-executions').classList.toggle('active', !selectedRun);
     element('all-executions').setAttribute('aria-pressed', String(!selectedRun));
@@ -113,74 +131,40 @@
   }
 
   function renderCharts() {
-    const counts = new Map();
-    snapshot.executions.forEach((run) => counts.set(run.status, (counts.get(run.status) || 0) + 1));
-    const breakdown = element('status-breakdown');
-    breakdown.replaceChildren();
-    const stack = node('div', undefined, 'status-stack');
-    stack.setAttribute('role', 'img');
-    stack.setAttribute(
-      'aria-label',
-      [...counts].map(([status, count]) => `${status}: ${count}`).join(', '),
-    );
-    for (const [status, count] of counts) {
-      const segment = node('span', undefined, `status-segment ${status}`);
-      segment.style.flex = count;
-      segment.title = `${status}: ${count} executions`;
-      stack.append(segment);
+    const events = snapshot.events.filter((event) => Number.isFinite(Date.parse(event.timestamp)));
+    const chart = element('activity-chart');
+    if (!events.length) return;
+    const timestamps = events.map((event) => Date.parse(event.timestamp));
+    const latest = Math.max(...timestamps);
+    const earliest = Math.max(Math.min(...timestamps), latest - 119 * 10000);
+    const start = Math.floor(earliest / 10000) * 10000;
+    const end = Math.floor(latest / 10000) * 10000;
+    const buckets = Array.from({ length: Math.floor((end - start) / 10000) + 1 },
+      () => [0, 0, 0]);
+    for (const event of events) {
+      const index = Math.floor((Date.parse(event.timestamp) - start) / 10000);
+      const bucket = buckets[index];
+      if (!bucket) continue;
+      if (event.kind === 'call.started') bucket[0] += 1;
+      if (event.kind === 'call.failed') bucket[1] += 1;
+      if (event.kind === 'call.started' && event.label === 'ai.decide') bucket[2] += 1;
     }
-    breakdown.append(stack);
-    const legend = node('div', undefined, 'status-legend');
-    for (const [status, count] of counts) {
-      const item = node('span');
-      item.append(
-        node('i', undefined, `status-dot ${status}`),
-        node('span', status),
-        node('strong', count),
-      );
-      legend.append(item);
+    const maximum = Math.max(1, ...buckets.flat());
+    for (let series = 0; series < 3; series += 1) {
+      const points = buckets.map((bucket, index) =>
+        `${20 + index / Math.max(1, buckets.length - 1) * 960},${170 - bucket[series] / maximum * 150}`,
+      ).join(' ');
+      element(`activity-series-${series}`).setAttribute('points', points);
     }
-    breakdown.append(legend);
-    if (!counts.size) breakdown.append(node('p', 'No executions recorded.', 'empty-state'));
-
-    const calls = snapshot.events
-      .filter(
-        (event) =>
-          /^call\.(completed|failed|incomplete)$/.test(event.kind) &&
-          Number.isFinite(event.duration_ms),
-      )
-      .sort((left, right) => right.duration_ms - left.duration_ms)
-      .slice(0, 5);
-    const chart = element('duration-chart');
-    chart.replaceChildren();
-    const maximum = Math.max(1, ...calls.map((event) => event.duration_ms));
-    for (const event of calls) {
-      const bar = button(
-        undefined,
-        () => {
-          selectedRun = event.run_id;
-          element('live-search').value = '';
-          element('event-category').value = 'all';
-          selectedEvent = event;
-          renderNavigation();
-          renderEvents();
-        },
-        'duration-row',
-      );
-      const label = node('span', operation(event), 'bar-label');
-      const track = node('span', undefined, 'bar-track');
-      const fill = node('span', undefined, `bar-fill ${category(event)}`);
-      fill.style.width = `${(100 * event.duration_ms) / maximum}%`;
-      track.append(fill);
-      bar.title = `${operation(event)}: ${duration(event.duration_ms)}. Open event details.`;
-      bar.append(label, track, node('strong', duration(event.duration_ms)));
-      chart.append(bar);
-    }
-    if (!calls.length)
-      chart.append(node('p', 'No completed call timings in this window.', 'empty-state'));
+    chart.setAttribute('aria-label', `Recorded events per 10 seconds; maximum ${maximum}`);
+    element('activity-scale').textContent = `0–${maximum} events / 10s`;
+    element('activity-start').textContent = localTime(start);
+    element('activity-end').textContent = localTime(end);
   }
 
   function renderInspector() {
+    if (inspectorSequence === selectedEvent?.seq) return;
+    inspectorSequence = selectedEvent?.seq;
     const inspector = element('event-inspector');
     inspector.replaceChildren();
     if (!selectedEvent) {
@@ -198,6 +182,8 @@
     const metadata = node('dl', undefined, 'metadata');
     const run = snapshot.executions.find((entry) => entry.run_id === event.run_id);
     for (const [label, value] of [
+      ['Recorded at (local)', localTime(event.timestamp)],
+      ['Event sequence', `#${event.seq}`],
       ['Execution', run ? runLabel(run) : event.run_id],
       ['Duration', duration(event.duration_ms)],
       ['Run ID', event.run_id],
@@ -206,7 +192,7 @@
     ])
       metadata.append(node('dt', label), node('dd', value));
     inspector.append(metadata);
-    if (run) {
+    if (run && !['running', 'queued'].includes(run.status)) {
       const link = node('a', 'Open full execution trace', 'trace-link');
       const source = encodeURIComponent(`${location.pathname}${location.hash}`);
       link.href = `${run.trace_url}?from=${source}#view=calls&span=${encodeURIComponent(event.span_id || event.run_id)}`;
@@ -228,7 +214,9 @@
 
   function renderEvents() {
     if (!snapshot) return;
-    const scrollPosition = element('live-events').scrollTop;
+    const eventList = element('live-events');
+    const scrollPosition = eventList.scrollTop;
+    const following = eventList.scrollHeight - scrollPosition - eventList.clientHeight < 40;
     const query = element('live-search').value.toLowerCase();
     const kind = element('event-category').value;
     const visible = snapshot.events.filter(
@@ -239,6 +227,12 @@
     );
     if (!selectedEvent) selectedEvent = visible[0];
     const rows = visible.map((event) => {
+      const existing = eventRows.get(event.seq);
+      if (existing) {
+        existing.classList.toggle('selected', selectedEvent?.seq === event.seq);
+        existing.setAttribute('aria-pressed', String(selectedEvent?.seq === event.seq));
+        return existing;
+      }
       const row = button(undefined, () => selectEvent(event), 'event-row');
       row.classList.toggle('selected', selectedEvent?.seq === event.seq);
       row.setAttribute('aria-pressed', String(selectedEvent?.seq === event.seq));
@@ -249,16 +243,28 @@
       );
       const text = node('span', undefined, 'event-label');
       text.append(node('strong', operation(event)), node('small', `#${event.seq} / ${event.kind}`));
-      row.append(marker, text, node('span', duration(event.duration_ms), 'event-duration'));
+      const time = node('time', localTime(event.timestamp), 'event-timestamp');
+      if (event.timestamp) time.dateTime = event.timestamp;
+      row.append(time, marker, text, node('span', duration(event.duration_ms), 'event-duration'));
+      eventRows.set(event.seq, row);
       return row;
     });
     if (!rows.length) rows.push(node('p', 'No events match the current filters.', 'empty-state'));
-    element('live-events').replaceChildren(...rows);
-    element('live-events').scrollTop = scrollPosition;
+    const list = element('live-events');
+    const retained = new Set(rows);
+    for (const child of [...list.children]) if (!retained.has(child)) child.remove();
+    rows.forEach((row, index) => {
+      if (list.children[index] !== row) list.insertBefore(row, list.children[index] || null);
+    });
+    const sequences = new Set(snapshot.events.map((event) => event.seq));
+    for (const sequence of eventRows.keys()) {
+      if (!sequences.has(sequence)) eventRows.delete(sequence);
+    }
+    element('live-events').scrollTop = following ? eventList.scrollHeight : scrollPosition;
     element('event-count').textContent = visible.length;
     const run = snapshot.executions.find((entry) => entry.run_id === selectedRun);
     element('window-note').textContent =
-      `${run ? runLabel(run) : 'All executions'} / Newest first / Bounded event window`;
+      `${run ? runLabel(run) : 'All executions'} / Oldest → newest by event sequence / Local time`;
     renderInspector();
   }
 
@@ -269,32 +275,38 @@
       );
     element('task-title').textContent = snapshot.title;
     element('task-reference').textContent = snapshot.task_id;
-    element('live-metrics').replaceChildren();
-    const count = (status) => snapshot.executions.filter((run) => run.status === status).length;
-    metric('Executions', snapshot.executions.length, 'Stages in this task');
-    metric('Running', count('running'), 'Currently active executions', 'accent');
-    metric('Succeeded', count('succeeded'), 'Completed executions', 'positive');
-    metric(
-      'Needs attention',
-      count('blocked') + count('failed'),
-      'Blocked or failed executions',
-      'warning',
-    );
+    const nextMetadata = JSON.stringify(snapshot.executions);
+    if (metadataKey !== nextMetadata) {
+      metadataKey = nextMetadata;
+      element('live-metrics').replaceChildren();
+      const count = (status) => snapshot.executions.filter((run) => run.status === status).length;
+      metric('Executions', snapshot.executions.length, 'Stages in this task');
+      metric('Running', count('running'), 'Currently active executions', 'accent');
+      metric('Succeeded', count('succeeded'), 'Completed executions', 'positive');
+      metric(
+        'Needs attention',
+        count('blocked') + count('failed'),
+        'Blocked or failed executions',
+        'warning',
+      );
+      renderNavigation();
+      inspectorSequence = undefined;
+    }
     if (selectedEvent)
       selectedEvent =
         snapshot.events.find((event) => event.seq === selectedEvent.seq) || selectedEvent;
-    renderNavigation();
     renderCharts();
     renderEvents();
   }
 
   function schedule() {
     clearTimeout(timer);
-    if (!paused) timer = setTimeout(refresh, interval * 1000);
+    if (!paused && !closed && !document.hidden)
+      timer = setTimeout(refresh, snapshot?.has_more ? 250 : interval * 1000);
   }
 
   async function refresh() {
-    if (pending) return;
+    if (pending || closed || document.hidden) return;
     clearTimeout(timer);
     pending = true;
     try {
@@ -304,14 +316,27 @@
       });
       if (response.status !== 204) {
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        snapshot = await response.json();
-        revision = snapshot.revision;
-        render();
+        const next = await response.json();
+        const changed = next.events.length || JSON.stringify(next.executions) !== metadataKey;
+        const events = new Map((snapshot?.events || []).map((event) => [event.seq, event]));
+        next.events.forEach((event) => events.set(event.seq, event));
+        next.events = [...events.values()].sort((left, right) => left.seq - right.seq).slice(-200);
+        snapshot = next;
+        revision = next.revision;
+        if (changed) render();
       }
       element('refresh-error').hidden = true;
       element('live-indicator').classList.remove('disconnected');
       element('refresh-state').textContent = `Updated ${new Date().toLocaleTimeString()}`;
-      element('live-indicator').textContent = paused ? 'Paused' : `Polling / ${interval}s`;
+      const settled = snapshot && !snapshot.has_more && snapshot.executions.length &&
+        snapshot.executions.every((run) => !['running', 'queued'].includes(run.status) &&
+          run.report_publication?.status !== 'pending');
+      if (settled) {
+        paused = true;
+        element('pause-refresh').textContent = 'Resume';
+      }
+      element('live-indicator').textContent = settled ? 'Settled / reports available' :
+        paused ? 'Paused' : `Polling / ${interval}s`;
     } catch (error) {
       element('refresh-error').hidden = false;
       element('refresh-error').textContent =
@@ -363,5 +388,11 @@
       renderEvents();
     });
   }
+  addEventListener('pagehide', () => { closed = true; clearTimeout(timer); });
+  addEventListener('pageshow', () => { closed = false; schedule(); });
+  document.addEventListener('visibilitychange', () => {
+    clearTimeout(timer);
+    if (!document.hidden && !paused) refresh();
+  });
   refresh();
 })();

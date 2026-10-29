@@ -9,9 +9,21 @@
   const collapsed = new Set();
   let busy = false;
   let refreshQueued = false;
-  let refreshTimer;
   let refreshController;
   let closed = false;
+  const localTime = (value) => {
+    const date = new Date(value);
+    return value && Number.isFinite(date.getTime())
+      ? date.toLocaleString(undefined, {
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', second: '2-digit',
+        hour12: false, fractionalSecondDigits: 3,
+      })
+      : 'Unknown time';
+  };
+  const firstSequence = (span) => span.events.reduce(
+    (minimum, event) => Math.min(minimum, event.seq), Infinity,
+  );
   const element = (tag, text, className) => {
     const node = document.createElement(tag);
     if (text !== undefined) node.textContent = text;
@@ -136,7 +148,7 @@
         const page = await response.json();
         more.remove();
         page.events.forEach((event) => {
-          node.append(detail(`#${event.seq} · ${event.kind}`, event));
+          node.append(detail(`#${event.seq} · ${localTime(event.timestamp)} · ${event.kind}`, event));
         });
         after = page.next_after;
         if (page.has_more) node.append(more);
@@ -161,7 +173,7 @@
     byId('trace-limit').hidden = !data.event_limit_reached;
     const snapshot = data.snapshot;
     byId('snapshot-kind').textContent = snapshot
-      ? `${snapshot.kind} / ${snapshot.business_status} · captured event #${snapshot.source_event_seq}`
+      ? `${snapshot.kind} / ${snapshot.business_status} · ${localTime(snapshot.generated_at)} · through event #${snapshot.source_event_seq}`
       : 'Historical snapshot metadata unavailable';
     byId('execution-name').textContent = `${data.spans[0].name} / ${data.spans[0].status}`;
     byId('identity').textContent = `${data.trace_id} / ${data.run_id}`;
@@ -211,6 +223,7 @@
       if (!children.has(parent)) children.set(parent, []);
       children.get(parent).push(span);
     });
+    for (const siblings of children.values()) siblings.sort((a, b) => firstSequence(a) - firstSequence(b));
     const filtered = search || kind !== 'all' || state !== 'all';
     const rows = [];
     function walk(parent, depth, seen) {
@@ -250,6 +263,10 @@
             label.append(caret);
           }
           label.append(element('span', span.kind, 'kind'), element('span', span.name, 'name'));
+          const sequence = firstSequence(span);
+          label.append(element('small',
+            `${localTime(span.start_time)} · ${Number.isFinite(sequence) ? `#${sequence}` : 'Sequence unknown'}`,
+            'span-date'));
           const track = element('div', undefined, 'track');
           const bar = element('span', undefined, `bar ${span.kind} ${span.status}`);
           const start = Date.parse(span.start_time) - origin;
@@ -293,6 +310,9 @@
     const fields = [
       ['Span', span.span_id],
       ['Parent', span.parent_span_id || 'Root'],
+      ['Started (local)', localTime(span.start_time)],
+      ['Ended (local)', localTime(span.end_time)],
+      ['First recorded event', Number.isFinite(firstSequence(span)) ? `#${firstSequence(span)}` : 'Unknown'],
       [timing ? 'Active execution time' : 'Duration', duration(span.duration_ms)],
       ['Events', span.events.length],
     ];
@@ -593,7 +613,6 @@
       refreshQueued = true;
       return;
     }
-    clearTimeout(refreshTimer);
     busy = true;
     refreshController = new AbortController();
     try {
@@ -607,6 +626,10 @@
         cache: 'no-store',
         signal: refreshController.signal,
       });
+      if (response.status === 409) {
+        location.href = `/tasks/${encodeURIComponent(data.trace_id)}/#run=${encodeURIComponent(data.run_id)}`;
+        return;
+      }
       if (response.status !== 204) {
         if (!response.ok) throw new Error('Unavailable');
         const next = await response.json();
@@ -625,18 +648,15 @@
           if (!loaded(activeView)) refreshQueued = true;
         }
       }
-      byId('connection').textContent = 'Read-only polling / 3s';
+      byId('connection').textContent = 'Retained report / manual refresh';
     } catch {
       if (!refreshController.signal.aborted)
         byId('connection').textContent = 'Refresh unavailable; retained snapshot';
     } finally {
       busy = false;
-      if (!closed && !document.hidden) {
-        const delay = refreshQueued ? 0 : 3000;
+      if (refreshQueued && !closed && !document.hidden) {
         refreshQueued = false;
-        refreshTimer = setTimeout(() => {
-          void refresh();
-        }, delay);
+        void refresh();
       }
     }
   }
@@ -702,19 +722,11 @@
   restore();
   addEventListener('pagehide', () => {
     closed = true;
-    clearTimeout(refreshTimer);
     refreshController?.abort();
   });
-  addEventListener('pageshow', () => {
-    closed = false;
-    void refresh();
-  });
+  addEventListener('pageshow', () => { closed = false; });
   document.addEventListener('visibilitychange', () => {
-    clearTimeout(refreshTimer);
     if (document.hidden) refreshController?.abort();
-    else void refresh();
   });
-  refreshTimer = setTimeout(() => {
-    void refresh();
-  }, 3000);
+  byId('connection').textContent = 'Retained report / manual refresh';
 })();

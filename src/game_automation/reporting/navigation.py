@@ -110,7 +110,9 @@ def workspace_document(document, store, *, run_id=None, task_id=None, current=""
         links = [{"label": "Task history", "href": "history.html", "current": True}]
     view = workspace_view(store, run_id=run_id, task_id=task_id, links=links)
     data = json.dumps(view, ensure_ascii=False).replace("<", "\\u003c")
-    charts = not run_id or current in ("trace.html", "index.html")
+    charts = not run_id or (
+        current in ("trace.html", "index.html") and view["status"] not in ("queued", "running")
+    )
     source = (
         f'<script id="workspace-data" type="application/json" '
         f'data-charts="{str(charts).lower()}">{data}</script>'
