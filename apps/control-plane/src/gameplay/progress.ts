@@ -64,7 +64,7 @@ export class ProgressStore {
 
   update(decision: Decision, observationId: string): void {
     const recovery = decision.recovery;
-    if (recovery) {
+    if (recovery && !this.catalogMode) {
       const attempts = this.data.recovery_attempts ?? {};
       if (recovery.phase === 'begin') {
         const count = (attempts[recovery.fault] ?? 0) + 1;

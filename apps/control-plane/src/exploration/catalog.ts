@@ -261,6 +261,7 @@ export class Catalog {
           ever_verified: known?.data.ever_verified ?? known?.status === 'verified',
           verification: known?.data.verification ?? null,
           verification_issue: known?.data.verification_issue ?? '',
+          ...(known?.data.supervision ? { supervision: known.data.supervision } : {}),
         },
       };
       const prior = records.find(

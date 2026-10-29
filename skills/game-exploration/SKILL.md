@@ -169,6 +169,12 @@ reuse the credential reference if necessary. Do not clear application data, chan
 revoke external sessions or repeatedly fight another active session. A recurring conflict is a
 blocker after at most two recovery rounds.
 
+Kernel exploration supervision is authoritative. Its feedback identifies repeated transitions,
+remaining recovery rounds and quarantined elements. Choose a different evidence-based route or
+another pending target after feedback. Renaming a state or fault does not reset recovery counts.
+Never retry quarantined elements. New animations and renamed screens are not verified progress.
+Treat tutorial overlays as temporary interruptions; later unlocks may introduce another tutorial.
+
 Declare recovery with a stable fault category: begin for a new recovery round, continue for its
 subsequent steps and resolved only when current evidence resolves the fault. A new login step is
 not a new recovery round. Kernel limits persist across batches. local_after screen values must be

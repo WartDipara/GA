@@ -22,7 +22,7 @@ export class Runtime {
   readonly cache = new Map<string, { facts: Facts; event: string }>();
   step: string | null = null;
   private started = 0;
-  watchdog: { check(): void } | null = null;
+  watchdog: { check(): void; observeProgress(proof: string): void } | null = null;
 
   constructor(
     readonly execution: Execution,

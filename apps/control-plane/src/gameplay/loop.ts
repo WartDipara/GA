@@ -179,8 +179,6 @@ export async function runLoop(runtime: Runtime, initial: Observation): Promise<v
         progress.pending = null;
         runtime.progress.save();
       });
-    if (exploration?.madeProgress)
-      watchdog.observeProgress(`catalog:${catalog?.session()?.data.novelty ?? 0}`);
     // Commit known outcomes and their catalog evidence before the watchdog can stop dispatch.
     watchdog.review(decision, view.observation, pending);
     runtime.progress.update(decision, view.observation.observation_id);

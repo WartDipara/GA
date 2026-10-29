@@ -359,6 +359,43 @@
             "verification_issue": {
               "type": "string",
               "maxLength": 240
+            },
+            "supervision": {
+              "type": "object",
+              "properties": {
+                "recovery_rounds": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "repeats": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "quarantined": {
+                  "type": "boolean"
+                },
+                "reason": {
+                  "type": "string"
+                },
+                "observation_id": {
+                  "type": "string"
+                },
+                "action_id": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "recovery_rounds",
+                "repeats",
+                "quarantined",
+                "reason",
+                "observation_id",
+                "action_id"
+              ],
+              "additionalProperties": false
             }
           },
           "required": [

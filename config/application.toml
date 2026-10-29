@@ -45,6 +45,8 @@ reasoning_effort = "medium"
 max_turns = 0
 no_progress_rounds = 24
 no_progress_seconds = 900
+# Kernel-owned recovery rounds per exploration target; counts survive resume.
+supervisor_recovery_rounds = 2
 evidence_budget_bytes = 4294967296
 reserve_bytes = 2147483648
 
