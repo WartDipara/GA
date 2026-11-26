@@ -43,6 +43,7 @@ lease.on('error', (error: Error) => {
 const store = new Store(root);
 const calls = new Map<string, AbortController>();
 const executions = new Map<string, AbortController>();
+let activeExecution: Execution | undefined;
 const cancelled = new Set<string>();
 const sockets = new Set<Socket>();
 let idle: NodeJS.Timeout | undefined;
@@ -115,9 +116,10 @@ const server = createServer((socket) => {
       ownedExecutions.add(id);
       const tool = async (operation: string, runId: string, input: Fields): Promise<unknown> => {
         const request = { operation, run_id: runId, input };
-        return peer.request('execution.tool', request, 0);
+        return peer.request('execution.tool', request, 0, operation === 'render' ? undefined : controller.signal);
       };
-      const execution = new Execution(store, tool, controller.signal, drainCalls);
+      const execution = new Execution(store, tool, controller, drainCalls);
+      activeExecution = execution;
       try {
         if (method === 'execution.create') {
           await drainCalls();
@@ -153,6 +155,8 @@ const server = createServer((socket) => {
         }
         throw new FrameworkError(ErrorCode.METHOD_NOT_FOUND, method);
       } finally {
+        activeExecution = undefined;
+        execution.deadline.dispose();
         executions.delete(id);
         ownedExecutions.delete(id);
         stopWhenIdle();
@@ -186,7 +190,12 @@ const server = createServer((socket) => {
           event_id: eventId,
           request_id: callId,
         });
-        const host = new Host(store, runId, object(params['configuration']), controller.signal);
+        const owner = store.input(runId)['workflow_run'] ?? runId;
+        const execution = activeExecution?.deadline.owner === owner ? activeExecution : undefined;
+        execution?.check(runId);
+        const signal = execution ? AbortSignal.any([controller.signal, execution.signal]) : controller.signal;
+        const admitAction = execution ? () => execution.checkAction(runId) : undefined;
+        const host = new Host(store, runId, object(params['configuration']), signal, admitAction);
         let result: unknown = null;
         let error: unknown = null;
         try {

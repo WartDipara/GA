@@ -94,6 +94,9 @@ def save_manifest(store, run_id, manifest, *, parent_run=None):
         "manifest_ref": "manifest.json",
         "manifest_sha256": digest(path.read_bytes()),
     }
+    seconds = manifest.get("application", {}).get("workflow", {}).get("total_timeout_seconds")
+    if seconds is not None:
+        snapshot_payload["task_timeout_seconds"] = seconds
     if parent_run is not None:
         snapshot_payload["parent_run"] = parent_run
     store.event(run_id, "run.snapshot", snapshot_payload)

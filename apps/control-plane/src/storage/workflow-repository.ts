@@ -22,14 +22,15 @@ export class WorkflowRepository {
     );
   }
 
-  gameplayChildren(workflowId: string) {
+  children(workflowId: string, mode?: string) {
     return this.db
-      .select({ id: runs.id })
+      .select({ id: runs.id, status: runs.status })
       .from(runs)
       .innerJoin(runInputs, eq(runInputs.run_id, runs.id))
-      .where(
-        and(eq(runs.mode, 'gameplay'), eq(jsonField(runInputs.spec, '$.workflow_run'), workflowId)),
-      )
+      .where(and(
+        eq(jsonField(runInputs.spec, '$.workflow_run'), workflowId),
+        mode === undefined ? undefined : eq(runs.mode, mode),
+      ))
       .orderBy(desc(insertionOrder(runs)))
       .all();
   }

@@ -94,7 +94,9 @@ export class Runtime {
 
   async pause(milliseconds: number): Promise<void> {
     this.check();
-    await delay(milliseconds, undefined, { signal: this.execution.signal });
+    const remaining = this.execution.deadline.remaining();
+    const duration = remaining === null ? milliseconds : Math.min(milliseconds, Math.ceil(remaining));
+    await delay(duration, undefined, { signal: this.execution.signal });
     this.check();
   }
 
@@ -148,6 +150,7 @@ export class Runtime {
         const observation = {
           ...result,
           observation_id: uid('obs'),
+          observed_at_ms: Date.now(),
           evidence_ref: `${reference}/screen.png`,
         };
         this.record('gameplay.observation', observation);
@@ -175,6 +178,7 @@ export class Runtime {
     intent: Omit<Partial<Pending>, 'action' | 'observation_id' | 'run_id' | 'image_ref'> = {},
   ): Promise<string> {
     await this.admit();
+    this.execution.checkAction(this.runId);
     decode('gameplay-action', action);
     if (exploration) {
       const target = this.store

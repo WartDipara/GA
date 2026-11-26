@@ -6,6 +6,7 @@ import { Store } from '../storage/store.js';
 import { integer, optionalText, type Fields } from '../utilities/values.js';
 import { within } from '../utilities/files.js';
 import { requireDiskSpace } from '../utilities/disk.js';
+import { actionReserveMs, defaultTaskSeconds, TaskDeadline } from './deadline.js';
 import { Scheduler } from './scheduler.js';
 import { play } from '../gameplay/play.js';
 import { finalizeGames, recoverFinalization } from '../gameplay/finalization.js';
@@ -20,6 +21,11 @@ const boundaries: Record<string, string[]> = {
     'gameplay.agent.rejected',
     'gameplay.agent.incomplete',
   ],
+  'gameplay.delegation.started': [
+    'gameplay.delegation.completed',
+    'gameplay.delegation.rejected',
+    'gameplay.delegation.incomplete',
+  ],
   'gameplay.step.started': [
     'gameplay.step.completed',
     'gameplay.step.failed',
@@ -33,14 +39,21 @@ const boundaries: Record<string, string[]> = {
 };
 
 export class Execution {
+  readonly deadline: TaskDeadline;
+  readonly signal: AbortSignal;
+
   constructor(
     readonly store: Store,
     readonly tool: Tool,
-    readonly signal: AbortSignal,
+    controller: AbortController,
     private readonly drain: () => Promise<void>,
-  ) {}
+  ) {
+    this.signal = controller.signal;
+    this.deadline = new TaskDeadline(store, controller);
+  }
 
   check(runId: string): void {
+    this.deadline.check();
     if (this.signal.aborted)
       throw this.signal.reason instanceof FrameworkError
         ? this.signal.reason
@@ -54,6 +67,15 @@ export class Execution {
       (parent && this.store.run(parent)['cancel_requested'])
     )
       throw new FrameworkError(ErrorCode.CANCELLED);
+  }
+
+  checkAction(runId: string): void {
+    this.check(runId);
+    const remaining = this.deadline.remaining();
+    if (remaining !== null && remaining < actionReserveMs) {
+      this.store.event(runId, 'task.deadline.closing', this.deadline.context());
+      throw new FrameworkError(ErrorCode.BUDGET_EXHAUSTED, 'Closing the task before its deadline');
+    }
   }
 
   async manifest(runId: string): Promise<Fields> {
@@ -80,8 +102,8 @@ export class Execution {
         status: failure.code === ErrorCode.CANCELLED ? 'cancelled' : 'blocked',
         reason: failure.details(),
       });
-      await this.publish(runId);
-      if (failure.code === ErrorCode.CANCELLED) throw failure;
+      if (!parentRun) await this.publish(runId);
+      if (this.signal.aborted || failure.code === ErrorCode.CANCELLED) throw failure;
     }
     return runId;
   }
@@ -175,6 +197,8 @@ export class Execution {
     const mode = text(run['mode']);
     if (['succeeded', 'failed', 'cancelled'].includes(text(run['status'])))
       throw new FrameworkError(ErrorCode.RUN_TERMINAL);
+    const started = Date.now();
+    const ownsDeadline = ['workflow', 'gameplay'].includes(mode) && !this.store.input(runId)['workflow_run'];
     this.store.beginSegment(runId);
     let loadedManifest: Fields | null = null;
     try {
@@ -191,14 +215,20 @@ export class Execution {
         ].includes(mode)
       )
         throw new FrameworkError(ErrorCode.RUN_MODE_REMOVED);
+      if (ownsDeadline) {
+        this.deadline.restore(runId);
+        const snapshot = this.store.events(runId, { kinds: ['run.snapshot'], limit: 1 }).at(-1);
+        this.deadline.start(runId, started, snapshot?.payload['task_timeout_seconds'] ?? defaultTaskSeconds);
+      }
       this.check(runId);
       const manifest = await this.manifest(runId);
       loadedManifest = manifest;
+      const application = object(manifest['application']);
+      this.check(runId);
       const unknown = this.store.actionRecords.hasUnknown(runId);
       if (!['device', 'gameplay'].includes(mode) && unknown)
         throw new FrameworkError(ErrorCode.ACTION_ALREADY_DISPATCHED);
       this.store.command('transition', { run_id: runId, status: 'running' });
-      const application = object(manifest['application']);
       const storage = object(application['storage']);
       const reserve = integer(storage['reserve_bytes']);
       const overhead = integer(storage['overhead_bytes_per_apk']);
@@ -229,6 +259,9 @@ export class Execution {
         });
         if (mode === 'gameplay') await play(this, runId, manifest, task);
         else {
+          const remaining = this.deadline.remaining();
+          if (remaining !== null) timeout = Math.min(timeout || Infinity, remaining / 1000);
+          this.check(runId);
           const stageInput = { mode, task, manifest, source_file: sourceFile, timeout_seconds: timeout };
           await this.tool('stage', runId, stageInput);
         }
@@ -240,7 +273,7 @@ export class Execution {
         stage: mode === 'workflow' ? this.store.run(runId)['stage'] : (stages[mode] ?? 'intake'),
       });
     } catch (error) {
-      if (this.signal.aborted) await this.drain();
+      this.deadline.check();
       const failure = frameworkError(
         this.signal.aborted && this.signal.reason instanceof FrameworkError
           ? this.signal.reason
@@ -258,14 +291,25 @@ export class Execution {
         status === 'failed'
       )
         status = 'blocked';
+      if (this.deadline.expired())
+        this.store.event(runId, 'task.deadline.exhausted', this.deadline.context());
       this.store.command('transition', { run_id: runId, status, reason: failure.details() });
     } finally {
       try {
-        if (loadedManifest && settledStatuses.has(text(this.store.run(runId)['status'])))
+        if (!this.deadline.expired() && loadedManifest && settledStatuses.has(text(this.store.run(runId)['status'])))
           await finalizeGames(this, runId, loadedManifest);
       } finally {
+        if (ownsDeadline) this.deadline.dispose();
         this.store.finishSegment(runId);
-        if (settledStatuses.has(text(this.store.run(runId)['status']))) await this.publish(runId);
+        if (!this.store.input(runId)['workflow_run'] &&
+            settledStatuses.has(text(this.store.run(runId)['status']))) {
+          if (mode === 'workflow') {
+            for (const child of this.store.workflows.children(runId)) {
+              if (settledStatuses.has(child.status)) await this.publish(child.id);
+            }
+          }
+          await this.publish(runId);
+        }
       }
     }
     return this.store.run(runId);

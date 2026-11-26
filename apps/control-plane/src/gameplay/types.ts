@@ -6,6 +6,7 @@ export type Progress = ContractMap['gameplay-progress'];
 export type Facts = ContractMap['perception-result'];
 export type Observation = ContractMap['device-capture-result'] & {
   observation_id: string;
+  observed_at_ms: number;
   evidence_ref: string;
 };
 export type Routine = ContractMap['gameplay-routine'];

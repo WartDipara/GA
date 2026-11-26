@@ -83,12 +83,13 @@ export class TestAgents {
     images: Image[],
     observation: Observation,
     question: string,
-  ): Promise<ContractMap[K]> {
+    parent: string | null = this.runtime.step,
+  ): Promise<{ response: ContractMap[K]; span: string }> {
     const { runtime } = this;
     const span = uid('span');
     const start = performance.now();
     const metadata = { role, question, observation_id: observation.observation_id };
-    runtime.record('gameplay.agent.started', metadata, span, runtime.step);
+    runtime.record('gameplay.agent.started', metadata, span, parent);
     try {
       await verifyPlanningDependencies(runtime);
       const config = object(runtime.manifest['skills_config']);
@@ -152,14 +153,14 @@ export class TestAgents {
         ...metadata, skills: loaded, summary, duration_ms: Math.round(performance.now() - start),
         context_version: object(context['handoff'] ?? {})['through_sequence'] ?? null,
         action_id: context['action_id'] ?? null, subgoal: context['subgoal'] ?? null,
-      }, span, runtime.step);
-      return response;
+      }, span, parent);
+      return { response, span };
     } catch (error) {
       if (!runtime.host.failure && !runtime.store.database.failure)
         runtime.record('gameplay.agent.rejected', {
           ...metadata, error: frameworkError(error).details(),
           duration_ms: Math.round(performance.now() - start),
-        }, span, runtime.step);
+        }, span, parent);
       throw error;
     }
   }
@@ -171,20 +172,48 @@ export class TestAgents {
     return typeof object(this.runtime.manifest['files'])[`skills/${path}`] === 'string' ? path : null;
   }
 
-  private async delegate(request: Delegation, view: View, images: Image[]): Promise<Fields> {
-    const comparison = request.specialty === 'comparison';
-    if (comparison && images.length < 2) {
-      const result = { missing_evidence: ['A comparison requires a second observation.'] };
-      return result;
-    }
-    const selected = comparison ? images.slice(0, 2) : images.slice(0, 1);
-    const skill = specialty[request.specialty];
+  private async delegate(
+    request: Delegation, view: View, images: Image[], role: string, parent: string,
+  ): Promise<Fields> {
+    const runtime = this.runtime;
+    const span = uid('span');
+    const started = performance.now();
+    const selected = images.slice(0, request.specialty === 'comparison' ? 2 : 1);
     const task = { question: request.question, observation_ids: selected.map((item) => item.id) };
-    const result = await this.call(`worker-${request.specialty}`, 'test-worker-result', 'test_workers',
-      [skill], task, selected, view.observation, request.question);
-    if (result.observations.some((fact) => !selected.some((item) => fact.evidence_ref === item.id)))
-      throw new FrameworkError(ErrorCode.AI_OUTPUT_INVALID, 'Worker cited an unsupplied observation');
-    return { ...result };
+    const metadata = {
+      capability: `gameplay.delegate.${request.specialty}`, role, ...request, ...task,
+    };
+    runtime.record('gameplay.delegation.started', metadata, span, parent);
+    try {
+      if (request.specialty === 'comparison' && selected.length < 2) {
+        const result = { missing_evidence: ['A comparison requires a second observation.'] };
+        runtime.record('gameplay.delegation.rejected', {
+          ...metadata, result, duration_ms: Math.round(performance.now() - started),
+        }, span, parent);
+        return result;
+      }
+      const result = await this.call(
+        `worker-${request.specialty}`, 'test-worker-result', 'test_workers',
+        [specialty[request.specialty]], task, selected, view.observation, request.question, span,
+      );
+      if (result.response.observations.some((fact) =>
+        !selected.some((item) => fact.evidence_ref === item.id)))
+        throw new FrameworkError(ErrorCode.AI_OUTPUT_INVALID, 'Worker cited an unsupplied observation');
+      runtime.record('gameplay.delegation.completed', {
+        ...metadata, worker_span_id: result.span, result: result.response,
+        duration_ms: Math.round(performance.now() - started),
+      }, span, parent);
+      return object(result.response);
+    } catch (error) {
+      if (!runtime.store.database.failure && !runtime.host.failure)
+        runtime.record(runtime.execution.signal.aborted
+          ? 'gameplay.delegation.incomplete' : 'gameplay.delegation.rejected', {
+          ...metadata, error: frameworkError(runtime.execution.signal.aborted
+            ? runtime.execution.signal.reason : error).details(),
+          duration_ms: Math.round(performance.now() - started),
+        }, span, parent);
+      throw error;
+    }
   }
 
   private async supplement(
@@ -193,6 +222,7 @@ export class TestAgents {
     view: View,
     images: Image[],
     used: Set<string>,
+    parent: string,
   ): Promise<Fields> {
     const lookup = 'run_id' in request;
     const key = lookup ? checkpointHash(request) : `worker-${request.specialty}`;
@@ -200,17 +230,19 @@ export class TestAgents {
       throw new FrameworkError(ErrorCode.GAMEPLAY_BLOCKED, 'Context request or delegation budget exhausted');
     used.add(key);
     this.watchdog.assistance();
-    const data = lookup ? await this.handoffs.read(handoff, request) : await this.delegate(request, view, images);
-    this.runtime.record('gameplay.agent.assistance', { role: handoff.role, request, result: data });
+    if (!lookup) return this.delegate(request, view, images, handoff.role, parent);
+    const data = await this.handoffs.read(handoff, request);
+    this.runtime.record('gameplay.agent.assistance', { role: handoff.role, request, result: data }, parent);
     return data;
   }
 
-  async decide(view: View, reason: string, assessment: Assessment | null, limit: number): Promise<Decision> {
+  async decide(
+    view: View, reason: string, assessment: Assessment | null, limit: number, pending: Pending | null,
+  ): Promise<Decision> {
     const { runtime } = this;
     const observation = view.observation;
     const current = await this.image(runtime.runId, observation.observation_id, observation.evidence_ref);
     const images = [current];
-    const pending = runtime.progress.data.pending;
     if (pending) images.push(await this.image(pending.run_id, pending.observation_id, pending.image_ref));
     const coordinates = current.coordinates;
     const perception = {
@@ -248,8 +280,14 @@ export class TestAgents {
         },
         subgoal: Object.values(progress.goals).find((item) => item.status === 'active')?.id ?? null,
         action_id: pending?.action_id ?? null,
-        last_action_execution: runtime.store.latestAction(runtime.runId),
+        last_action_execution: pending?.action_id
+          ? runtime.store.deviceAction(pending.run_id, pending.action_id)
+          : runtime.store.latestAction(runtime.runId),
         assessment,
+        time_budget: runtime.execution.deadline.context(),
+        passive_state: {
+          update: progress.update_wait ?? null, network: progress.network_wait ?? null,
+        },
         exploration_memory: this.catalog?.context() ?? null,
         available_skills: Object.entries(triggers).map(([name, description]) => ({
           name, description,
@@ -258,7 +296,7 @@ export class TestAgents {
         reference_skill: referenceSkill,
         supplemental,
       };
-      const decision: Decision = await this.call('test-lead', 'test-lead-decision', 'test_lead',
+      const { response: decision, span } = await this.call('test-lead', 'test-lead-decision', 'test_lead',
         ['test-lead', ...this.active], context, images, observation, reason);
       if (decision.context_sequence !== handoff.through_sequence)
         throw new FrameworkError(ErrorCode.STALE_OBSERVATION, 'Lead did not acknowledge the current handoff');
@@ -276,9 +314,9 @@ export class TestAgents {
         this.active.add(primary);
         this.active.add(decision.skill);
       } else if (decision.disposition === 'request_context' && decision.context_request) {
-        supplemental.push(await this.supplement(decision.context_request, handoff, view, images, used));
+        supplemental.push(await this.supplement(decision.context_request, handoff, view, images, used, span));
       } else if (decision.disposition === 'delegate' && decision.delegation) {
-        supplemental.push(await this.supplement(decision.delegation, handoff, view, images, used));
+        supplemental.push(await this.supplement(decision.delegation, handoff, view, images, used, span));
       } else if (['action', 'wait', 'complete', 'blocked'].includes(decision.disposition)) {
         if (decision.action?.type === 'credential' && !this.active.has('game-entry'))
           throw new FrameworkError(ErrorCode.CAPABILITY_DENIED, 'Credential input requires the entry Skill');
@@ -352,15 +390,16 @@ export class TestAgents {
         key_exchanges: this.handoffs.recent(handoff),
         action_id: pending?.action_id ?? null,
         evidence, supplemental, unavailable_observations: unavailable,
+        time_budget: runtime.execution.deadline.context(),
       };
-      const verdict = await this.call('evidence-judge', 'test-evidence-verdict', 'evidence_judge',
+      const { response: verdict, span } = await this.call('evidence-judge', 'test-evidence-verdict', 'evidence_judge',
         ['evidence-judge'], context, images, observation, question);
       if (verdict.context_sequence !== handoff.through_sequence)
         throw new FrameworkError(ErrorCode.STALE_OBSERVATION, 'Judge did not acknowledge the current handoff');
       if (verdict.status === 'delegate' && verdict.delegation) {
-        supplemental.push(await this.supplement(verdict.delegation, handoff, view, images, used));
+        supplemental.push(await this.supplement(verdict.delegation, handoff, view, images, used, span));
       } else if (verdict.status === 'request_context' && verdict.context_request) {
-        supplemental.push(await this.supplement(verdict.context_request, handoff, view, images, used));
+        supplemental.push(await this.supplement(verdict.context_request, handoff, view, images, used, span));
       } else if (verdict.status === 'unknown' || verdict.status === 'verified' || verdict.status === 'deviated') {
         if (verdict.evidence_refs.some((id) => !images.some((item) => item.id === id)) ||
             (verdict.status !== 'unknown' && !verdict.evidence_refs.includes(current.id)))

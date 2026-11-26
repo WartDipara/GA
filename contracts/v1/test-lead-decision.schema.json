@@ -681,6 +681,85 @@
     "context_sequence": {
       "type": "integer",
       "minimum": 0
+    },
+    "update_progress": {
+      "type": "object",
+      "properties": {
+        "stage": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "unit": {
+          "enum": [
+            "percent",
+            "bytes",
+            "unknown"
+          ]
+        },
+        "completed": {
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "total": {
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "observation_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 240
+        }
+      },
+      "required": [
+        "stage",
+        "unit",
+        "completed",
+        "total",
+        "observation_id"
+      ],
+      "additionalProperties": false
+    },
+    "network_issue": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "enum": [
+            "connection-error",
+            "explicit-installation-error"
+          ]
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "observation_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 240
+        }
+      },
+      "required": [
+        "kind",
+        "message",
+        "observation_id"
+      ],
+      "additionalProperties": false
     }
   },
   "required": [

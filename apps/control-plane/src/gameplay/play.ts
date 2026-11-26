@@ -8,6 +8,7 @@ import { type Fields } from '../utilities/values.js';
 import { previousClose } from '../storage/lifecycle.js';
 import type { Execution } from '../workflow/execution.js';
 import { executeRoutine, Perception } from './local.js';
+import { readSettlement } from './settlement.js';
 import { runTestWorkflow } from './test-workflow.js';
 import { ProgressStore } from './progress.js';
 import { confirmSession, Runtime } from './runtime.js';
@@ -27,13 +28,14 @@ function sameProcess(before: Observation['runtime'], after: Observation['runtime
 }
 
 async function reconcile(runtime: Runtime, observation: Observation): Promise<void> {
-  const previous = runtime.store.latestAction(runtime.runId);
   const progress = runtime.progress.data;
-  if (previous && ['verified', 'reconciled'].includes(text(previous['status']))) {
-    for (const path of progress.paths)
-      if (path.action_id === previous['action_id'])
-        path.status = text(object(previous['result'] ?? {})['status'] ?? previous['status']);
-  }
+  const checkpoint = progress.pending;
+  const awaitingProjection = checkpoint && readSettlement(runtime, checkpoint);
+  const previous = checkpoint?.action_id
+    ? runtime.store.deviceAction(checkpoint.run_id, checkpoint.action_id)
+    : runtime.store.latestAction(runtime.runId);
+  if (checkpoint?.action_id && !previous)
+    throw new FrameworkError(ErrorCode.ACTION_ALREADY_DISPATCHED, 'Checkpoint action is missing from the ledger');
   let resolved = true;
   if (previous && ['unknown', 'executed', 'prepared'].includes(text(previous['status']))) {
     const priorRun = text(previous['run_id']);
@@ -97,7 +99,7 @@ async function reconcile(runtime: Runtime, observation: Observation): Promise<vo
         'Fresh observation saved; pending action requires reconciliation',
       );
   }
-  if (resolved) progress.pending = null;
+  if (resolved && !awaitingProjection) progress.pending = null;
   runtime.progress.save();
 }
 
@@ -153,7 +155,7 @@ export async function play(
   task: Fields,
 ): Promise<void> {
   const store = execution.store;
-  const host = Host.fromManifest(store, runId, manifest, execution.signal);
+  const host = Host.fromManifest(store, runId, manifest, execution.signal, () => execution.checkAction(runId));
   const call = (capability: string, input: Fields): Promise<unknown> =>
     host.execute('call', input, {
       capability,
@@ -188,11 +190,12 @@ export async function play(
     adb_executable: actual.adb_executable,
   };
   if (!previous) store.event(runId, 'device.session.bound', { request: session, session: actual });
+  const apkKey = `${text(task['source_run'])}:${String(task['apk_index'])}`;
   store.command('reserve_device', {
     run_id: runId,
     instance_id: actual.instance_id,
     instance_index: actual.instance_index,
-    apk_key: `${text(task['source_run'])}:${String(task['apk_index'])}`,
+    apk_key: apkKey,
   });
   const installed = decode(
     'device-inspect-result',
@@ -207,6 +210,7 @@ export async function play(
     throw new FrameworkError(ErrorCode.DEVICE_PACKAGE_CONFLICT);
   if (
     previousClose(store, runId) &&
+    !store.actionRecords.hasUnresolvedForWorkspace(actual.instance_id, apkKey) &&
     !['capture', 'activate-game', 'return-to-game', 'routine'].includes(text(task['goal']))
   ) {
     const restoration = {

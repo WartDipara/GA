@@ -42,7 +42,10 @@ export class Peer {
     void this.done.catch(() => undefined);
   }
 
-  async request(method: string, params: Message, timeoutMs = 30_000): Promise<unknown> {
+  async request(
+    method: string, params: Message, timeoutMs = 30_000, signal?: AbortSignal,
+  ): Promise<unknown> {
+    signal?.throwIfAborted();
     if (this.pending.size >= MAX_PENDING) throw new FrameworkError(ErrorCode.RPC_BACKPRESSURE);
     const id = `rpc_${randomUUID().replaceAll('-', '')}`;
     const response = new Promise<unknown>((resolve, reject) => {
@@ -57,11 +60,16 @@ export class Peer {
             }, timeoutMs);
       this.pending.set(id, { resolve, reject, timer });
     });
+    const abort = (): void => {
+      this.pending.get(id)?.reject(frameworkError(signal?.reason));
+    };
+    signal?.addEventListener('abort', abort, { once: true });
     void response.catch(() => undefined);
     try {
       await this.send({ id, method, params });
       return await response;
     } finally {
+      signal?.removeEventListener('abort', abort);
       const pending = this.pending.get(id);
       if (pending) clearTimeout(pending.timer);
       this.pending.delete(id);

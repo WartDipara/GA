@@ -77,6 +77,14 @@ use the same lock ownership rather than acquiring it again. Each child inherits 
 manifest and shared resource references; this does not copy Skills or contracts. Child runs remain
 inside the same task's `executions/` directory. There are no new business tables or log files.
 
+The frozen `[workflow].total_timeout_seconds` setting defaults to 3,600 seconds. The kernel
+records one wall-clock deadline before loading the execution manifest. The deadline applies across
+stages, APKs and standalone `play`. Resume and `--new-batch` inherit an existing deadline, including
+elapsed downtime. Work that needs a fresh budget requires a new task. The last five seconds are
+reserved for settlement and new device actions are denied. On expiry the kernel cancels remaining
+business calls and blocks further dispatch. An already-issued Android command can have an unknown
+outcome. Report rendering occurs after business settlement and has a separate lifecycle.
+
 SQLite `workflow.stage.*` events record stage starts, child execution bindings, completions,
 interruptions and failures. Each attempt has its own span and monotonic `duration_ms`. An interrupted
 attempt has unknown duration. Recovering a child's already committed success does not invent a

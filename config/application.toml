@@ -50,4 +50,6 @@ evidence_budget_bytes = 4294967296
 reserve_bytes = 2147483648
 
 [workflow]
+# Wall-clock limit for the entire workflow or a standalone play execution.
+total_timeout_seconds = 3600
 stages = ["preprocess", "environment", "prepare", "launch", "play", "report"]

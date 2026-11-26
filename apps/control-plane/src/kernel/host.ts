@@ -66,7 +66,9 @@ export class Host {
       }
     | undefined;
 
-  static fromManifest(store: Store, runId: string, manifest: Fields, signal: AbortSignal): Host {
+  static fromManifest(
+    store: Store, runId: string, manifest: Fields, signal: AbortSignal, admitAction?: () => void,
+  ): Host {
     const providers: Fields = {};
     for (const value of Object.values(object(manifest['plugins']))) {
       const plugin = object(value);
@@ -76,7 +78,7 @@ export class Host {
       }
     }
     const configuration = { application: manifest['application'], providers };
-    return new Host(store, runId, configuration, signal);
+    return new Host(store, runId, configuration, signal, admitAction);
   }
 
   constructor(
@@ -84,6 +86,7 @@ export class Host {
     readonly runId: string,
     configuration: Fields,
     private readonly signal: AbortSignal,
+    private readonly admitAction?: () => void,
   ) {
     this.application = object(configuration['application']);
     this.workflowRun = optionalText(store.input(runId)['workflow_run']);
@@ -498,6 +501,7 @@ export class Host {
         return acknowledgement;
       }
       if (method === 'host.action') {
+        this.admitAction?.();
         const session = object(input['session']);
         const expected = { instance_id: session['instance_id'], serial: session['serial'] };
         if (
@@ -625,7 +629,7 @@ export class Host {
         await peer.request(
           'initialize',
           { protocol_version: '1.0', features: ['event-batches-v1'] },
-          handshake,
+          handshake, controller.signal,
         ),
       );
       if (
@@ -634,7 +638,7 @@ export class Host {
         canonical(initialized['capabilities']) !== canonical(plugin.capabilities)
       )
         throw new FrameworkError(ErrorCode.PLUGIN_INCOMPATIBLE);
-      if (canonical(await peer.request('health', {}, handshake)) !== canonical({ ok: true }))
+      if (canonical(await peer.request('health', {}, handshake, controller.signal)) !== canonical({ ok: true }))
         throw new FrameworkError(ErrorCode.PLUGIN_UNHEALTHY);
       const context = {
         task_id: this.store.run(this.runId)['task_id'],
@@ -642,7 +646,8 @@ export class Host {
         ...ids,
       };
       this.check(controller.signal);
-      return peer.request('invoke', { capability, input: redact(input), context }, timeout * 1000);
+      const request = { capability, input: redact(input), context };
+      return peer.request('invoke', request, timeout * 1000, controller.signal);
     };
     let interval: NodeJS.Timeout | undefined;
     let deadline: NodeJS.Timeout | undefined;

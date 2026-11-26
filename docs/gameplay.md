@@ -92,9 +92,12 @@ remain bound across batches; identity changes require attention.
 Pending actions follow the kernel ledger. A failure before dispatch clears the pending proposal
 only when no intent was created or the new intent was rejected. Unknown/executed intents retain
 their action IDs for reconciliation, including failed cached routines. No new proposal may replace
-an unresolved one. When accepted, outcomes and their progress commit through the existing writer before the next
-device action. An interrupted verification keeps the pending action available for reconciliation. Unresolved installation
-intents return to device preparation instead of being decoded as gameplay actions.
+an unresolved one. A clear verdict commits with the original action and observation references
+before the lead's next decision or exploration inventory validation. Resume reads that receipt
+without repeating the verdict. An interrupted exploration projection rebuilds coverage from the
+ledger and retains missing evidence as unknown. An interrupted verification keeps the original
+action available for reconciliation. Unresolved installation intents return to device preparation.
+The kernel leaves a game with unresolved input available for fresh observation.
 
 ```powershell
 uv run game-auto resume <run_id>
@@ -115,6 +118,17 @@ lead decisions. At either limit, the workflow can settle pending work and stops 
 Perception returns frame differences and accessible targets. Canvas semantics remain unknown when
 local evidence cannot identify them. Stability does not establish loading completion. Known
 transition and battle waiting use local observations without per-frame model calls.
+
+During updates, the lead identifies the stage and reports visible bytes or percentages. The kernel
+compares observations from the same running process and stage. It estimates remaining time from
+measured progress, bounds the wait to 2–60 seconds and samples again. Missing or unchanged readings
+use bounded backoff. Waits respect the task deadline and never send device input. This path is
+available while an action is unknown, with the lead limited to observations and waiting.
+
+Connection errors suspend new input while the kernel observes again after 3 and 10 seconds. The
+judge can verify a specific visible client rejection or recovery backed by the original and current
+observations. A generic error that persists remains an unknown cause. Owned Logcat snapshots are
+available as diagnostics.
 
 `--goal routine --routine <file.json>` accepts `gameplay-routine`: at most five steps, each with a
 screen guard and explicit before/after predicates. Learned routines additionally require exact
@@ -149,7 +163,9 @@ uv run game-auto compare-games <first_run> <second_run>
 
 Gameplay JSON/HTML show agent nodes, decisions, action paths, before and after evidence, AI calls,
 deterministic steps, waiting, correction and cache statistics. Rebuilding them never contacts devices
-or models. Large traces use bounded HTML previews; complete events remain in SQLite and `trace`
+or models. A delegation span links the issuing core turn, scoped question, supplied observations,
+worker turn, duration and result. Interrupted requests remain visible with their recorded status.
+Large traces use bounded HTML previews; complete events remain in SQLite and `trace`
 streams them. Large context views identify their limited event window. The existing context
 projection remains inspired by dsh-context.
 

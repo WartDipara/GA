@@ -380,12 +380,13 @@ export class Catalog {
     this.save([session]);
   }
 
-  reconcileLedger(): void {
+  reconcileLedger(projectingAction?: string): void {
     const records = this.records();
     const changes: Record[] = [];
     const events: { kind: string; payload: object }[] = [];
     for (const element of records) {
       if (element.kind !== 'element') continue;
+      if (projectingAction && element.data.action_id === projectingAction) continue;
       if (element.status === 'in_progress' && element.data.action_id) {
         const taskId = text(this.runtime.store.run(this.runtime.runId)['task_id']);
         const row = this.runtime.store.actionRecords.forTask(taskId, element.data.action_id);

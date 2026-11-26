@@ -171,7 +171,7 @@ export class Exploration {
 
   async review(decision: Decision, view: View, pending: Pending | null): Promise<Page | null> {
     this.scrollKey = null;
-    this.catalog.reconcileLedger();
+    this.catalog.reconcileLedger(pending?.action_id);
     const inventory = decision.exploration;
     if (!inventory)
       throw new FrameworkError(ErrorCode.AI_OUTPUT_INVALID, 'Exploration inventory missing');

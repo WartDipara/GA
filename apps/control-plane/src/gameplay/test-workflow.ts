@@ -7,6 +7,8 @@ import { Exploration } from '../exploration/controller.js';
 import { Knowledge } from './knowledge.js';
 import { executeRoutine, Perception, route, verifiesLocalOutcome, type View } from './local.js';
 import { TestAgents, type Assessment } from './agents.js';
+import { PassiveWait } from './passive-wait.js';
+import { readSettlement, settleAction } from './settlement.js';
 import { Watchdog } from './watchdog.js';
 import type { Runtime } from './runtime.js';
 import type { Decision, Observation, Pending } from './types.js';
@@ -125,6 +127,7 @@ async function updateIdentity(
 
 export async function runTestWorkflow(runtime: Runtime, initial: Observation): Promise<void> {
   const perception = new Perception(runtime);
+  const passive = new PassiveWait(runtime, perception);
   const exploration = runtime.task['goal'] === 'explore' ? new Exploration(runtime) : null;
   const catalog = exploration?.catalog ?? null;
   catalog?.reconcileLedger();
@@ -146,14 +149,17 @@ export async function runTestWorkflow(runtime: Runtime, initial: Observation): P
     cycles += 1;
     if (cycles >= maximumWorkflowCycles && !progress.pending)
       throw new FrameworkError(ErrorCode.BUDGET_EXHAUSTED, 'Workflow cycle limit reached; resume to continue');
-    if (exploration && progress.pending && (await exploration.verifyKnown(view))) continue;
+    const pending = progress.pending;
+    const recorded = pending ? readSettlement(runtime, pending) : null;
+    if (exploration && pending && !recorded && (await exploration.verifyKnown(view))) continue;
     const limit = integer(runtime.task['max_turns'] ?? 0);
     if (limit && agents.turns >= limit && !progress.pending)
       throw new FrameworkError(
         ErrorCode.BUDGET_EXHAUSTED,
         'Requested planning-turn boundary reached; resume to continue',
       );
-    if (exploration && !progress.pending && !watchdog.reconciling && cachedSteps < 5) {
+    const passiveState = progress.update_wait || progress.network_wait;
+    if (exploration && !progress.pending && !passiveState && !watchdog.reconciling && cachedSteps < 5) {
       try {
         const before = await exploration.attempt(view);
         if (before) {
@@ -172,7 +178,7 @@ export async function runTestWorkflow(runtime: Runtime, initial: Observation): P
         view = await perception.settle(view.observation);
       }
     }
-    if (!catalog && !progress.pending && !watchdog.reconciling && cachedSteps < 5) {
+    if (!catalog && !progress.pending && !passiveState && !watchdog.reconciling && cachedSteps < 5) {
       const steps = knowledge.routine(view.observation, view.facts).slice(0, 5 - cachedSteps);
       if (steps.length) {
         runtime.record('gameplay.cache.hit', { steps: steps.length });
@@ -197,12 +203,11 @@ export async function runTestWorkflow(runtime: Runtime, initial: Observation): P
     if (watchdog.data.rounds >= 3) selection.reason = 'no-verified-progress';
     runtime.record('gameplay.route', selection);
     runtime.begin(selection.reason);
-    const pending = progress.pending;
-    let assessment: Assessment | null = null;
+    let assessment: Assessment | null = recorded;
     let source = 'evidence-judge';
-    if (pending) {
-      const execution = runtime.store.latestAction(runtime.runId);
-      if (!pending.action_id || execution?.['action_id'] !== pending.action_id)
+    if (pending && !recorded) {
+      const execution = pending.action_id ? runtime.store.deviceAction(pending.run_id, pending.action_id) : null;
+      if (!execution || !['executed', 'unknown'].includes(text(execution['status'])))
         throw new FrameworkError(ErrorCode.ACTION_ALREADY_DISPATCHED, 'Pending action and ledger disagree');
       if (execution['status'] === 'executed' &&
           view.observation.runtime.focused_display?.package_name === runtime.task['target'] &&
@@ -226,54 +231,42 @@ export async function runTestWorkflow(runtime: Runtime, initial: Observation): P
       if (assessment.status === 'unknown') {
         runtime.record('gameplay.outcome.unknown', { action_id: pending.action_id, ...assessment });
         watchdog.assistance();
-        view = await perception.wait(view.observation);
+        const observationOnly = await agents.decide(
+          view, 'pending-outcome-observation-only', assessment, 0, pending,
+        );
+        const refreshed = await passive.evaluate(observationOnly, view, agents);
+        view = refreshed ?? await perception.wait(view.observation);
         continue;
       }
+      settleAction(runtime, pending, view, assessment, source);
     }
-    const decision = await agents.decide(view, selection.reason, assessment, pending ? 0 : limit);
+    if (pending && recorded) {
+      catalog?.reconcileLedger();
+      runtime.record('gameplay.outcome.reused', { action_id: pending.action_id, ...recorded });
+    }
+    const decision = await agents.decide(view, selection.reason, assessment, pending ? 0 : limit, pending);
+    const projection = exploration && !recorded && pending?.exploration ? pending : null;
+    if (pending && !projection) {
+      if (assessment?.status === 'verified' && !catalog && !recorded)
+        knowledge.learn(pending, view.observation, view.facts);
+      progress.pending = null;
+      runtime.progress.save();
+    }
+    const refreshed = await passive.evaluate(decision, view, agents);
+    if (refreshed) {
+      view = refreshed;
+      continue;
+    }
     cachedSteps = 0;
     const requestedWait = decision.disposition === 'wait' || decision.action?.type === 'wait';
-    const page = exploration ? await exploration.review(decision, view, pending) : null;
-    if (pending && assessment && assessment.status !== 'unknown') {
-      const settled = assessment;
+    const page = exploration ? await exploration.review(decision, view, projection) : null;
+    if (exploration && projection && assessment) {
       runtime.store.database.transaction(() => {
-        const outcome = {
-          source,
-          action_id: pending.action_id,
-          observation_run: runtime.runId,
-          observation_id: view.observation.observation_id,
-          ...settled,
-        };
-        runtime.outcome(
-          pending.run_id,
-          text(pending.action_id),
-          settled.status === 'verified' ? 'verified' : 'reconciled',
-          outcome,
-        );
-        exploration?.outcome(decision, view, pending, page, settled.status === 'verified');
-        if (pending.test_attempt && settled.status !== 'unknown') {
-          const attempts = progress.test_attempts ??= {};
-          attempts[pending.test_attempt] = settled.status;
-        }
-        runtime.record('gameplay.outcome', outcome);
-        const path = progress.paths.find((item) => item.action_id === pending.action_id);
-        if (path) {
-          path.status = settled.status;
-          path.after = view.observation.observation_id;
-        } else if (pending.test_objective) {
-          progress.paths.push({
-            run_id: pending.run_id, action_id: text(pending.action_id), before: pending.observation_id,
-            after: view.observation.observation_id, objective: pending.test_objective,
-            status: settled.status, type: pending.action.type,
-          });
-        }
-        if (!catalog && settled.status === 'verified')
-          knowledge.learn(pending, view.observation, view.facts);
+        exploration.outcome(decision, view, projection, page, assessment.status === 'verified');
         progress.pending = null;
         runtime.progress.save();
       });
     }
-    // Commit known outcomes and their catalog evidence before the watchdog can stop dispatch.
     watchdog.review(decision, view.observation, pending, assessment);
     await updateIdentity(runtime, agents, decision, view);
     runtime.progress.update(decision, view.observation.observation_id);

@@ -402,13 +402,21 @@ export class Store {
     const apkKey = `${String(task['source_run'])}:${String(task['apk_index'])}`;
     const row = this.actionRecords.latest(apkKey, task['kind'] === 'gameplay');
     if (!row) return null;
-    const action = {
-      run_id: row['run_id'],
-      action_id: row['action_id'],
-      status: row['status'],
-      ...parsed(row['result']),
+    return this.actionReceipt(text(row.run_id), text(row.action_id), row);
+  }
+
+  deviceAction(runId: string, actionId: string): Fields | null {
+    const row = this.actionRecords.byId(runId, actionId);
+    return row ? this.actionReceipt(runId, actionId, row) : null;
+  }
+
+  private actionReceipt(
+    runId: string, actionId: string, row: { status: string | null; result: string | null },
+  ): Fields {
+    const receipt = {
+      ...parsed(row.result), run_id: runId, action_id: actionId, status: text(row.status),
     };
-    return action;
+    return receipt;
   }
 
   checkCleanup(): void {

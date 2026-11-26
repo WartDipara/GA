@@ -2,27 +2,36 @@ import { object, text } from '@game-automation/contracts';
 import { ErrorCode, frameworkError } from '@game-automation/contracts/errors';
 import { Host } from '../kernel/host.js';
 import { uid, type Fields } from '../utilities/values.js';
+import { actionReserveMs } from '../workflow/deadline.js';
 import type { Execution } from '../workflow/execution.js';
 
 /** Settled-state cleanup is independent of business outcomes and report-only recovery. */
-export async function closeGame(
+async function closeGame(
   execution: Execution,
   runId: string,
   manifest: Fields,
-): Promise<boolean> {
+): Promise<void> {
   const store = execution.store;
   const task = store.input(runId);
   const bound = store.events(runId, { kinds: ['device.session.bound'], limit: 1 }).at(-1);
-  if (!bound) return false;
+  if (!bound) return;
+  const instance = text(task['instance_id']);
+  const apkKey = `${String(task['source_run'])}:${String(task['apk_index'])}`;
+  const remaining = execution.deadline.remaining();
+  if (store.actionRecords.hasUnresolvedForWorkspace(instance, apkKey) ||
+      (remaining !== null && remaining < actionReserveMs))
+    return;
   const state = store.events(runId, { kinds: ['run.state'], limit: 1 }).at(-1);
   const attempted = store.events(runId, { kinds: ['gameplay.lifecycle.started'], limit: 1 }).at(-1);
   if (
     attempted?.payload['operation'] === 'close' &&
     attempted.payload['state_event_id'] === state?.event_id
   )
-    return false;
+    return;
   try {
-    const host = Host.fromManifest(store, runId, manifest, AbortSignal.timeout(90_000));
+    const limit = AbortSignal.timeout(90_000);
+    const signal = remaining === null ? limit : AbortSignal.any([limit, execution.signal]);
+    const host = Host.fromManifest(store, runId, manifest, signal);
     const input = {
       session: bound.payload['request'],
       package_name: task['target'],
@@ -38,7 +47,6 @@ export async function closeGame(
       state_event_id: state?.event_id ?? null,
     });
   }
-  return true;
 }
 
 export async function finalizeGames(
@@ -54,7 +62,7 @@ export async function finalizeGames(
     return;
   }
   if (store.run(runId)['mode'] !== 'workflow') return;
-  const children = store.workflows.gameplayChildren(runId);
+  const children = store.workflows.children(runId, 'gameplay');
   const instances = new Set<string>();
   for (const row of children) {
     const child = text(row['id']);
@@ -65,7 +73,7 @@ export async function finalizeGames(
     )
       continue;
     instances.add(instance);
-    if (await closeGame(execution, child, manifest)) await execution.publish(child);
+    await closeGame(execution, child, manifest);
   }
 }
 
