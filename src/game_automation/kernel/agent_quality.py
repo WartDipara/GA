@@ -9,6 +9,7 @@ from game_automation.common import FileLock, FrameworkError
 from game_automation.errors import ErrorCode
 from game_automation.reporting.agent_metrics import version_identity
 from game_automation.reporting.agent_trace import agent_view
+from game_automation.storage.sql_queries import read_query
 
 
 def actor_reference(value):
@@ -38,8 +39,7 @@ def record_review(store, run_id, span_id, metric, label, evidence_refs, note, ac
     evidence = {
         row[0]
         for row in store.db.execute(
-            "SELECT event_id FROM events WHERE run_id=? "
-            "AND event_id IN (SELECT value FROM json_each(?))",
+            read_query("review-evidence"),
             (run_id, json.dumps(list(evidence_refs))),
         )
     }

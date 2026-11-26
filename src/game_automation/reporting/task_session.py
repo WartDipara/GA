@@ -7,6 +7,7 @@ from urllib.parse import quote, urlencode
 from game_automation.common import FrameworkError
 from game_automation.contracts import validate
 from game_automation.errors import ErrorCode
+from game_automation.storage.sql_queries import read_query
 
 
 def task_session(store, run_id, *, before=0, limit=50):
@@ -26,12 +27,7 @@ def task_session(store, run_id, *, before=0, limit=50):
     if selected:
         identifiers = json.dumps([row["id"] for row in selected])
         starts = store.db.execute(
-            "WITH ranked AS (SELECT run_id,span_id,data,"
-            "COUNT(*) OVER(PARTITION BY run_id) AS total,"
-            "ROW_NUMBER() OVER(PARTITION BY run_id ORDER BY seq DESC) AS position "
-            "FROM events WHERE run_id IN (SELECT value FROM json_each(?)) "
-            "AND kind='execution.segment.started') "
-            "SELECT * FROM ranked WHERE position<=20",
+            read_query("session-segments"),
             (identifiers,),
         ).fetchall()
         for row in starts:
@@ -45,11 +41,7 @@ def task_session(store, run_id, *, before=0, limit=50):
                 "duration_ms": None,
             }
         for row in store.db.execute(
-            "SELECT run_id,span_id,data,kind FROM events "
-            "WHERE run_id IN (SELECT value FROM json_each(?)) "
-            "AND kind IN ('execution.segment.finished','execution.segment.incomplete',"
-            "'run.continued_from') "
-            "ORDER BY seq",
+            read_query("session-segment-outcomes"),
             (identifiers,),
         ):
             payload = json.loads(row["data"])["payload"]

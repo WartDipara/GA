@@ -1,0 +1,13 @@
+export { default as schema } from './schema.sql';
+export { default as eventUsage } from './event-usage.sql';
+export { default as configure } from './configure.sql';
+export { default as readVersion } from './read-version.sql';
+export { default as markVersion4 } from './mark-version-4.sql';
+export { default as markVersion5 } from './mark-version-5.sql';
+export { default as hasEventUsage } from './has-event-usage.sql';
+export { default as backupTo } from './backup.sql';
+export { default as vacuum } from './vacuum.sql';
+export { default as checkpointWal } from './checkpoint-wal.sql';
+export { default as begin } from './begin.sql';
+export { default as commit } from './commit.sql';
+export { default as rollback } from './rollback.sql';

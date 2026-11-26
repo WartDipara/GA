@@ -64,9 +64,12 @@ schema. Gameplay, workflow, and reporting code call named storage operations. JS
 event searches are mapped from named fields in the event repository.
 
 The Node SQLite adapter in `apps/control-plane/src/storage/database.ts` owns the same connection
-used by Drizzle. It keeps the transaction boundary, schema initialization, triggers, and database
-maintenance. SQLite-specific expressions use bound parameters. The existing schema version and
-Python read-only access are unchanged. Compilation does not establish runtime acceptance.
+used by Drizzle. The adapter selects native statements by name from `storage/sql/`. Its schema,
+trigger, transaction, and maintenance files are embedded in the control-plane bundle at build time.
+SQLite expressions used by repositories remain bound Drizzle expressions. Larger Python read-only
+queries are packaged under `game_automation/storage/sql/`. SQL resources participate in dependency
+fingerprints, so changed SQL requires a new batch. The schema version is unchanged. Compilation does
+not establish runtime acceptance.
 
 ## Action uncertainty
 

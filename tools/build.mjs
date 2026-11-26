@@ -72,6 +72,7 @@ await build({
   platform: 'node',
   target: 'node22.19',
   format: 'esm',
+  loader: { '.sql': 'text' },
   legalComments: 'eof',
 });
 
@@ -95,7 +96,7 @@ async function sources(directory) {
   for (const entry of await readdir(directory, { withFileTypes: true })) {
     const path = `${directory}/${entry.name}`;
     if (entry.isDirectory() && entry.name !== '__pycache__') await sources(path);
-    else if (/\.(tsx?|css|mjs|py|json)$/.test(entry.name)) files.push(path);
+    else if (/\.(tsx?|css|mjs|py|json|sql)$/.test(entry.name)) files.push(path);
   }
 }
 for (const directory of ['apps', 'packages', 'plugins/agent_codex', 'tools'])

@@ -36,7 +36,8 @@
   explicitly supervise every promise. Generate protocol types from contracts/v1, never mirror them.
 - Keep TypeScript database access in the storage layer. Use the pinned Drizzle ORM and typed table
   mappings for reads and writes. Keep SQLite-specific expressions in the storage layer with bound
-  parameters. Keep static schema and maintenance statements at the SQLite adapter boundary.
+  parameters. Store native SQLite statements for schema and maintenance as `.sql` resources at the
+  adapter boundary. Put substantial read-only SQL in named `.sql` resources.
   Never build SQL by concatenating strings, identifiers, or values.
 - Verification is compilation only: type-check maintained TypeScript, compile maintained Python
   sources and syntax-check maintained JavaScript. Do not add or run mock tests, smoke tests, synthetic inference

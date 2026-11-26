@@ -6,7 +6,7 @@ import { existsSync, mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { object, text } from '@game-automation/contracts';
 import { ErrorCode, FrameworkError } from '@game-automation/contracts/errors';
-import { counters, schema } from './schema.js';
+import * as statements from './sql/statements.js';
 import { parsed } from './values.js';
 import { performance } from 'node:perf_hooks';
 import { WriterHealth } from '../observability/writer-health.js';
@@ -22,27 +22,20 @@ export class Database {
     mkdirSync(directory, { recursive: true });
     this.connection = new DatabaseSync(join(directory, 'state.sqlite'), { timeout: 5_000 });
     this.orm = drizzle({ client: this.connection });
-    this.connection.exec(
-      'PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA foreign_keys=ON;',
-    );
-    const version = this.connection.prepare('PRAGMA user_version').get()?.['user_version'];
+    this.connection.exec(statements.configure);
+    const version = this.connection.prepare(statements.readVersion).get()?.['user_version'];
     if (typeof version !== 'number' || ![0, 1, 2, 3, 4, 5].includes(version)) {
       this.connection.close();
       throw new FrameworkError(ErrorCode.SCHEMA_VERSION);
     }
-    this.connection.exec(schema);
+    this.connection.exec(statements.schema);
     if (version < 4) this.upgrade(version);
     if (version < 5) {
-      if (version === 4) {
-        const backup = join(this.directory, 'migrations/exploration/state-before-v5.sqlite');
-        mkdirSync(dirname(backup), { recursive: true });
-        if (!existsSync(backup)) this.connection.prepare('VACUUM INTO ?').run(backup);
-      }
-      this.connection.exec('PRAGMA user_version=5');
+      if (version === 4) this.backup('migrations/exploration/state-before-v5.sqlite');
+      this.connection.exec(statements.markVersion5);
     }
-    if (!this.connection.prepare("SELECT 1 FROM sqlite_master WHERE name='event_usage'").get()) {
-      this.connection.exec(counters);
-    }
+    if (!this.connection.prepare(statements.hasEventUsage).get())
+      this.connection.exec(statements.eventUsage);
   }
 
   transaction<T>(operation: () => T): T {
@@ -52,12 +45,12 @@ export class Database {
     const started = performance.now();
     let failed = true;
     try {
-      this.connection.exec('BEGIN IMMEDIATE');
+      this.connection.exec(statements.begin);
       const result = operation();
       const committing = performance.now();
       let commitFailed = true;
       try {
-        this.connection.exec('COMMIT');
+        this.connection.exec(statements.commit);
         commitFailed = false;
       } finally {
         this.health.record('commit', committing, commitFailed);
@@ -66,7 +59,7 @@ export class Database {
       return result;
     } catch (error) {
       try {
-        if (this.connection.isTransaction) this.connection.exec('ROLLBACK');
+        if (this.connection.isTransaction) this.connection.exec(statements.rollback);
       } catch {
         this.failure = new FrameworkError(ErrorCode.TRACE_UNAVAILABLE);
       }
@@ -82,27 +75,28 @@ export class Database {
   }
 
   compact(): void {
-    for (const statement of [
-      'PRAGMA wal_checkpoint(TRUNCATE)',
-      'VACUUM',
-      'PRAGMA wal_checkpoint(TRUNCATE)',
-    ]) {
-      if (statement === 'VACUUM') this.connection.exec(statement);
-      else if (this.connection.prepare(statement).get()?.['busy'] !== 0)
-        throw new FrameworkError(ErrorCode.CLEANUP_FAILED);
-    }
+    this.checkpointWal();
+    this.connection.exec(statements.vacuum);
+    this.checkpointWal();
   }
 
   close(): void {
     this.connection.close();
   }
 
+  private checkpointWal(): void {
+    const result = this.connection.prepare(statements.checkpointWal).get();
+    if (result?.['busy'] !== 0) throw new FrameworkError(ErrorCode.CLEANUP_FAILED);
+  }
+
+  private backup(reference: string): void {
+    const destination = join(this.directory, reference);
+    mkdirSync(dirname(destination), { recursive: true });
+    if (!existsSync(destination)) this.connection.prepare(statements.backupTo).run(destination);
+  }
+
   private upgrade(version: number): void {
-    if (version !== 0) {
-      const backup = join(this.directory, 'migrations/task-layout/state-before-upgrade.sqlite');
-      mkdirSync(dirname(backup), { recursive: true });
-      if (!existsSync(backup)) this.connection.prepare('VACUUM INTO ?').run(backup);
-    }
+    if (version !== 0) this.backup('migrations/task-layout/state-before-upgrade.sqlite');
     const specifications = this.orm.select({ id: tasks.id, spec: tasks.spec }).from(tasks).all();
     const taskSpecs = new Map(specifications.map((row) => [row.id, parsed(row.spec)]));
     const executions = this.orm.select({ id: runs.id, taskId: runs.task_id }).from(runs).all();
@@ -149,7 +143,7 @@ export class Database {
           .where(eq(gameplayProgress.workspace_key, row.key))
           .run();
       }
-      this.connection.exec('PRAGMA user_version=4');
+      this.connection.exec(statements.markVersion4);
     });
   }
 }

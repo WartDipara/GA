@@ -8,6 +8,7 @@ from game_automation.common import FileLock, FrameworkError, atomic_json, redact
 from game_automation.errors import ErrorCode
 
 from .control_client import ControlClient
+from .sql_queries import read_query
 from .usage import FileUsage
 
 
@@ -209,22 +210,7 @@ class Store:
             "kinds": json.dumps(list(kinds)) if kinds else None,
             "limit": limit,
         }
-        if limit:
-            statement = """
-                SELECT seq,data FROM events
-                WHERE run_id=:run_id AND seq>:after AND seq<=:through
-                  AND (:span IS NULL OR span_id=:span)
-                  AND (:kinds IS NULL OR kind IN (SELECT value FROM json_each(:kinds)))
-                ORDER BY seq DESC LIMIT :limit
-            """
-        else:
-            statement = """
-                SELECT seq,data FROM events
-                WHERE run_id=:run_id AND seq>:after AND seq<=:through
-                  AND (:span IS NULL OR span_id=:span)
-                  AND (:kinds IS NULL OR kind IN (SELECT value FROM json_each(:kinds)))
-                ORDER BY seq
-            """
+        statement = read_query("events-latest" if limit else "events-forward")
         for row in self.db.execute(statement, parameters):
             event = {"seq": row[0], **json.loads(row[1])}
             if event["payload"].get("event_payloads_referenced"):

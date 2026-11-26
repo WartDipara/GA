@@ -20,7 +20,7 @@ def code_hashes(directory):
         str(file_path.resolve()): digest(file_path.read_bytes())
         for file_path in directory.rglob("*")
         if file_path.is_file()
-        and file_path.suffix in (".py", ".toml", ".ts", ".mjs", ".json")
+        and file_path.suffix in (".py", ".toml", ".ts", ".mjs", ".json", ".sql")
         and "__pycache__" not in file_path.parts
     }
     return source_hashes

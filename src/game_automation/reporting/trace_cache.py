@@ -4,6 +4,8 @@ import json
 from collections import OrderedDict
 from threading import RLock
 
+from game_automation.storage.sql_queries import read_query
+
 from .trace_projection import DETAILS, ENDS, STARTS, TraceFold, project_trace
 
 VIEW_KINDS = tuple(
@@ -33,8 +35,7 @@ VIEW_KINDS = tuple(
 
 def view_revision(store, task_id):
     row = store.db.execute(
-        "SELECT COALESCE(MAX(seq),0) FROM events WHERE run_id IN "
-        "(SELECT id FROM runs WHERE task_id=?) AND kind IN (SELECT value FROM json_each(?))",
+        read_query("trace-view-revision"),
         (task_id, json.dumps(VIEW_KINDS)),
     ).fetchone()
     return row[0]
