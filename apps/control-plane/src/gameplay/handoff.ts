@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { decode, object, text, type ContractMap } from '@game-automation/contracts';
 import { ErrorCode, FrameworkError } from '@game-automation/contracts/errors';
-import type { EventQuery } from '../storage/store.js';
+import type { EventQuery } from '../storage/event-repository.js';
 import { redact, within, type Fields } from '../storage/values.js';
 import type { Runtime } from './runtime.js';
 import type { Decision, Observation } from './types.js';
@@ -81,7 +81,7 @@ export class Handoffs {
     for (const source of [...handoff.transcript].reverse()) {
       const event = this.runtime.store.events(source.run_id, {
         through: source.through_sequence, kinds: ['gameplay.observation'], limit: 1,
-        reference: { field: '$.payload.observation_id', value: id },
+        reference: { field: 'observation', value: id },
       }).at(-1);
       if (event) {
         const result = { runId: source.run_id, reference: text(event.payload['evidence_ref']) };
@@ -103,8 +103,8 @@ export class Handoffs {
       query.capability = 'ai.decide';
     } else if (request.action || request.observation || request.subgoal) {
       const match = request.action ?? request.observation ?? request.subgoal ?? '';
-      const field = request.action ? 'action_id' : request.observation ? 'observation_id' : 'subgoal';
-      query.reference = { field: `$.payload.${field}`, value: match };
+      const field = request.action ? 'action' : request.observation ? 'observation' : 'subgoal';
+      query.reference = { field, value: match };
       query.kinds = [
         'gameplay.agent.completed', 'gameplay.observation', 'gameplay.outcome',
         'gameplay.action.origin', 'action.intent', 'action.result',
@@ -117,7 +117,7 @@ export class Handoffs {
     if (request.turn) {
       rows.push(...store.events(source.run_id, {
         span: request.turn, through, limit: 6, kinds: ['ai.item.completed'],
-        reference: { field: '$.payload.item.type', value: 'agentMessage' },
+        reference: { field: 'itemType', value: 'agentMessage' },
       }));
       rows.sort((left, right) => left.seq - right.seq);
     }

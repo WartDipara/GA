@@ -35,12 +35,12 @@ def record_review(store, run_id, span_id, metric, label, evidence_refs, note, ac
     )
     if not 1 <= len(evidence_refs) <= 100:
         raise FrameworkError(ErrorCode.OBSERVABILITY_INVALID)
-    placeholders = ",".join("?" for _ in evidence_refs)
     evidence = {
         row[0]
         for row in store.db.execute(
-            f"SELECT event_id FROM events WHERE run_id=? AND event_id IN ({placeholders})",
-            (run_id, *evidence_refs),
+            "SELECT event_id FROM events WHERE run_id=? "
+            "AND event_id IN (SELECT value FROM json_each(?))",
+            (run_id, json.dumps(list(evidence_refs))),
         )
     }
     if (not spans and span_id != run_id) or not set(evidence_refs).issubset(evidence):

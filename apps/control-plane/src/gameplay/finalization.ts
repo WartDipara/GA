@@ -54,11 +54,7 @@ export async function finalizeGames(
     return;
   }
   if (store.run(runId)['mode'] !== 'workflow') return;
-  const children = store.database.all(
-    `SELECT r.id FROM runs r JOIN run_inputs i ON i.run_id=r.id
-     WHERE r.mode='gameplay' AND json_extract(i.spec,'$.workflow_run')=? ORDER BY r.rowid DESC`,
-    runId,
-  );
+  const children = store.workflows.gameplayChildren(runId);
   const instances = new Set<string>();
   for (const row of children) {
     const child = text(row['id']);
@@ -75,10 +71,7 @@ export async function finalizeGames(
 
 export function recoverFinalization(execution: Execution): void {
   const store = execution.store;
-  const rows = store.database.all(
-    `SELECT r.id AS run_id FROM runs r WHERE r.mode='gameplay'
-     AND EXISTS (SELECT 1 FROM events e WHERE e.run_id=r.id AND e.kind='gameplay.lifecycle.started')`,
-  );
+  const rows = store.workflows.lifecycleRuns();
   for (const row of rows) {
     const runId = text(row['run_id']);
     const start = store.events(runId, { kinds: ['gameplay.lifecycle.started'], limit: 1 }).at(-1);

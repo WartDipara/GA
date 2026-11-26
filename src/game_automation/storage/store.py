@@ -201,22 +201,31 @@ class Store:
 
     def iter_events(self, run_id, after=0, span=None, *, kinds=None, limit=None, through=None):
         self.run(run_id)
-        sql = "SELECT seq,data FROM events WHERE run_id=? AND seq>?"
-        args = [run_id, after]
-        if through is not None:
-            sql += " AND seq<=?"
-            args.append(through)
-        if span:
-            sql += " AND span_id=?"
-            args.append(span)
-        if kinds:
-            sql += " AND kind IN (" + ",".join("?" for _ in kinds) + ")"
-            args.extend(kinds)
-        sql += " ORDER BY seq DESC" if limit else " ORDER BY seq"
+        parameters = {
+            "run_id": run_id,
+            "after": after,
+            "through": through if through is not None else 2**63 - 1,
+            "span": span or None,
+            "kinds": json.dumps(list(kinds)) if kinds else None,
+            "limit": limit,
+        }
         if limit:
-            sql += " LIMIT ?"
-            args.append(limit)
-        for row in self.db.execute(sql, args):
+            statement = """
+                SELECT seq,data FROM events
+                WHERE run_id=:run_id AND seq>:after AND seq<=:through
+                  AND (:span IS NULL OR span_id=:span)
+                  AND (:kinds IS NULL OR kind IN (SELECT value FROM json_each(:kinds)))
+                ORDER BY seq DESC LIMIT :limit
+            """
+        else:
+            statement = """
+                SELECT seq,data FROM events
+                WHERE run_id=:run_id AND seq>:after AND seq<=:through
+                  AND (:span IS NULL OR span_id=:span)
+                  AND (:kinds IS NULL OR kind IN (SELECT value FROM json_each(:kinds)))
+                ORDER BY seq
+            """
+        for row in self.db.execute(statement, parameters):
             event = {"seq": row[0], **json.loads(row[1])}
             if event["payload"].get("event_payloads_referenced"):
                 message = event["payload"]["message"]

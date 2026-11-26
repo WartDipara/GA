@@ -1,26 +1,31 @@
-import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
+import { DatabaseSync } from 'node:sqlite';
+import { eq } from 'drizzle-orm';
+import { drizzle, type NodeSQLiteDatabase } from 'drizzle-orm/node-sqlite';
+import { gameplayProgress, runInputs, runs, taskAliases, tasks } from './tables.js';
 import { existsSync, mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { object, text } from '@game-automation/contracts';
 import { ErrorCode, FrameworkError } from '@game-automation/contracts/errors';
 import { counters, schema } from './schema.js';
-import { parsed, type Fields } from './values.js';
+import { parsed } from './values.js';
 import { performance } from 'node:perf_hooks';
 import { WriterHealth } from '../observability/writer-health.js';
 
 export class Database {
   readonly health = new WriterHealth();
   private readonly connection: DatabaseSync;
+  readonly orm: NodeSQLiteDatabase;
   private depth = 0;
   failure: FrameworkError | undefined;
 
   constructor(readonly directory: string) {
     mkdirSync(directory, { recursive: true });
     this.connection = new DatabaseSync(join(directory, 'state.sqlite'), { timeout: 5_000 });
+    this.orm = drizzle({ client: this.connection });
     this.connection.exec(
       'PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA foreign_keys=ON;',
     );
-    const version = this.one('PRAGMA user_version')?.['user_version'];
+    const version = this.connection.prepare('PRAGMA user_version').get()?.['user_version'];
     if (typeof version !== 'number' || ![0, 1, 2, 3, 4, 5].includes(version)) {
       this.connection.close();
       throw new FrameworkError(ErrorCode.SCHEMA_VERSION);
@@ -31,26 +36,13 @@ export class Database {
       if (version === 4) {
         const backup = join(this.directory, 'migrations/exploration/state-before-v5.sqlite');
         mkdirSync(dirname(backup), { recursive: true });
-        if (!existsSync(backup)) this.execute('VACUUM INTO ?', backup);
+        if (!existsSync(backup)) this.connection.prepare('VACUUM INTO ?').run(backup);
       }
       this.connection.exec('PRAGMA user_version=5');
     }
-    if (!this.one("SELECT 1 FROM sqlite_master WHERE name='event_usage'")) {
+    if (!this.connection.prepare("SELECT 1 FROM sqlite_master WHERE name='event_usage'").get()) {
       this.connection.exec(counters);
     }
-  }
-
-  all(sql: string, ...parameters: SQLInputValue[]): Fields[] {
-    const rows = this.connection.prepare(sql).all(...parameters);
-    return rows;
-  }
-
-  one(sql: string, ...parameters: SQLInputValue[]): Fields | undefined {
-    return this.connection.prepare(sql).get(...parameters);
-  }
-
-  execute(sql: string, ...parameters: SQLInputValue[]): void {
-    this.connection.prepare(sql).run(...parameters);
   }
 
   transaction<T>(operation: () => T): T {
@@ -96,7 +88,7 @@ export class Database {
       'PRAGMA wal_checkpoint(TRUNCATE)',
     ]) {
       if (statement === 'VACUUM') this.connection.exec(statement);
-      else if (this.one(statement)?.['busy'] !== 0)
+      else if (this.connection.prepare(statement).get()?.['busy'] !== 0)
         throw new FrameworkError(ErrorCode.CLEANUP_FAILED);
     }
   }
@@ -109,16 +101,14 @@ export class Database {
     if (version !== 0) {
       const backup = join(this.directory, 'migrations/task-layout/state-before-upgrade.sqlite');
       mkdirSync(dirname(backup), { recursive: true });
-      if (!existsSync(backup)) this.execute('VACUUM INTO ?', backup);
+      if (!existsSync(backup)) this.connection.prepare('VACUUM INTO ?').run(backup);
     }
-    const tasks = new Map(
-      this.all('SELECT id,spec FROM tasks').map((row) => [text(row['id']), parsed(row['spec'])]),
-    );
-    const owners = new Map(
-      this.all('SELECT id,task_id FROM runs').map((row) => [text(row['id']), text(row['task_id'])]),
-    );
+    const specifications = this.orm.select({ id: tasks.id, spec: tasks.spec }).from(tasks).all();
+    const taskSpecs = new Map(specifications.map((row) => [row.id, parsed(row.spec)]));
+    const executions = this.orm.select({ id: runs.id, taskId: runs.task_id }).from(runs).all();
+    const owners = new Map(executions.map((row) => [row.id, text(row.taskId)]));
     const parents = new Map<string, string>();
-    for (const [taskId, spec] of tasks) {
+    for (const [taskId, spec] of taskSpecs) {
       const source = spec['prepared_run'] ?? spec['source_run'];
       const parent = typeof source === 'string' ? owners.get(source) : undefined;
       if (parent && parent !== taskId) parents.set(taskId, parent);
@@ -135,22 +125,29 @@ export class Database {
     };
     this.transaction(() => {
       for (const [runId, taskId] of owners) {
-        this.execute(
-          'INSERT INTO run_inputs VALUES(?,?)',
-          runId,
-          JSON.stringify(object(tasks.get(taskId))),
-        );
-        this.execute('UPDATE runs SET task_id=? WHERE id=?', root(taskId), runId);
+        const input = { run_id: runId, spec: JSON.stringify(object(taskSpecs.get(taskId))) };
+        this.orm.insert(runInputs).values(input).run();
+        this.orm
+          .update(runs)
+          .set({ task_id: root(taskId) })
+          .where(eq(runs.id, runId))
+          .run();
       }
-      for (const taskId of parents.keys())
-        this.execute('INSERT INTO task_aliases VALUES(?,?)', taskId, root(taskId));
-      for (const row of this.all('SELECT workspace_key,run_id FROM gameplay_progress')) {
-        const taskId = root(text(owners.get(text(row['run_id']))));
-        this.execute(
-          'UPDATE gameplay_progress SET workspace_key=? WHERE workspace_key=?',
-          `${taskId}:${text(row['workspace_key'])}`,
-          text(row['workspace_key']),
-        );
+      for (const taskId of parents.keys()) {
+        const alias = { alias_id: taskId, task_id: root(taskId) };
+        this.orm.insert(taskAliases).values(alias).run();
+      }
+      const progress = this.orm
+        .select({ key: gameplayProgress.workspace_key, runId: gameplayProgress.run_id })
+        .from(gameplayProgress)
+        .all();
+      for (const row of progress) {
+        const taskId = root(text(owners.get(row.runId)));
+        this.orm
+          .update(gameplayProgress)
+          .set({ workspace_key: `${taskId}:${row.key}` })
+          .where(eq(gameplayProgress.workspace_key, row.key))
+          .run();
       }
       this.connection.exec('PRAGMA user_version=4');
     });

@@ -24,15 +24,15 @@ def task_session(store, run_id, *, before=0, limit=50):
     links = defaultdict(list)
     totals = {}
     if selected:
-        placeholders = ",".join("?" for _ in selected)
-        identifiers = [row["id"] for row in selected]
+        identifiers = json.dumps([row["id"] for row in selected])
         starts = store.db.execute(
             "WITH ranked AS (SELECT run_id,span_id,data,"
             "COUNT(*) OVER(PARTITION BY run_id) AS total,"
             "ROW_NUMBER() OVER(PARTITION BY run_id ORDER BY seq DESC) AS position "
-            f"FROM events WHERE run_id IN ({placeholders}) AND kind='execution.segment.started') "
+            "FROM events WHERE run_id IN (SELECT value FROM json_each(?)) "
+            "AND kind='execution.segment.started') "
             "SELECT * FROM ranked WHERE position<=20",
-            identifiers,
+            (identifiers,),
         ).fetchall()
         for row in starts:
             payload = json.loads(row["data"])["payload"]
@@ -45,11 +45,12 @@ def task_session(store, run_id, *, before=0, limit=50):
                 "duration_ms": None,
             }
         for row in store.db.execute(
-            f"SELECT run_id,span_id,data,kind FROM events WHERE run_id IN ({placeholders}) "
+            "SELECT run_id,span_id,data,kind FROM events "
+            "WHERE run_id IN (SELECT value FROM json_each(?)) "
             "AND kind IN ('execution.segment.finished','execution.segment.incomplete',"
             "'run.continued_from') "
             "ORDER BY seq",
-            identifiers,
+            (identifiers,),
         ):
             payload = json.loads(row["data"])["payload"]
             if row["kind"] == "run.continued_from":

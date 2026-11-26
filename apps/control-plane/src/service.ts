@@ -178,7 +178,7 @@ const server = createServer((socket) => {
             'The execution no longer accepts plugin calls',
           );
         const eventId = `kernel_${callId}`;
-        if (store.database.one('SELECT 1 FROM events WHERE event_id=?', eventId)) {
+        if (store.eventRecords.byId(eventId)) {
           throw new FrameworkError(ErrorCode.INVALID_STATE, 'A host request cannot be replayed');
         }
         const accepted = { call_id: callId, operation: text(params['operation']) };

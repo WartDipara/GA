@@ -11,14 +11,8 @@ function outcome(execution: Execution, runId: string, snapshot: Fields): string 
   const store = execution.store;
   const run = store.run(runId);
   const states = store.events(runId, { kinds: ['run.state'], limit: 1 });
-  const unresolved = store.database.all(
-    "SELECT action_id,status FROM actions WHERE run_id=? AND status IN ('prepared','unknown','executed') ORDER BY rowid",
-    runId,
-  );
-  const actionCounts = store.database.all(
-    'SELECT status,COUNT(*) AS count FROM actions WHERE run_id=? GROUP BY status',
-    runId,
-  );
+  const unresolved = store.actionRecords.unresolvedForRun(runId);
+  const actionCounts = store.actionRecords.countsByStatus(runId);
   const lifecycle = store.events(runId, {
     kinds: [
       'gameplay.lifecycle.started',

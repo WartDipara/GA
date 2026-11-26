@@ -1,5 +1,6 @@
 """Bounded, connection-free caches of incremental read-only trace folds."""
 
+import json
 from collections import OrderedDict
 from threading import RLock
 
@@ -31,11 +32,10 @@ VIEW_KINDS = tuple(
 
 
 def view_revision(store, task_id):
-    placeholders = ",".join("?" for _ in VIEW_KINDS)
     row = store.db.execute(
         "SELECT COALESCE(MAX(seq),0) FROM events WHERE run_id IN "
-        f"(SELECT id FROM runs WHERE task_id=?) AND kind IN ({placeholders})",
-        (task_id, *VIEW_KINDS),
+        "(SELECT id FROM runs WHERE task_id=?) AND kind IN (SELECT value FROM json_each(?))",
+        (task_id, json.dumps(VIEW_KINDS)),
     ).fetchone()
     return row[0]
 

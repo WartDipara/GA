@@ -58,9 +58,15 @@ Long host requests check owner liveness without resending their original request
 after the last client and call depart. A different bundle fingerprint requires the old owner to
 finish before a new build can connect.
 
-The Node SQLite API is isolated in `control_plane/storage/database.ts` and uses the pinned Node
-runtime. This API is experimental in the selected Node release; dependency upgrades require explicit
-review. Compilation does not establish runtime acceptance of the migrated path.
+The TypeScript storage layer uses the pinned Drizzle ORM for application queries and writes. Event,
+action, workflow, and task repositories bind values and use typed mappings of the existing SQLite
+schema. Gameplay, workflow, and reporting code call named storage operations. JSON paths used for
+event searches are mapped from named fields in the event repository.
+
+The Node SQLite adapter in `apps/control-plane/src/storage/database.ts` owns the same connection
+used by Drizzle. It keeps the transaction boundary, schema initialization, triggers, and database
+maintenance. SQLite-specific expressions use bound parameters. The existing schema version and
+Python read-only access are unchanged. Compilation does not establish runtime acceptance.
 
 ## Action uncertainty
 

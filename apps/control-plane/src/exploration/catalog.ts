@@ -31,11 +31,8 @@ export class Catalog {
   private semanticKey(page: Page): string | null {
     if (page.data.semantic_key) return page.data.semantic_key;
     if (this.semanticKeys.has(page.id)) return this.semanticKeys.get(page.id) ?? null;
-    const row = this.runtime.store.database.one(
-      "SELECT e.data FROM events e JOIN runs r ON r.id=e.run_id WHERE r.task_id=? AND e.kind='gameplay.decision' AND json_extract(e.data,'$.payload.observation_id')=? ORDER BY e.seq DESC LIMIT 1",
-      text(this.runtime.store.run(this.runtime.runId)['task_id']),
-      page.data.observation_id,
-    );
+    const taskId = text(this.runtime.store.run(this.runtime.runId)['task_id']);
+    const row = this.runtime.store.eventRecords.latestDecision(taskId, page.data.observation_id);
     const event = row ? decode('trace', parsed(row['data'])) : null;
     const view = event?.payload['exploration'];
     const key = view ? decode('exploration-view', view).page_key : null;
@@ -76,10 +73,7 @@ export class Catalog {
       (record): record is Page => record.kind === 'page' && record.id === current,
     );
     const next = destination(this);
-    const feedbackRow = this.runtime.store.database.one(
-      "SELECT data FROM events WHERE kind='exploration.proposal.rejected' AND json_extract(data,'$.payload.workspace_key')=? ORDER BY seq DESC LIMIT 1",
-      this.key,
-    );
+    const feedbackRow = this.runtime.store.eventRecords.latestExplorationRejection(this.key);
     const feedback = feedbackRow ? decode('trace', parsed(feedbackRow['data'])) : null;
     const related = new Set([
       current,
@@ -393,11 +387,8 @@ export class Catalog {
     for (const element of records) {
       if (element.kind !== 'element') continue;
       if (element.status === 'in_progress' && element.data.action_id) {
-        const row = this.runtime.store.database.one(
-          'SELECT a.status FROM actions a JOIN runs r ON r.id=a.run_id WHERE r.task_id=? AND a.action_id=?',
-          text(this.runtime.store.run(this.runtime.runId)['task_id']),
-          element.data.action_id,
-        );
+        const taskId = text(this.runtime.store.run(this.runtime.runId)['task_id']);
+        const row = this.runtime.store.actionRecords.forTask(taskId, element.data.action_id);
         if (row && ['verified', 'reconciled'].includes(text(row['status']))) {
           element.status = element.data.kind === 'scroll' ? 'pending' : 'unknown';
           const restored = elementVerification(

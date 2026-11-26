@@ -127,17 +127,14 @@ export class Host {
     const bound = this.store
       .events(this.runId, { kinds: ['device.session.bound'], limit: 1 })
       .at(-1);
-    const binding = this.store.database.one(
-      'SELECT apk_key FROM device_bindings WHERE instance_id=?',
-      input.session.instance_id,
-    );
+    const apkKey = this.store.reservedApk(input.session.instance_id);
     if (
       task['kind'] !== 'gameplay' ||
       input.package_name !== task['target'] ||
       input.sha256 !== object(task['metadata'])['sha256'] ||
       input.session.instance_id !== task['instance_id'] ||
       canonical(bound?.payload['request']) !== canonical(input.session) ||
-      binding?.['apk_key'] !== `${String(task['source_run'])}:${String(task['apk_index'])}` ||
+      apkKey !== `${String(task['source_run'])}:${String(task['apk_index'])}` ||
       (input.operation === 'close'
         ? !settledStatuses.has(state)
         : state !== 'running' || !previousClose(this.store, this.runId))

@@ -104,11 +104,7 @@ export class Runtime {
       this.host.artifacts.delete(path);
     }
     const settings = object(object(this.manifest['application'])['gameplay']);
-    const eventBytes = integer(
-      this.store.database.one('SELECT size_bytes FROM event_usage WHERE run_id=?', this.runId)?.[
-        'size_bytes'
-      ] ?? 0,
-    );
+    const eventBytes = this.store.eventBytes(this.runId);
     const remaining =
       integer(settings['evidence_budget_bytes']) - (await this.usage.total()) - 2 * eventBytes;
     const headroom = 128 * 1024 ** 2;

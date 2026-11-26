@@ -87,9 +87,7 @@ export class Execution {
 
   async recover(): Promise<void> {
     await this.drain();
-    const runs = this.store.database.all(
-      "SELECT id FROM runs WHERE status='running' ORDER BY rowid",
-    );
+    const runs = this.store.workflows.running();
     for (const row of runs) {
       const runId = text(row['id']);
       const closed = new Set(
@@ -122,9 +120,7 @@ export class Execution {
 
   async repairReports(): Promise<unknown[]> {
     const repaired: unknown[] = [];
-    const rows = this.store.database.all(
-      "SELECT DISTINCT run_id FROM events WHERE kind='report.requested' ORDER BY run_id",
-    );
+    const rows = this.store.eventRecords.reportRuns();
     for (const row of rows) {
       const runId = text(row['run_id']);
       if (!settledStatuses.has(text(this.store.run(runId)['status']))) continue;
@@ -198,10 +194,7 @@ export class Execution {
       this.check(runId);
       const manifest = await this.manifest(runId);
       loadedManifest = manifest;
-      const unknown = this.store.database.one(
-        "SELECT 1 FROM actions WHERE run_id=? AND status='unknown'",
-        runId,
-      );
+      const unknown = this.store.actionRecords.hasUnknown(runId);
       if (!['device', 'gameplay'].includes(mode) && unknown)
         throw new FrameworkError(ErrorCode.ACTION_ALREADY_DISPATCHED);
       this.store.command('transition', { run_id: runId, status: 'running' });

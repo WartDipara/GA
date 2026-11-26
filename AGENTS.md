@@ -34,6 +34,10 @@
   External data starts as unknown and must pass runtime schema validation. Do not bypass checking
   with any, unchecked type assertions, non-null assertions or ignored compiler errors. Await or
   explicitly supervise every promise. Generate protocol types from contracts/v1, never mirror them.
+- Keep TypeScript database access in the storage layer. Use the pinned Drizzle ORM and typed table
+  mappings for reads and writes. Keep SQLite-specific expressions in the storage layer with bound
+  parameters. Keep static schema and maintenance statements at the SQLite adapter boundary.
+  Never build SQL by concatenating strings, identifiers, or values.
 - Verification is compilation only: type-check maintained TypeScript, compile maintained Python
   sources and syntax-check maintained JavaScript. Do not add or run mock tests, smoke tests, synthetic inference
   calls, or test-only plugins. Formatting tools may be used to enforce source readability.
