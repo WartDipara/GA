@@ -3,6 +3,8 @@
 from game_automation.common import FileLock, FrameworkError, atomic_json, within
 from game_automation.errors import ErrorCode
 
+from .sql_queries import read_query
+
 
 def relocate(store):
     """Move registered directories on the same volume; interruption is safe to resume."""
@@ -44,12 +46,7 @@ def relocate(store):
                 moved += 1
                 payload = {"source": entry["source"], "target": entry["target"]}
                 store.event(entry["run_id"], "workspace.relocated", payload)
-        task_ids = {
-            row[0]
-            for row in store.db.execute(
-                "SELECT id FROM tasks WHERE id NOT IN (SELECT alias_id FROM task_aliases)"
-            )
-        }
+        task_ids = {row[0] for row in store.db.execute(read_query("canonical-task-ids"))}
         for task_id in task_ids:
             task_report(store, task_id, layout_locked=True)
         if legacy.exists() and not any(legacy.iterdir()):

@@ -7,6 +7,8 @@ from pathlib import Path
 from game_automation.common import FileLock, FrameworkError, atomic_json, within
 from game_automation.errors import ErrorCode
 
+from .sql_queries import read_query
+
 
 def checked_path(store, relative):
     parts = Path(relative).parts
@@ -36,9 +38,7 @@ def check_dependencies(store, task_ids):
         for row in store.db.execute("SELECT id,task_id FROM runs")
         if row["task_id"] in selected
     }
-    for row in store.db.execute(
-        "SELECT r.task_id,i.spec FROM runs r JOIN run_inputs i ON i.run_id=r.id"
-    ):
+    for row in store.db.execute(read_query("execution-input-ownership")):
         if row["task_id"] in selected:
             continue
         spec = json.loads(row["spec"])
@@ -48,12 +48,7 @@ def check_dependencies(store, task_ids):
 
 
 def plan_cleanup(store, task_ids, *, all_tasks, missing):
-    roots = {
-        row[0]
-        for row in store.db.execute(
-            "SELECT id FROM tasks WHERE id NOT IN (SELECT alias_id FROM task_aliases)"
-        )
-    }
+    roots = {row[0] for row in store.db.execute(read_query("canonical-task-ids"))}
     if all_tasks:
         selected = roots
     elif missing:

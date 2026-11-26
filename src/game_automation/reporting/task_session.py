@@ -14,12 +14,8 @@ def task_session(store, run_id, *, before=0, limit=50):
     if not 1 <= limit <= 200 or before < 0:
         raise FrameworkError(ErrorCode.OBSERVABILITY_INVALID, "Invalid session page")
     task_id = store.run(run_id)["task_id"]
-    rows = store.db.execute(
-        "SELECT r.rowid AS cursor,r.id,r.mode,r.status,i.spec FROM runs r "
-        "JOIN run_inputs i ON i.run_id=r.id WHERE r.task_id=? AND (?=0 OR r.rowid<?) "
-        "ORDER BY r.rowid DESC LIMIT ?",
-        (task_id, before, before, limit + 1),
-    ).fetchall()
+    parameters = {"task_id": task_id, "before": before, "page_size": limit + 1}
+    rows = store.db.execute(read_query("task-session-executions"), parameters).fetchall()
     selected = rows[:limit]
     records = defaultdict(dict)
     links = defaultdict(list)
@@ -85,8 +81,7 @@ def task_session(store, run_id, *, before=0, limit=50):
         "before": before,
         "limit": limit,
         "source_event_seq": store.db.execute(
-            "SELECT COALESCE(MAX(seq),0) FROM events WHERE run_id IN "
-            "(SELECT id FROM runs WHERE task_id=?)",
+            read_query("task-session-revision"),
             (task_id,),
         ).fetchone()[0],
     }

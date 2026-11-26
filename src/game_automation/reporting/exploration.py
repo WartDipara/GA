@@ -8,6 +8,7 @@ from pathlib import Path
 from string import Template
 
 from game_automation.common import atomic_text
+from game_automation.storage.sql_queries import read_query
 
 
 def exploration_view(store, run_id, *, through=None):
@@ -19,9 +20,7 @@ def exploration_view(store, run_id, *, through=None):
     if through is not None:
         retained = {}
         rows = store.db.execute(
-            "SELECT e.run_id,e.data FROM events e JOIN runs r ON r.id=e.run_id "
-            "WHERE r.task_id=? AND e.seq<=? AND e.kind LIKE 'exploration.%.updated' "
-            "ORDER BY e.seq",
+            read_query("exploration-record-revisions"),
             (task_id, through),
         )
         for row in rows:
@@ -47,17 +46,14 @@ def exploration_view(store, run_id, *, through=None):
         action_id = element["data"].get("action_id")
         if action_id:
             row = store.db.execute(
-                "SELECT a.run_id FROM actions a JOIN runs r ON r.id=a.run_id "
-                "WHERE a.action_id=? AND r.task_id=?",
+                read_query("exploration-action-execution"),
                 (action_id, task_id),
             ).fetchone()
             element["action_run_id"] = row[0] if row else None
     limit = through if through is not None else 9223372036854775807
     locations = []
     for row in store.db.execute(
-        "SELECT e.run_id,e.span_id,e.data FROM events e JOIN runs r ON r.id=e.run_id "
-        "WHERE r.task_id=? AND e.seq<=? AND e.kind='exploration.location' "
-        "ORDER BY e.seq DESC LIMIT 2000",
+        read_query("exploration-location-events"),
         (task_id, limit),
     ):
         location = json.loads(row["data"])["payload"]

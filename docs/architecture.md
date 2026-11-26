@@ -66,10 +66,12 @@ event searches are mapped from named fields in the event repository.
 The Node SQLite adapter in `apps/control-plane/src/storage/database.ts` owns the same connection
 used by Drizzle. The adapter selects native statements by name from `storage/sql/`. Its schema,
 trigger, transaction, and maintenance files are embedded in the control-plane bundle at build time.
-SQLite expressions used by repositories remain bound Drizzle expressions. Larger Python read-only
-queries are packaged under `game_automation/storage/sql/`. SQL resources participate in dependency
-fingerprints, so changed SQL requires a new batch. The schema version is unchanged. Compilation does
-not establish runtime acceptance.
+SQLite expressions used by repositories remain bound Drizzle expressions. Python queries with
+joins, subqueries, or substantial filtering or aggregation use business-named `.sql` resources
+under `game_automation/storage/sql/`. Simple parameterized lookups stay near their callers. Choose
+between fixed statements when sort direction changes, and bind cursor values separately. SQL
+resources participate in dependency fingerprints, so changed SQL requires a new batch. The schema
+version is unchanged. Compilation does not establish runtime acceptance.
 
 ## Action uncertainty
 

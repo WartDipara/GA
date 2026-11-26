@@ -6,6 +6,7 @@ from urllib.parse import urlencode
 
 from game_automation.common import FrameworkError, within
 from game_automation.contracts import validate
+from game_automation.storage.sql_queries import read_query
 
 from .trace_projection import ENDS, STARTS
 
@@ -136,8 +137,7 @@ def inspect_snapshot(store, run_id):
             finding("missing_artifact", "error", reference, event, event["span_id"])
 
     for row in store.db.execute(
-        "SELECT action_id,status,result FROM actions WHERE run_id=? "
-        "AND status IN ('prepared','unknown','executed')",
+        read_query("execution-unresolved-actions"),
         (run_id,),
     ):
         action = json.loads(row["result"])

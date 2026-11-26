@@ -12,13 +12,14 @@ from urllib.parse import parse_qs, unquote, urlsplit
 
 from game_automation.common import FrameworkError, within
 from game_automation.errors import ErrorCode
+from game_automation.storage.sql_queries import read_query
 from game_automation.storage.store import Store
 
 from .agent_trace import agent_view, render_retained_trace
 from .compact_trace import render_compact
 from .execution import SETTLED_STATUSES
-from .live_feed import event_page
 from .history import execution_index, history_view, render_execution, render_history, task_document
+from .live_feed import event_page
 from .navigation import decorate_document, page_document, theme_document
 from .navigation_tree import live_workspace
 from .task_session import task_session
@@ -210,8 +211,7 @@ class TraceHandler(BaseHTTPRequestHandler):
             return
         if path == f"/tasks/{task_id}/snapshot":
             row = store.db.execute(
-                "SELECT COALESCE(MAX((SELECT MAX(seq) FROM events WHERE run_id=r.id)),0) "
-                "FROM runs r WHERE r.task_id=?",
+                read_query("live-task-revision"),
                 (task_id,),
             ).fetchone()
             revision = row[0]

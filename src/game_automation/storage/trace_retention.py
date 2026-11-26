@@ -11,6 +11,7 @@ from game_automation.contracts import validate
 from game_automation.errors import ErrorCode
 
 from .cleanup import cleanup
+from .sql_queries import read_query
 
 
 def settings(store):
@@ -39,11 +40,7 @@ def retention_plan(store, days=None):
     owners = {}
     protected = {}
     dependencies = []
-    for row in store.db.execute(
-        "SELECT r.id,r.task_id,r.status,r.updated_at,i.spec FROM runs r "
-        "JOIN run_inputs i ON i.run_id=r.id "
-        "WHERE r.task_id NOT IN (SELECT alias_id FROM task_aliases)"
-    ):
+    for row in store.db.execute(read_query("retention-executions")):
         tasks[row["task_id"]].append(row)
         owners[row["id"]] = row["task_id"]
         spec = json.loads(row["spec"])
@@ -51,11 +48,7 @@ def retention_plan(store, days=None):
             (row["task_id"], spec[key]) for key in ("source_run", "prepared_run") if spec.get(key)
         )
     latest = {}
-    for row in store.db.execute(
-        "SELECT e.run_id,e.kind,e.data FROM events e JOIN runs r ON r.id=e.run_id "
-        "WHERE e.kind IN ('report.requested','report.finished','task.retention.updated') "
-        "ORDER BY e.seq"
-    ):
+    for row in store.db.execute(read_query("retention-policy-events")):
         value = json.loads(row["data"])["payload"]
         task_id = owners.get(row["run_id"])
         if row["kind"] == "task.retention.updated" and task_id:
@@ -65,10 +58,7 @@ def retention_plan(store, days=None):
                 protected[task_id] = "pinned"
         else:
             latest[(row["run_id"], row["kind"])] = value
-    for row in store.db.execute(
-        "SELECT DISTINCT r.task_id FROM actions a JOIN runs r ON r.id=a.run_id "
-        "WHERE a.status IN ('prepared','unknown','executed')"
-    ):
+    for row in store.db.execute(read_query("retention-unresolved-action-tasks")):
         protected.setdefault(row[0], "unresolved_action")
     candidates = {}
     for task_id, runs in tasks.items():

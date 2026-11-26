@@ -7,6 +7,7 @@ from datetime import datetime
 from statistics import median
 
 from game_automation.contracts import validate
+from game_automation.storage.sql_queries import read_query
 
 STATE_TONES = {
     "queued": "info",
@@ -44,14 +45,7 @@ def workspace_view(store, *, run_id=None, task_id=None, links=()):
         result["subtitle"] = "This execution · measured module calls"
         if run["status"] in ("queued", "running"):
             return result
-        rows = store.db.execute(
-            "WITH endings AS (SELECT span_id,MAX(seq) AS last_seq FROM events "
-            "WHERE run_id=? AND kind IN ('call.completed','call.failed','call.incomplete') "
-            "GROUP BY span_id) SELECT s.seq,s.span_id,s.data,e.data AS ending FROM events s "
-            "LEFT JOIN endings f ON f.span_id=s.span_id LEFT JOIN events e ON e.seq=f.last_seq "
-            "WHERE s.run_id=? AND s.kind='call.started' ORDER BY s.seq",
-            (run_id, run_id),
-        )
+        rows = store.db.execute(read_query("execution-call-latency"), {"run_id": run_id})
         durations = []
         states = Counter()
         for row in rows:
@@ -104,10 +98,14 @@ def workspace_view(store, *, run_id=None, task_id=None, links=()):
                     }
                 )
     else:
-        query = "SELECT status,created_at FROM runs"
-        rows = store.db.execute(
-            query + (" WHERE task_id=?" if task_id else ""), (task_id,) if task_id else ()
-        ).fetchall()
+        if task_id:
+            rows = store.db.execute(
+                "SELECT status,created_at FROM runs WHERE task_id=?", (task_id,)
+            ).fetchall()
+            retained_count = len(rows)
+        else:
+            rows = store.db.execute("SELECT status,created_at FROM runs").fetchall()
+            retained_count = store.db.execute(read_query("canonical-task-count")).fetchone()[0]
         states = Counter(row["status"] for row in rows)
         days = Counter(
             datetime.fromisoformat(row["created_at"]).astimezone().date().isoformat()
@@ -120,14 +118,10 @@ def workspace_view(store, *, run_id=None, task_id=None, links=()):
             {"label": state, "count": count, "tone": STATE_TONES[state]}
             for state, count in states.items()
         ]
-        total_tasks = store.db.execute(
-            "SELECT COUNT(*) FROM tasks t WHERE NOT EXISTS "
-            "(SELECT 1 FROM task_aliases a WHERE a.alias_id=t.id)"
-        ).fetchone()[0]
         summary = [
             (
                 "Executions" if task_id else "Tasks",
-                len(rows) if task_id else total_tasks,
+                retained_count,
                 "Retained history",
                 "accent",
             ),

@@ -1,0 +1,3 @@
+SELECT COALESCE(SUM(LENGTH(CAST(data AS BLOB))), 0)
+FROM events
+WHERE run_id = ?;

@@ -2,25 +2,13 @@
 
 import json
 
+from game_automation.storage.sql_queries import read_query
+
 
 def event_page(store, task_id, after, revision):
-    ordering = "DESC" if after < 0 else "ASC"
-    rows = store.db.execute(
-        "SELECT e.seq,e.run_id,e.kind,e.span_id,"
-        "json_extract(e.data,'$.parent_span_id') AS parent_span_id,"
-        "json_extract(e.data,'$.timestamp') AS timestamp,"
-        "json_extract(e.data,'$.payload.capability') AS capability,"
-        "json_extract(e.data,'$.payload.duration_ms') AS duration_ms,"
-        "substr(json_extract(e.data,'$.payload'),1,4001) AS detail "
-        "FROM events e JOIN runs r ON r.id=e.run_id WHERE r.task_id=? AND e.seq>? "
-        "AND (e.kind LIKE 'call.%' OR e.kind='run.state' "
-        "OR e.kind LIKE 'workflow.stage.%' OR e.kind LIKE 'action.%' "
-        "OR e.kind LIKE 'exploration.supervision.%' OR e.kind LIKE 'gameplay.watchdog.%' "
-        "OR e.kind LIKE 'gameplay.lifecycle.%' OR e.kind='gameplay.finalization.issue' "
-        "OR e.kind IN ('report.requested','report.finished')) "
-        f"ORDER BY e.seq {ordering} LIMIT 201",
-        (task_id, max(after, 0)),
-    ).fetchall()
+    statement = read_query("live-events-latest" if after < 0 else "live-events-forward")
+    parameters = {"task_id": task_id, "after": max(after, 0)}
+    rows = store.db.execute(statement, parameters).fetchall()
     has_more = after >= 0 and len(rows) > 200
     selected = rows[:200]
     if after < 0:

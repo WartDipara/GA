@@ -6,6 +6,7 @@ import re
 from urllib.parse import quote
 
 from game_automation.contracts import validate
+from game_automation.storage.sql_queries import read_query
 
 from .navigation import links_for_mode, workspace_shell
 
@@ -48,15 +49,7 @@ def navigation_tree(store, path):
     task_id = parts[1] if len(parts) > 1 and parts[0] == "tasks" else None
     run_id = parts[3] if len(parts) > 3 and parts[2] == "executions" else None
     current = parts[-1]
-    rows = store.db.execute(
-        "SELECT t.id AS task_id,r.id AS run_id,r.mode,r.status,"
-        "json_extract(i.spec,'$.metadata.apkName') AS title,"
-        "ROW_NUMBER() OVER (PARTITION BY t.id ORDER BY r.rowid) AS ordinal "
-        "FROM tasks t LEFT JOIN runs r ON r.task_id=t.id "
-        "LEFT JOIN run_inputs i ON i.run_id=r.id "
-        "WHERE NOT EXISTS (SELECT 1 FROM task_aliases a WHERE a.alias_id=t.id) "
-        "ORDER BY t.rowid DESC,r.rowid DESC"
-    )
+    rows = store.db.execute(read_query("navigation-task-executions"))
     tasks = {}
     for row in rows:
         task = tasks.setdefault(row["task_id"], {"title": "Game testing task", "runs": []})

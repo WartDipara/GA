@@ -5,6 +5,7 @@ import json
 
 from game_automation.common import atomic_json, atomic_text
 from game_automation.contracts import validate
+from game_automation.storage.sql_queries import read_query
 
 from .navigation import (
     REPORTS,
@@ -20,22 +21,7 @@ def history_view(store):
     if store is None:
         result = {"tasks": [], "authority": "No recorded task database yet"}
         return result
-    rows = store.db.execute(
-        "WITH metadata AS (SELECT r.task_id,json_extract(i.spec,'$.metadata.apkName') AS title,"
-        "json_extract(i.spec,'$.metadata.packageName') AS package_name,"
-        "ROW_NUMBER() OVER (PARTITION BY r.task_id ORDER BY r.rowid DESC) AS position "
-        "FROM run_inputs i JOIN runs r ON r.id=i.run_id "
-        "WHERE json_extract(i.spec,'$.metadata.apkName') IS NOT NULL) "
-        "SELECT t.id AS task_id,COUNT(r.id) AS executions,MIN(r.created_at) AS created_at,"
-        "MAX(r.updated_at) AS updated_at,"
-        "SUM(CASE WHEN r.status='running' THEN 1 ELSE 0 END) AS running,"
-        "SUM(CASE WHEN r.status IN ('blocked','failed') THEN 1 ELSE 0 END) AS issues,"
-        "COALESCE(m.title,'Game testing task') AS title,m.package_name "
-        "FROM tasks t LEFT JOIN runs r ON r.task_id=t.id "
-        "LEFT JOIN metadata m ON m.task_id=t.id AND m.position=1 "
-        "WHERE NOT EXISTS (SELECT 1 FROM task_aliases a WHERE a.alias_id=t.id) "
-        "GROUP BY t.id ORDER BY MAX(r.rowid) DESC,t.rowid DESC"
-    )
+    rows = store.db.execute(read_query("task-history"))
     tasks = []
     for row in rows:
         item = dict(row)
@@ -106,11 +92,7 @@ def execution_index(store, run_id):
     states = store.events(run_id, kinds=("run.state",), limit=1)
     through = states[0]["seq"] if states else 0
     counts = store.db.execute(
-        "SELECT COUNT(*) AS events,MIN(seq) AS first_seq,MAX(seq) AS last_seq,"
-        "SUM(CASE WHEN kind='call.started' THEN 1 ELSE 0 END) AS calls,"
-        "SUM(CASE WHEN kind='call.started' "
-        "AND json_extract(data,'$.payload.capability')='ai.decide' "
-        "THEN 1 ELSE 0 END) AS model_calls FROM events WHERE run_id=? AND seq<=?",
+        read_query("execution-index-counts"),
         (run_id, through),
     ).fetchone()
     spec = store.run_task(run_id)

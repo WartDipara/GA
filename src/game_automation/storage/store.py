@@ -127,12 +127,7 @@ class Store:
     def list_runs(self, limit=20):
         if not 1 <= limit <= 200:
             raise FrameworkError(ErrorCode.INVALID_RUN_LIMIT)
-        query = """
-            SELECT r.id AS run_id,r.task_id,r.mode,r.status,r.stage,r.created_at,i.spec
-            FROM runs r JOIN run_inputs i ON i.run_id=r.id
-            ORDER BY r.rowid DESC LIMIT ?
-        """
-        rows = self.db.execute(query, (limit,)).fetchall()
+        rows = self.db.execute(read_query("recent-executions"), (limit,)).fetchall()
         runs = []
         for row in rows:
             entry = dict(row)
@@ -145,10 +140,7 @@ class Store:
         if not 1 <= limit <= 200:
             raise FrameworkError(ErrorCode.INVALID_RUN_LIMIT)
         rows = self.db.execute(
-            "SELECT t.id AS task_id,t.spec,COUNT(r.id) AS executions "
-            "FROM tasks t LEFT JOIN runs r ON r.task_id=t.id "
-            "WHERE NOT EXISTS (SELECT 1 FROM task_aliases a WHERE a.alias_id=t.id) "
-            "GROUP BY t.id ORDER BY MAX(r.rowid) DESC,t.rowid DESC LIMIT ?",
+            read_query("recent-business-tasks"),
             (limit,),
         )
         tasks = []
@@ -245,7 +237,7 @@ class Store:
             ).fetchone()
             return row[0] if row else 0
         row = self.db.execute(
-            "SELECT COALESCE(SUM(LENGTH(CAST(data AS BLOB))),0) FROM events WHERE run_id=?",
+            read_query("execution-event-bytes"),
             (run_id,),
         ).fetchone()
         return row[0]
@@ -288,15 +280,6 @@ class Store:
     def supplement(self, run_id, text):
         return self._write("supplement", run_id=run_id, text=text)
 
-    def task_supplements(self, task_id):
-        rows = self.db.execute(
-            "SELECT e.data FROM events e JOIN runs r ON r.id=e.run_id "
-            "WHERE r.task_id=? AND e.kind='task.supplement' ORDER BY e.seq",
-            (task_id,),
-        )
-        supplements = [json.loads(row["data"]) for row in rows]
-        return supplements
-
     def unknown_actions(self, run_id):
         action_ids = [
             row[0]
@@ -337,18 +320,8 @@ class Store:
     def latest_device_action(self, run_id):
         task = self.run_task(run_id)
         apk_key = f"{task.get('source_run')}:{task.get('apk_index')}"
-        row = self.db.execute(
-            "SELECT a.run_id,a.action_id,a.status,a.result FROM actions a "
-            "JOIN device_bindings b ON json_extract(a.result,'$.instance_id')=b.instance_id "
-            "JOIN run_inputs i ON i.run_id=a.run_id "
-            "WHERE b.apk_key=? AND "
-            "json_extract(i.spec,'$.source_run')||':'||"
-            "json_extract(i.spec,'$.apk_index')=b.apk_key "
-            "AND (?='gameplay' OR "
-            "json_extract(a.result,'$.capability') IN ('device.install','device.uninstall')) "
-            "ORDER BY a.rowid DESC LIMIT 1",
-            (apk_key, task.get("kind")),
-        ).fetchone()
+        parameters = {"apk_key": apk_key, "execution_kind": task.get("kind")}
+        row = self.db.execute(read_query("latest-device-action"), parameters).fetchone()
         if row is None:
             return None
         action = {
@@ -358,18 +331,6 @@ class Store:
             **json.loads(row["result"]),
         }
         return action
-
-    def progress(self, workspace_key):
-        row = self.db.execute(
-            "SELECT run_id,data FROM gameplay_progress WHERE workspace_key=?", (workspace_key,)
-        ).fetchone()
-        if row is None:
-            return None
-        progress = {"run_id": row[0], "data": json.loads(row[1])}
-        return progress
-
-    def checkpoint(self, run_id, workspace_key, data):
-        self._write("checkpoint", run_id=run_id, workspace_key=workspace_key, data=data)
 
     def finish_device_action(self, run_id, action_id, status, result):
         self._write(
