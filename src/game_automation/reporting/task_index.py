@@ -2,7 +2,7 @@
 
 from collections import Counter
 
-from game_automation.common import FileLock, atomic_json, atomic_text
+from game_automation.utilities.files import FileLock, atomic_json, atomic_text
 
 from .history import task_document
 

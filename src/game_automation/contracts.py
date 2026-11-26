@@ -3,8 +3,7 @@ from pathlib import Path
 
 from jsonschema import Draft202012Validator
 
-from game_automation.common import FrameworkError
-from game_automation.errors import ErrorCode
+from game_automation.errors import ErrorCode, FrameworkError
 
 
 def schema(root: Path, name: str):

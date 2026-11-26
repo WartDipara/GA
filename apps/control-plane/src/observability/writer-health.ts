@@ -2,7 +2,7 @@ import { statSync } from 'node:fs';
 import { join } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { decode, type ContractMap } from '@game-automation/contracts';
-import { uid } from '../storage/values.js';
+import { uid } from '../utilities/values.js';
 
 type Health = ContractMap['writer-health'];
 type Measurement = Health['metrics']['transaction'];

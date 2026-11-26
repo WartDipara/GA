@@ -1,4 +1,4 @@
-# M1 task intake
+# Task intake
 
 ## Boundaries
 
@@ -8,7 +8,7 @@ inference or calls its optional ai.decide dependency for documents. It does not 
 plugin, read SQLite, or operate a device. Removing the AI provider still permits canonical intake;
 documents block on the missing dependency.
 
-The first document adapter reads UTF-8 TXT and Markdown locally, with optional BOM and normalized LF
+The document adapter reads UTF-8 TXT and Markdown locally, with optional BOM and normalized LF
 endings. It checks extension, a 200,000-byte limit, decoding, empty content, and null bytes before
 submission. It does not follow links, execute embedded commands, extract attachments, parse
 Word/PDF, or perform OCR. Existing redaction is applied before storage; pattern redaction cannot
@@ -53,12 +53,12 @@ exploration context.
 
 Acceptance is one authoritative append-only event, including the task and provenance. If a process
 stops before acceptance, a later attempt may call AI again, but no device action can have occurred
-in this stage. Once acceptance commits, a resumed game run reuses it without duplicate intake
+in this stage. Once acceptance commits, a resumed intake run reuses it without duplicate intake
 acceptance or model calls. The CLI rejects requirement changes after acceptance; create a new task
 instead. Unknown device actions are still blocked by the workflow's existing reconciliation rule.
 
-An intake-only run succeeds at stage intake. A game run proceeds to environment and currently blocks
-on environment.check, which is deliberately unregistered. It cannot report whole-game success.
+An intake run succeeds when the canonical task is accepted. Launch and gameplay use the APK
+[workflow](workflow.md) with an explicitly assigned MuMu instance.
 Cancellation, process failure, timeout, unavailable AI, invalid output, and trace persistence
 failure retain the existing host guarantees. Intake has a configured wall-clock budget per
 execution/resume invocation; paused time is excluded.

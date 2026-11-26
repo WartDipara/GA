@@ -7,16 +7,15 @@ from pathlib import Path
 from actions import execute
 from capture import capture
 from display import observe
-from logs import collect
 from lifecycle import lifecycle
-from packages import inspect, install, uninstall
+from logs import collect
 from runtime import inspect_runtime
 
-from game_automation.common import FrameworkError
-from game_automation.errors import ErrorCode
+from game_automation.errors import ErrorCode, FrameworkError
 from game_automation.plugin_sdk.commands import Commands
 from game_automation.plugin_sdk.credentials import load_profile, scrub
 from game_automation.plugin_sdk.rpc import serve
+from packages import inspect, install, uninstall
 
 MANIFEST = tomllib.loads(Path(__file__).with_name("plugin.toml").read_text(encoding="utf-8"))
 

@@ -6,8 +6,8 @@ from checkpoint import complete_checkpoint, read_checkpoint
 from download import CONTENT_RANGE
 from network import retry_after_seconds, retryable_response, stream_response
 
-from game_automation.common import FrameworkError, atomic_json, within
-from game_automation.errors import ErrorCode
+from game_automation.errors import ErrorCode, FrameworkError
+from game_automation.utilities.files import atomic_json, within
 
 
 def response_size(response):

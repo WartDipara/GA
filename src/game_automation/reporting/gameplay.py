@@ -5,8 +5,8 @@ import json
 from collections import Counter
 from pathlib import Path
 
-from game_automation.common import FrameworkError, atomic_text, within
-from game_automation.errors import ErrorCode
+from game_automation.errors import ErrorCode, FrameworkError
+from game_automation.utilities.files import atomic_text, within
 
 from .action_evidence import action_figures
 from .execution import snapshot_metadata

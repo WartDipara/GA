@@ -6,7 +6,7 @@ They do not mirror every workflow stage with an empty package or placeholder plu
 ```text
 config/                         Application settings and capability/Skill bindings
 contracts/v1/                   Shared JSON schemas and input examples
-docs/                           Architecture, commands and decisions
+docs/                           Current architecture and operating instructions
 plugins/<capability>/           Independent stdio process implementations and manifests
 skills/<skill>/                 Shared runtime AI instructions and reference material
 tools/                          Maintained build and contract-generation tools
@@ -17,24 +17,24 @@ apps/control-plane/src/
   workflow/                     Batch scheduler, lifecycle and recovery
   gameplay/                     Planning, routines, progress and outcome verification
   reporting/                    Publication policy, component timing and minimal outcome reports
+  utilities/                    File, value, hashing, redaction and capacity helpers
 packages/contracts/src/         Shared generated contract validation and structured errors
 packages/plugin-sdk/src/        Bounded JSON-RPC streams and child-process lifecycle
 src/game_automation/
   __init__.py                   Package version metadata only
   __main__.py                   python -m game_automation entry
   cli.py                        Command-line parsing and dispatch
-  common.py                     Shared identifiers, hashing, redaction and file primitives
   contracts.py                  JSON Schema loading and validation
-  disk.py                       Disk space checks
-  errors.py                     Framework error codes and default messages
+  errors.py                     Framework errors and default messages
+  utilities/                    Shared filesystem, value, redaction and capacity helpers
   observability.py              Deterministic projection of recorded context and public events
   kernel/
     capability_router.py        Plugin registration and dependency routing
-    plugin_host.py              Transitional client of the TypeScript plugin host
+    plugin_host.py              Client of the TypeScript plugin host
     storage_policy.py           Storage budget configuration rules
     workflow/                   CLI inputs and remaining stage compatibility tools
   plugin_sdk/                   JSON-RPC, bounded commands, images and credential/privacy helpers
-  prompting/                    Shared resource resolution and version-pinned AI inputs
+  prompting/                    Shared resource resolution and batch-pinned AI inputs
   reporting/
     trace.py                    Offline execution/context report
     compact_trace.py            Bounded rendering for long traces
@@ -78,8 +78,7 @@ other plugins must not import their internal implementations. Domain schemas ret
 v1 filenames, avoiding a directory-only protocol change. Configuration bindings remain under config/.
 
 Code relocation changes pinned source hashes. Existing executions still need `--new-batch` after an
-implementation update. This organization change does not rewrite task records, credentials or old
-evidence. See [task workspaces](task-workspaces.md) and [cleanup](cleanup.md) for local runtime data.
+implementation update. Task records, credentials and evidence retain their original dependencies. See [task workspaces](task-workspaces.md) and [cleanup](cleanup.md) for local runtime data.
 The [runtime data layout](runtime-data.md) separates shared operational logs, inputs, caches and
 temporary developer output from persistent task state.
 

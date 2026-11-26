@@ -1,7 +1,7 @@
 import { appendFileSync, mkdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { frameworkError } from '@game-automation/contracts/errors';
-import { redact } from './storage/values.js';
+import { redact } from './utilities/redaction.js';
 
 function fatal(error: unknown): never {
   const directory = join(resolve(process.argv[2] ?? '.'), 'var/logs');

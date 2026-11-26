@@ -10,10 +10,10 @@ from pathlib import Path
 from string import Template
 from urllib.parse import parse_qs, unquote, urlsplit
 
-from game_automation.common import FrameworkError, within
-from game_automation.errors import ErrorCode
+from game_automation.errors import ErrorCode, FrameworkError
 from game_automation.storage.sql_queries import read_query
 from game_automation.storage.store import Store
+from game_automation.utilities.files import within
 
 from .agent_trace import agent_view, render_retained_trace
 from .compact_trace import render_compact

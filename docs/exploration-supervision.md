@@ -48,6 +48,6 @@ and isolation reasons, including through its historical state projection. No AI 
 records or reports. Existing credential references and redaction remain unchanged; no additional
 content-scanning or inference pass is introduced for logging.
 
-This increment does not introduce an independent process-health monitor. Existing command/model
-timeouts remain active. Forced process loss or unavailable storage can delay publication; report-only
+Command and model timeouts bound their corresponding calls. Forced process loss or unavailable
+storage can delay publication. Report-only
 recovery uses committed evidence and never replays device input. Real-game acceptance is pending.

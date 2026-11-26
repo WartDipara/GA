@@ -51,7 +51,6 @@ export const blockedErrors = new Set<ErrorCode>([
   ErrorCode.RUNTIME_CHANGED,
   ErrorCode.ACTION_ALREADY_DISPATCHED,
   ErrorCode.BUDGET_EXHAUSTED,
-  ErrorCode.DEVICE_NOT_IMPLEMENTED,
   ErrorCode.INTAKE_NEEDS_INPUT,
   ErrorCode.INTAKE_NEW_RUN_REQUIRED,
   ErrorCode.ENVIRONMENT_BLOCKED,

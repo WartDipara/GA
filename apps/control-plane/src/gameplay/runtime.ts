@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { sha256 } from '../utilities/hashing.js';
 import { readFile } from 'node:fs/promises';
 import { FileUsage } from '../storage/file-usage.js';
 import { performance } from 'node:perf_hooks';
@@ -6,8 +6,9 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { decode, object, text, type ContractMap } from '@game-automation/contracts';
 import { ErrorCode, FrameworkError, frameworkError } from '@game-automation/contracts/errors';
 import { Host } from '../kernel/host.js';
-import { requireDiskSpace } from '../storage/disk.js';
-import { integer, uid, within, type Fields } from '../storage/values.js';
+import { requireDiskSpace } from '../utilities/disk.js';
+import { integer, uid, type Fields } from '../utilities/values.js';
+import { within } from '../utilities/files.js';
 import type { Execution } from '../workflow/execution.js';
 import { ProgressStore } from './progress.js';
 import type { Action, Facts, Observation, Pending } from './types.js';
@@ -141,7 +142,7 @@ export class Runtime {
           image.subarray(0, 8).toString('hex') !== '89504e470d0a1a0a' ||
           image.readUInt32BE(16) !== result.screenshot.width ||
           image.readUInt32BE(20) !== result.screenshot.height ||
-          createHash('sha256').update(image).digest('hex') !== result.screenshot.sha256
+          sha256(image) !== result.screenshot.sha256
         )
           throw new FrameworkError(ErrorCode.INVALID_SCREENSHOT);
         const observation = {

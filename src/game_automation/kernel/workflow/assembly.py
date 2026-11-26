@@ -3,8 +3,7 @@
 from dataclasses import dataclass
 from typing import Callable
 
-from game_automation.common import FrameworkError
-from game_automation.errors import ErrorCode
+from game_automation.errors import ErrorCode, FrameworkError
 
 from .device import preparation_task
 from .gameplay import gameplay_task

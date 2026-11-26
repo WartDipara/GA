@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { once } from 'node:events';
 import { createServer, type Socket } from 'node:net';
@@ -10,7 +10,9 @@ import { ErrorCode, FrameworkError, frameworkError } from '@game-automation/cont
 import { Host } from './kernel/host.js';
 import { Peer } from '@game-automation/plugin-sdk/rpc';
 import { Store } from './storage/store.js';
-import { atomicJson, type Fields } from './storage/values.js';
+import { atomicJson } from './utilities/files.js';
+import { sha256 } from './utilities/hashing.js';
+import { type Fields } from './utilities/values.js';
 import { Execution } from './workflow/execution.js';
 
 const root = resolve(process.argv[2] ?? '.');
@@ -22,11 +24,9 @@ if (process.platform !== 'win32')
     ErrorCode.UNSUPPORTED_PLATFORM,
     'The writer lease requires Windows named pipes',
   );
-const name = createHash('sha256').update(root.toLowerCase()).digest('hex');
+const name = sha256(root.toLowerCase());
 const pipe = `\\\\.\\pipe\\game-auto-writer-${name}`;
-const fingerprint = createHash('sha256')
-  .update(readFileSync(process.argv[1] ?? ''))
-  .digest('hex');
+const fingerprint = sha256(readFileSync(process.argv[1] ?? ''));
 const token = randomBytes(32).toString('hex');
 const lease = createServer((socket) => {
   socket.destroy();

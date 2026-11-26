@@ -8,22 +8,14 @@ import { start, terminate } from '@game-automation/plugin-sdk/process';
 import { Store, type TraceIds } from '../storage/store.js';
 import { previousClose } from '../storage/lifecycle.js';
 import { settledStatuses } from '../workflow/state-policy.js';
-import {
-  canonical,
-  integer,
-  optionalText,
-  redact,
-  strings,
-  uid,
-  type Fields,
-} from '../storage/values.js';
+import { canonical, integer, optionalText, strings, uid, type Fields } from '../utilities/values.js';
+import { redact } from '../utilities/redaction.js';
 
 const capabilityContracts: Record<string, [keyof ContractMap, keyof ContractMap]> = {
   'credential.prepare': ['credential-prepare-request', 'credential-prepare-result'],
   'planner.image': ['planner-image-request', 'planner-image-result'],
   'ai.decide': ['ai-decide-request', 'ai-decide-result'],
   'task.intake': ['intake-request', 'intake-result'],
-  'environment.check': ['environment-request', 'environment-result'],
   'apk.prepare': ['apk-prepare-request', 'apk-metadata'],
   'apk.plan': ['apk-plan-request', 'apk-download-plan'],
   'apk.preflight': ['apk-preflight-request', 'apk-preflight-result'],

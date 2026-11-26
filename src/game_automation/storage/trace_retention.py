@@ -6,9 +6,9 @@ import tomllib
 from collections import Counter, defaultdict
 from datetime import datetime, timedelta, timezone
 
-from game_automation.common import FileLock, FrameworkError
 from game_automation.contracts import validate
-from game_automation.errors import ErrorCode
+from game_automation.errors import ErrorCode, FrameworkError
+from game_automation.utilities.files import FileLock
 
 from .cleanup import cleanup
 from .sql_queries import read_query

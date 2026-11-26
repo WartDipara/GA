@@ -3,9 +3,9 @@
 import html
 import json
 
-from game_automation.common import atomic_json, atomic_text
 from game_automation.contracts import validate
 from game_automation.storage.sql_queries import read_query
+from game_automation.utilities.files import atomic_json, atomic_text
 
 from .navigation import (
     REPORTS,

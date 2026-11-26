@@ -1,7 +1,7 @@
+import { checkpointHash } from '../utilities/hashing.js';
 import { performance } from 'node:perf_hooks';
 import { ErrorCode, FrameworkError } from '@game-automation/contracts/errors';
-import { integer, type Fields } from '../storage/values.js';
-import { checkpointHash } from './knowledge.js';
+import { integer, type Fields } from '../utilities/values.js';
 import type { Runtime } from './runtime.js';
 import type { Decision, Observation, Pending, Progress } from './types.js';
 import type { Assessment } from './agents.js';

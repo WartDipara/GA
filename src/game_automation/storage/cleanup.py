@@ -4,8 +4,8 @@ import json
 import shutil
 from pathlib import Path
 
-from game_automation.common import FileLock, FrameworkError, atomic_json, within
-from game_automation.errors import ErrorCode
+from game_automation.errors import ErrorCode, FrameworkError
+from game_automation.utilities.files import FileLock, atomic_json, within
 
 from .sql_queries import read_query
 

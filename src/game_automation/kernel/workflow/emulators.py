@@ -1,8 +1,9 @@
 import os
 
-from game_automation.common import FrameworkError, uid, within
 from game_automation.contracts import validate
-from game_automation.errors import ErrorCode
+from game_automation.errors import ErrorCode, FrameworkError
+from game_automation.utilities.files import within
+from game_automation.utilities.values import uid
 
 from .evidence import verify_image
 

@@ -1,7 +1,7 @@
 import { performance } from 'node:perf_hooks';
 import { object, text } from '@game-automation/contracts';
 import { ErrorCode, FrameworkError, frameworkError } from '@game-automation/contracts/errors';
-import { canonical, strings, uid, type Fields } from '../storage/values.js';
+import { canonical, strings, uid, type Fields } from '../utilities/values.js';
 import { buildWorkflow, type Stage } from './assembly.js';
 import type { Execution } from './execution.js';
 import { revalidateDeviceStage } from './revalidation.js';

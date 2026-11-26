@@ -1,15 +1,10 @@
-import { createHash } from 'node:crypto';
-import { readFile, readdir } from 'node:fs/promises';
+import { readdir } from 'node:fs/promises';
 import { join, relative } from 'node:path';
 import { object, text } from '@game-automation/contracts';
 import { ErrorCode, FrameworkError } from '@game-automation/contracts/errors';
-import { within } from '../storage/values.js';
+import { within } from '../utilities/files.js';
+import { sha256File } from '../utilities/hashing.js';
 import type { Runtime } from './runtime.js';
-
-async function digest(path: string): Promise<string> {
-  const bytes = await readFile(path);
-  return createHash('sha256').update(bytes).digest('hex');
-}
 
 export async function verifyPlanningDependencies(runtime: Runtime): Promise<void> {
   runtime.check();
@@ -18,7 +13,7 @@ export async function verifyPlanningDependencies(runtime: Runtime): Promise<void
     .at(-1);
   const manifestPath = within(runtime.directory, 'manifest.json');
   try {
-    if (!snapshot || (await digest(manifestPath)) !== snapshot.payload['manifest_sha256'])
+    if (!snapshot || (await sha256File(manifestPath)) !== snapshot.payload['manifest_sha256'])
       throw new FrameworkError(ErrorCode.SNAPSHOT_CHANGED);
   } catch (error) {
     if (error instanceof FrameworkError) throw error;
@@ -26,7 +21,7 @@ export async function verifyPlanningDependencies(runtime: Runtime): Promise<void
   }
   for (const [path, expected] of Object.entries(object(runtime.manifest['source_hashes']))) {
     try {
-      if ((await digest(path)) !== expected) throw new FrameworkError(ErrorCode.RUNTIME_CHANGED);
+      if ((await sha256File(path)) !== expected) throw new FrameworkError(ErrorCode.RUNTIME_CHANGED);
     } catch (error) {
       if (error instanceof FrameworkError) throw error;
       throw new FrameworkError(ErrorCode.RUNTIME_CHANGED, 'Pinned implementation is unavailable');
@@ -57,7 +52,7 @@ export async function verifyPlanningDependencies(runtime: Runtime): Promise<void
         if (entry.isDirectory()) await scan(path);
         else {
           const name = relative(root, path).replaceAll('\\', '/');
-          if ((await digest(path)) !== expected.get(name))
+          if ((await sha256File(path)) !== expected.get(name))
             throw new FrameworkError(ErrorCode.SNAPSHOT_CHANGED);
           observed.add(name);
         }

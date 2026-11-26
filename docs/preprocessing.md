@@ -1,8 +1,8 @@
 # APK preprocessing
 
-This increment accepts a JSON list, downloads each APK, and prepares compact metadata for later
-modules. It does not install, modify, launch, or explore applications. Verification of this code
-change is compilation only; live download and APK-tool behavior remain unverified.
+Preprocessing reads a JSON list, downloads each APK, and prepares compact metadata for device
+preparation. Its output is an APK workspace and metadata. Live downloads and APK-tool behavior
+are verified by recorded preprocessing executions.
 
 ## Input and commands
 

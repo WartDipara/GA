@@ -7,10 +7,13 @@ import tomllib
 from pathlib import Path
 
 from game_automation import __version__
-from game_automation.common import FrameworkError, atomic_json, digest, now, redact, skill_prefix
-from game_automation.errors import ErrorCode
+from game_automation.errors import ErrorCode, FrameworkError
 from game_automation.kernel.capability_router import load_plugins
+from game_automation.prompting.instructions import skill_prefix
 from game_automation.storage.control_client import verify_build
+from game_automation.utilities.files import atomic_json
+from game_automation.utilities.redaction import redact
+from game_automation.utilities.values import digest, now
 
 from .resources import read_manifest, resource_root
 
@@ -146,7 +149,9 @@ def freeze(store, run_id, *, parent_run=None):
                     relative = file_path.relative_to(resource_roots[kind]).as_posix()
                     files[f"{kind}/{relative}"] = digest(file_path.read_bytes())
     plugins = load_plugins(root)
-    verify_build(root)
+    codex_version = verify_build(root)
+    application = tomllib.loads((root / "config/application.toml").read_text(encoding="utf-8"))
+    application["codex"]["version"] = codex_version
     source_hashes = implementation_hashes(root, plugins)
     manifest = {
         "framework_version": __version__,
@@ -155,9 +160,7 @@ def freeze(store, run_id, *, parent_run=None):
         "created_at": now(),
         "protocol_version": "1.0",
         "skills_config": skills_config,
-        "application": tomllib.loads(
-            (root / "config/application.toml").read_text(encoding="utf-8")
-        ),
+        "application": application,
         "plugins": plugins,
         "source_hashes": source_hashes,
         "node_runtime": node_runtime(root, plugins),

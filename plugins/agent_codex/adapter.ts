@@ -7,10 +7,8 @@ import type { ThreadStartParams } from '../../var/cache/typescript/codex/v2/Thre
 import type { ThreadResumeParams } from '../../var/cache/typescript/codex/v2/ThreadResumeParams.js';
 import type { TurnStartParams } from '../../var/cache/typescript/codex/v2/TurnStartParams.js';
 import type { UserInput } from '../../var/cache/typescript/codex/v2/UserInput.js';
-import {
-  frameworkVersion,
-  pinnedCodexVersion,
-} from '../../var/cache/typescript/generated/agent-metadata.js';
+import codexRuntime from '../../var/cache/typescript/codex-version.json' with { type: 'json' };
+import { frameworkVersion } from '../../var/cache/typescript/generated/agent-metadata.js';
 import { decode, object, text, type ContractMap } from '@game-automation/contracts';
 import { ErrorCode, FrameworkError } from '@game-automation/contracts/errors';
 import { Peer } from '@game-automation/plugin-sdk/rpc';
@@ -40,10 +38,13 @@ export class CodexAdapter {
     });
     const actual = version.stdout.trim();
     if (
-      params.codex.version !== pinnedCodexVersion ||
-      actual !== `codex-cli ${pinnedCodexVersion}`
+      params.codex.version !== codexRuntime.version ||
+      actual !== `codex-cli ${codexRuntime.version}`
     ) {
-      throw new FrameworkError(ErrorCode.CODEX_VERSION_MISMATCH);
+      throw new FrameworkError(
+        ErrorCode.CODEX_VERSION_MISMATCH,
+        `Built for Codex ${codexRuntime.version}. Rebuild with the installed CLI and start a new batch.`,
+      );
     }
     await events.emit('ai.phase', {
       name: 'runtime-version',

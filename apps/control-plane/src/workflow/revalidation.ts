@@ -2,7 +2,7 @@ import { decode, object, text } from '@game-automation/contracts';
 import { ErrorCode, FrameworkError } from '@game-automation/contracts/errors';
 import { Host } from '../kernel/host.js';
 import { confirmSession } from '../gameplay/runtime.js';
-import type { Fields } from '../storage/values.js';
+import type { Fields } from '../utilities/values.js';
 import type { Execution } from './execution.js';
 
 /** Historical stage success does not establish the current device state. */

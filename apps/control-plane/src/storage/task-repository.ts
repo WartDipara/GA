@@ -15,7 +15,7 @@ import {
   taskAliases,
   tasks,
 } from './tables.js';
-import { parsed } from './values.js';
+import { parsed } from '../utilities/values.js';
 
 export class TaskRepository {
   constructor(private readonly db: NodeSQLiteDatabase) {}

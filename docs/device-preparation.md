@@ -1,15 +1,14 @@
 # Android device preparation
 
-This increment connects ready preprocessing items to dedicated, already-running MuMu instances. It
-implements instance reservations, single-APK installation, package fingerprint verification, and
-focused-display observations. These code paths have compilation verification only; the earlier
-operator observations do not establish acceptance of this installation workflow.
+Device preparation connects ready APK items to dedicated, already-running MuMu instances. It
+reserves the instance, installs or adopts one APK, verifies its fingerprint and records the focused
+display. Acceptance requires evidence from the running version of the installation workflow.
 
 ## Prepare one APK
 
 Choose an existing instance dedicated to the selected APK workspace. Do not select a personal
-instance or one another operator is using. The framework does not create, clone, wipe, or reset
-instances in this increment.
+instance or one another operator is using. Instance creation, cloning, wiping and reset belong to
+the operator.
 
 ```powershell
 uv run game-auto status <preprocessing_run_id>

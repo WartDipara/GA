@@ -1,9 +1,10 @@
+import { checkpointHash } from '../utilities/hashing.js';
 import { object, text } from '@game-automation/contracts';
 import { ErrorCode, FrameworkError } from '@game-automation/contracts/errors';
-import { integer } from '../storage/values.js';
+import { integer } from '../utilities/values.js';
 import { Battle } from './battle.js';
 import { Exploration } from '../exploration/controller.js';
-import { checkpointHash, Knowledge } from './knowledge.js';
+import { Knowledge } from './knowledge.js';
 import { executeRoutine, Perception, route, verifiesLocalOutcome, type View } from './local.js';
 import { TestAgents, type Assessment } from './agents.js';
 import { Watchdog } from './watchdog.js';

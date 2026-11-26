@@ -2,7 +2,8 @@ import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { decode, object, text, type ContractMap } from '@game-automation/contracts';
 import type { Store } from '../storage/store.js';
-import { integer, parsed, within } from '../storage/values.js';
+import { integer, parsed } from '../utilities/values.js';
+import { within } from '../utilities/files.js';
 
 type Element = Extract<ContractMap['exploration-record'], { kind: 'element' }>;
 type Proof = NonNullable<Element['data']['verification']>;

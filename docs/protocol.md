@@ -16,12 +16,12 @@ stdout is protocol-only; stderr carries diagnostics. Use artifact references for
 
 The `agent_codex` implementation uses TypeScript. `ai-decide-request` and `ai-decide-result`
 define its cross-language business boundary. Its provider request types are generated from the
-pinned Codex CLI; provider-specific shapes do not become application contracts. Optional business
+Codex CLI detected at build time. Provider-specific shapes remain inside the adapter. Optional business
 fields still receive the strict-output adaptation and are restored and validated before return.
 Node plugin exceptions are recorded as `plugin.node.exception` before an error response. Raw
 provider events, standard events, usage and session/turn/item correlation retain their identifiers.
 
-The TypeScript kernel supervises plugin stdio and owns all SQLite writes. The transitional Python
+The TypeScript kernel supervises plugin stdio and owns all SQLite writes. The Python
 client uses private authenticated JSON-RPC to this owner. `kernel-command.schema.json` validates
 named mutations; raw SQL is never accepted. This interface is not provided to plugins. Connection
 loss leaves the submitted request uncertain, and the client never resends it. A
@@ -190,24 +190,6 @@ assembles explicit frozen intake skills and outputSchema before the plugin call.
 happen before call.completed; semantic source, status, and budget validation happens before
 intake.accepted. An accepted task is distinct from the original immutable submission. See
 [task intake](task-intake.md) for defaults, questions, revision IDs, and recovery semantics.
-
-## Environment checks
-
-The environment.check capability uses environment-request and environment-result schemas. The
-request supplies the platform, target package, executable, optional serial, and per-command timeout.
-The kernel validates the request before dispatch and the host validates the result before
-call.completed. A ready result requires an identified device, installed package paths, and passed
-checks. A blocked result includes at least one check with a diagnostic code and message.
-
-Each ADB query receives a command_id. The plugin awaits persistence of
-plugin.environment.command.started before starting its child process, then records command.completed
-or command.incomplete with the same identifier. Checks reference those command identifiers. The
-kernel records environment.checked under the capability's span. status includes the latest completed
-check result; trace retains all attempts, including incomplete calls.
-
-The capability is non-mutating and does not retry automatically. These checks do not prove launch,
-permission readiness, observation availability, or game coverage. See
-[environment checks](environment.md).
 
 ## Durable event batches
 

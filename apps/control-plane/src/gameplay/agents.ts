@@ -1,16 +1,17 @@
-import { createHash } from 'node:crypto';
+import { checkpointHash, sha256 } from '../utilities/hashing.js';
 import { existsSync } from 'node:fs';
 import { mkdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { decode, object, schema, text, type ContractMap } from '@game-automation/contracts';
 import { ErrorCode, FrameworkError, frameworkError } from '@game-automation/contracts/errors';
-import { redact, strings, uid, within, type Fields } from '../storage/values.js';
+import { redact } from '../utilities/redaction.js';
+import { strings, uid, type Fields } from '../utilities/values.js';
+import { within } from '../utilities/files.js';
 import type { Catalog } from '../exploration/catalog.js';
 import { rectangle, projectAction } from './coordinates.js';
 import { verifyPlanningDependencies } from './dependencies.js';
 import { Handoffs, type ContextRequest } from './handoff.js';
-import { checkpointHash } from './knowledge.js';
 import type { View } from './local.js';
 import type { Runtime } from './runtime.js';
 import type { Coordinates, Decision, Observation, Pending } from './types.js';
@@ -105,7 +106,7 @@ export class TestAgents {
           throw new FrameworkError(ErrorCode.CAPABILITY_DENIED);
         const path = within(root, `${name}/SKILL.md`);
         const bytes = await readFile(path);
-        if (createHash('sha256').update(bytes).digest('hex') !== hashes[`skills/${name}/SKILL.md`])
+        if (sha256(bytes) !== hashes[`skills/${name}/SKILL.md`])
           throw new FrameworkError(ErrorCode.SNAPSHOT_CHANGED);
         instructions.push(`<runtime_skill name="${name}">\n${bytes.toString('utf8')}\n</runtime_skill>`);
         input.push({ type: 'skill', name, path });
@@ -120,7 +121,7 @@ export class TestAgents {
           const reference = this.gameReference(name);
           if (!reference || context['reference_skill'] !== name) continue;
           const bytes = await readFile(within(root, reference));
-          if (createHash('sha256').update(bytes).digest('hex') !== hashes[`skills/${reference}`])
+          if (sha256(bytes) !== hashes[`skills/${reference}`])
             throw new FrameworkError(ErrorCode.SNAPSHOT_CHANGED);
           instructions.push(`<game_reference name="${reference}">\n${bytes.toString('utf8')}\n</game_reference>`);
         }

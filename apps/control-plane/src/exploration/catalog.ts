@@ -1,7 +1,7 @@
-import { createHash } from 'node:crypto';
+import { sha256 } from '../utilities/hashing.js';
 import { decode, text, type ContractMap } from '@game-automation/contracts';
 import { ErrorCode, FrameworkError } from '@game-automation/contracts/errors';
-import { parsed, uid } from '../storage/values.js';
+import { parsed, uid } from '../utilities/values.js';
 import type { Runtime } from '../gameplay/runtime.js';
 import type { Facts, Observation, Pending } from '../gameplay/types.js';
 import { destination } from './frontier.js';
@@ -17,7 +17,7 @@ export type Session = Extract<Record, { kind: 'session' }>;
 export type Inventory = ContractMap['exploration-view'];
 
 export function signature(value: unknown): string {
-  return createHash('sha256').update(JSON.stringify(value)).digest('hex');
+  return sha256(JSON.stringify(value));
 }
 
 function name(value: string): string {

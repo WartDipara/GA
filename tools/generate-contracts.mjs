@@ -75,13 +75,9 @@ for (const field of ['version', 'protocol_version', 'capabilities']) {
   if (!match) throw new Error(`Missing plugin metadata: ${field}`);
   metadata[field] = JSON.parse(match[1]);
 }
-const configuration = await readFile('config/application.toml', 'utf8');
-const codexVersion = /\[codex\][\s\S]*?\nversion = "([^"]+)"/.exec(configuration)?.[1];
-if (!codexVersion) throw new Error('Pinned Codex version is missing');
 const package_ = JSON.parse(await readFile('package.json', 'utf8'));
 await writeFile(
   `${directory}/agent-metadata.ts`,
   `export const metadata = ${JSON.stringify(metadata)};\n` +
-    `export const frameworkVersion = ${JSON.stringify(package_.version)};\n` +
-    `export const pinnedCodexVersion = ${JSON.stringify(codexVersion)};\n`,
+    `export const frameworkVersion = ${JSON.stringify(package_.version)};\n`,
 );

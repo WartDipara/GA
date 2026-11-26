@@ -2,8 +2,7 @@
 
 import time
 
-from game_automation.common import FrameworkError
-from game_automation.errors import ErrorCode
+from game_automation.errors import ErrorCode, FrameworkError
 
 
 class FileUsage:

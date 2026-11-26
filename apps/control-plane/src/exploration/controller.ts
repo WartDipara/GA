@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { decode, text } from '@game-automation/contracts';
 import { ErrorCode, FrameworkError } from '@game-automation/contracts/errors';
-import { within } from '../storage/values.js';
+import { within } from '../utilities/files.js';
 import type { Runtime } from '../gameplay/runtime.js';
 import type { View } from '../gameplay/local.js';
 import type { Action, Decision, Observation, Pending } from '../gameplay/types.js';

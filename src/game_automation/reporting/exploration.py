@@ -7,8 +7,8 @@ from collections import Counter
 from pathlib import Path
 from string import Template
 
-from game_automation.common import atomic_text
 from game_automation.storage.sql_queries import read_query
+from game_automation.utilities.files import atomic_text
 
 
 def exploration_view(store, run_id, *, through=None):

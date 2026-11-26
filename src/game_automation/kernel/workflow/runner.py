@@ -1,11 +1,11 @@
 """Compatibility entry points; execution, recovery and scheduling belong to TypeScript."""
 
-from game_automation.common import FileLock
+from game_automation.utilities.files import FileLock
 
 from .execution_client import invoke, invoke_async
 
 
-def new_run(store, task_id, mode="game", spec=None):
+def new_run(store, task_id, mode, spec=None):
     with FileLock(store.var / "execution.lock"):
         return invoke(store.root, "create", task_id=task_id, mode=mode, spec=spec)
 

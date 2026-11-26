@@ -3,9 +3,10 @@ import json
 import os
 from urllib.parse import urlsplit
 
-from game_automation.common import FrameworkError, digest, uid, within
 from game_automation.contracts import validate
-from game_automation.errors import ErrorCode
+from game_automation.errors import ErrorCode, FrameworkError
+from game_automation.utilities.files import within
+from game_automation.utilities.values import digest, uid
 
 from .capacity import admit_apk_batch
 

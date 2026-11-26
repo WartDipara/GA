@@ -2,8 +2,7 @@
 
 import asyncio
 
-from game_automation.common import FrameworkError
-from game_automation.errors import ErrorCode
+from game_automation.errors import ErrorCode, FrameworkError
 from game_automation.kernel.agent_quality import (
     actor_reference,
     compare_traces,

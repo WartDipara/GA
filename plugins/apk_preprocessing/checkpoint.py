@@ -2,8 +2,8 @@ import hashlib
 import json
 import re
 
-from game_automation.common import FrameworkError, within
-from game_automation.errors import ErrorCode
+from game_automation.errors import ErrorCode, FrameworkError
+from game_automation.utilities.files import within
 
 
 def read_checkpoint(workspace, request):

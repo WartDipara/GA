@@ -1,6 +1,6 @@
 import { decode, type ContractMap } from '@game-automation/contracts';
 import { performance } from 'node:perf_hooks';
-import { within } from '../storage/values.js';
+import { within } from '../utilities/files.js';
 import type { Runtime } from '../gameplay/runtime.js';
 import type { Observation } from '../gameplay/types.js';
 import type { Element, Locator, Page } from './catalog.js';

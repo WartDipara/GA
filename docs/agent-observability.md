@@ -136,7 +136,7 @@ can explain differences; the comparison does not establish that a prompt caused 
 The dataset and findings support reviewed prompt/model changes followed by a new execution batch.
 No automatic prompt deployment or model training is performed.
 
-Development verification remains Python compilation and JavaScript syntax checks. Inspecting
-previously recorded real game evidence verifies its presentation only. New lifecycle instrumentation
-and natural-language analysis require a future explicitly requested business execution for runtime
-acceptance; no synthetic inference calls are used to verify this increment.
+Development verification uses TypeScript checks, Python compilation and JavaScript syntax checks.
+Offline inspection can verify the presentation of retained evidence. Runtime acceptance of
+lifecycle instrumentation and model-assisted analysis requires a separately authorized business
+execution with recorded evidence.

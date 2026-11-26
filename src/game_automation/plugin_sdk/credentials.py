@@ -8,8 +8,8 @@ import re
 from ctypes import wintypes
 from pathlib import Path
 
-from game_automation.common import FrameworkError, atomic_json
-from game_automation.errors import ErrorCode
+from game_automation.errors import ErrorCode, FrameworkError
+from game_automation.utilities.files import atomic_json
 
 
 class Blob(ctypes.Structure):

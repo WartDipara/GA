@@ -4,7 +4,7 @@ import json
 import math
 from collections import defaultdict
 
-from game_automation.common import digest
+from game_automation.utilities.values import digest
 
 
 def percentile(values, fraction):

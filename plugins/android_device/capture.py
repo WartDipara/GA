@@ -6,9 +6,9 @@ from pathlib import Path
 from PIL import Image, ImageDraw
 from runtime import same_runtime, snapshot
 
-from game_automation.common import FrameworkError, digest, uid
-from game_automation.errors import ErrorCode
+from game_automation.errors import ErrorCode, FrameworkError
 from game_automation.plugin_sdk.privacy import credential_regions
+from game_automation.utilities.values import digest, uid
 
 
 def masked_image(data, rectangles):

@@ -6,7 +6,8 @@ from urllib.parse import quote
 
 from PIL import Image
 
-from game_automation.common import FrameworkError, within
+from game_automation.errors import FrameworkError
+from game_automation.utilities.files import within
 
 
 def action_overlay(action, width, height):

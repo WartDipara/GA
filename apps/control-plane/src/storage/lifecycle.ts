@@ -1,6 +1,6 @@
 import { object, text } from '@game-automation/contracts';
 import type { Store } from './store.js';
-import { integer } from './values.js';
+import { integer } from '../utilities/values.js';
 
 /** Lookup stays inside the task and APK workspace; it never changes action outcomes. */
 export function previousClose(store: Store, runId: string): boolean {

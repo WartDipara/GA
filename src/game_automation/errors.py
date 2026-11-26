@@ -90,7 +90,6 @@ class ErrorCode(StrEnum):
     CODEX_VERSION_MISMATCH = ("CODEX_VERSION_MISMATCH", "Codex version mismatch")
     DEPENDENCY_CYCLE = ("DEPENDENCY_CYCLE", "Capability call cycle or depth limit")
     DEVICE_NOT_BOOTED = ("DEVICE_NOT_BOOTED", "Device not booted")
-    DEVICE_NOT_IMPLEMENTED = ("DEVICE_NOT_IMPLEMENTED", "Device execution is not available")
     DEVICE_SELECTION_REQUIRED = ("DEVICE_SELECTION_REQUIRED", "Device selection required")
     DEVICE_UNAVAILABLE = ("DEVICE_UNAVAILABLE", "Device unavailable")
     DEVICE_BINDING_CONFLICT = (
@@ -272,3 +271,18 @@ class ErrorCode(StrEnum):
         member._value_ = code
         member.message = message
         return member
+
+
+class FrameworkError(Exception):
+    def __init__(
+        self, code: ErrorCode | str, message: str | None = None, *, retryable: bool = False
+    ):
+        if message is None:
+            message = code.message if isinstance(code, ErrorCode) else "Remote operation failed"
+        super().__init__(message)
+        self.code = code
+        self.retryable = retryable
+
+    def as_dict(self):
+        error_details = {"code": self.code, "message": str(self), "retryable": self.retryable}
+        return error_details

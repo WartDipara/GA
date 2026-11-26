@@ -22,18 +22,9 @@ import {
 } from './tables.js';
 import { performance } from 'node:perf_hooks';
 import { elementVerification } from '../exploration/verification.js';
-import {
-  atomicJson,
-  canonical,
-  integer,
-  optionalText,
-  parsed,
-  redact,
-  strings,
-  uid,
-  within,
-  type Fields,
-} from './values.js';
+import { atomicJson, within } from '../utilities/files.js';
+import { canonical, integer, optionalText, parsed, strings, uid, type Fields } from '../utilities/values.js';
+import { redact } from '../utilities/redaction.js';
 
 export interface TraceIds {
   span_id?: string | null;
@@ -788,7 +779,7 @@ export class Store {
             throw new FrameworkError(ErrorCode.APK_INPUT_REQUIRED);
           if (run['status'] !== 'blocked') throw new FrameworkError(ErrorCode.INVALID_STATE);
           if (
-            ['intake', 'game'].includes(text(run['mode'])) &&
+            run['mode'] === 'intake' &&
             this.eventRecords.hasKind(runId, 'intake.accepted')
           )
             throw new FrameworkError(ErrorCode.INTAKE_NEW_RUN_REQUIRED);

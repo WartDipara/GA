@@ -9,8 +9,9 @@ import subprocess
 import threading
 import time
 
-from game_automation.common import FileLock, FrameworkError, digest, uid
-from game_automation.errors import ErrorCode
+from game_automation.errors import ErrorCode, FrameworkError
+from game_automation.utilities.files import FileLock
+from game_automation.utilities.values import digest, uid
 
 MAX_MESSAGE = 8 * 1024 * 1024
 
@@ -19,14 +20,21 @@ def verify_build(root):
     try:
         proof = json.loads((root / "var/cache/typescript/build.json").read_text(encoding="utf-8"))
         files = proof["files"]
-        if not isinstance(files, dict) or "var/cache/typescript/control_plane.mjs" not in files:
+        codex_stamp = "var/cache/typescript/codex-version.json"
+        if not isinstance(files, dict) or not {
+            "var/cache/typescript/control_plane.mjs", codex_stamp
+        }.issubset(files):
             raise ValueError
         for relative, expected in files.items():
             path = (root / relative).resolve()
             if not path.is_relative_to(root) or digest(path.read_bytes()) != expected:
                 raise ValueError
+        version = json.loads((root / codex_stamp).read_text(encoding="utf-8"))["version"]
+        if not isinstance(version, str) or not version:
+            raise ValueError
     except (OSError, ValueError, KeyError, TypeError) as exc:
         raise FrameworkError(ErrorCode.TYPESCRIPT_BUILD_REQUIRED) from exc
+    return version
 
 
 class ControlClient:

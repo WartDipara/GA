@@ -3,9 +3,8 @@
 import tomllib
 from dataclasses import dataclass, field
 
-from game_automation.common import FrameworkError
 from game_automation.contracts import validate
-from game_automation.errors import ErrorCode
+from game_automation.errors import ErrorCode, FrameworkError
 from game_automation.plugin_sdk.credentials import load_profile, profile_path
 
 from .assembly import build_workflow

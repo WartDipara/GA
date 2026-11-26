@@ -2,7 +2,7 @@ import { lstat, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { ErrorCode, FrameworkError } from '@game-automation/contracts/errors';
-import { within } from './values.js';
+import { within } from '../utilities/files.js';
 
 export class FileUsage {
   private files = new Map<string, number>();

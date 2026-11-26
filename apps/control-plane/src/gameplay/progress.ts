@@ -1,7 +1,7 @@
 import { decode, object, text } from '@game-automation/contracts';
 import { ErrorCode, FrameworkError } from '@game-automation/contracts/errors';
 import type { Store } from '../storage/store.js';
-import type { Fields } from '../storage/values.js';
+import type { Fields } from '../utilities/values.js';
 import type { Decision, Progress } from './types.js';
 
 export class ProgressStore {

@@ -3,8 +3,8 @@
 import traceback
 from pathlib import Path
 
-from game_automation.common import FrameworkError, atomic_text
-from game_automation.errors import ErrorCode
+from game_automation.errors import ErrorCode, FrameworkError
+from game_automation.utilities.files import atomic_text
 
 from .compact_trace import render_compact
 from .exploration import exploration_report

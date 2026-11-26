@@ -1,7 +1,7 @@
 # MuMu discovery
 
-MuMu is the initial emulator provider. This increment discovers existing instances, connects ADB,
-checks Android readiness, and optionally captures screenshots. Instance creation, cloning, reboot,
+The MuMu provider discovers existing instances, connects ADB, checks Android readiness and
+optionally captures screenshots. Instance creation, cloning, reboot,
 general input control, and game exploration remain separate capabilities. Bound installation and
 focused-display capture are described in [device preparation](device-preparation.md).
 

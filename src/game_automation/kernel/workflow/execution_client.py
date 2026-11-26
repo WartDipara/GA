@@ -1,10 +1,9 @@
-"""Temporary stage tools for the TypeScript executor; no scheduling or terminal-state decisions."""
+"""Python leaf-stage tools for the TypeScript executor; no scheduling or terminal-state decisions."""
 
 import asyncio
 from pathlib import Path
 
-from game_automation.common import FrameworkError
-from game_automation.errors import ErrorCode
+from game_automation.errors import ErrorCode, FrameworkError
 from game_automation.kernel.capability_router import Router
 from game_automation.kernel.plugin_host import Host
 from game_automation.storage.control_client import ControlClient
@@ -78,7 +77,6 @@ def tool(store, run_id, operation, inputs):
 async def run_stage(store, run_id, inputs):
     from .device import observe_device, prepare_device
     from .emulators import discover_emulators
-    from .environment import check_environment
     from .intake import intake
     from .preprocessing import preprocess
     from .trace_analysis import analyze_trace
@@ -90,7 +88,7 @@ async def run_stage(store, run_id, inputs):
     timeout = inputs["timeout_seconds"]
     try:
         async with asyncio.timeout(timeout or None):
-            if mode in ("game", "intake"):
+            if mode == "intake":
                 return await intake(store, run_id, host, manifest)
             if mode == "preprocessing":
                 source = Path(inputs["source_file"]) if inputs["source_file"] else None
@@ -103,8 +101,6 @@ async def run_stage(store, run_id, inputs):
                 await observe_device(store, run_id, host, manifest, task)
             elif mode == "analysis":
                 await analyze_trace(store, run_id, host, manifest, task)
-            elif mode == "environment":
-                await check_environment(store, run_id, host, manifest, task)
             else:
                 raise FrameworkError(ErrorCode.RUN_MODE_REMOVED)
         host.check_cancel()

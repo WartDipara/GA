@@ -1,8 +1,7 @@
 """User-requested natural-language analysis, isolated from device execution."""
 
-from game_automation.common import FrameworkError
 from game_automation.contracts import schema, validate
-from game_automation.errors import ErrorCode
+from game_automation.errors import ErrorCode, FrameworkError
 from game_automation.prompting.snapshots import build_input
 from game_automation.reporting.agent_trace import agent_view
 

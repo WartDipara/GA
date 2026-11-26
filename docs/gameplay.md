@@ -160,13 +160,13 @@ calls retain their elapsed time. Missing terminal records remain unknown, never 
 report lists the 20 longest measured actions and shows timing beside each action record. Rebuilding
 older reports uses their original call measurements without operating the device.
 
-Cross-game comparison checks different package identities, frozen runtime sources and actual goal
-completion. Equal code hashes alone do not establish acceptance. Same-role restoration and a panel
-path have real evidence. Native combat/skill selection have real evidence; verified stage advancement,
-cache efficiency and second-game acceptance remain separate gates.
+Cross-game comparison requires different package identities, matching frozen runtime sources and
+recorded goal completion. Verify same-role restoration, scoped interaction coverage and battle
+advancement against the execution evidence. Measure cache efficiency separately.
 
-The pinned Codex adapter uses App Server stdio and an isolated HTTP Responses provider with existing
-OpenAI authentication, leaving global settings unchanged. See the
+The Codex adapter uses App Server stdio and an isolated HTTP Responses provider with existing
+OpenAI authentication, leaving global settings unchanged. The build records the detected CLI
+version in each new batch. See the
 [official provider configuration](https://developers.openai.com/siwc/token-sharing-open-source/codex-app-server).
 Development verification uses compilation/syntax checking only. No mock, smoke or synthetic
 inference tests are used. Bounded real game tasks retain separate acceptance evidence.

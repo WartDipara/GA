@@ -46,7 +46,7 @@ instructions, internal history, tokenization, automatic pruning, and complete co
 context are not reconstructed. Skill reference paths do not prove their contents were read. Costs
 and window occupancy remain unavailable.
 
-M1 materializes the complete frozen skill instructions into the submitted text as well as retaining
+Prompt assembly materializes the complete frozen skill instructions into the submitted text as well as retaining
 explicit skill input items. If that text prefix exactly matches the verified frozen files, the
 projection shows it once in the skill category and leaves the task text in inputs. A mismatched
 prefix stays visible as submitted text. Historical path-only requests remain historical evidence and

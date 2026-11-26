@@ -1,7 +1,7 @@
 import type { Runtime } from '../gameplay/runtime.js';
 import type { Observation, Pending, Progress } from '../gameplay/types.js';
 import { object } from '@game-automation/contracts';
-import { integer } from '../storage/values.js';
+import { integer } from '../utilities/values.js';
 import { Catalog, signature, type Element, type Page } from './catalog.js';
 
 /** Consumes settled action evidence; never dispatches device input. */

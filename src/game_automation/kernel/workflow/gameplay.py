@@ -1,7 +1,6 @@
 """Build gameplay CLI inputs; execution is owned by the TypeScript control plane."""
 
-from game_automation.common import FrameworkError
-from game_automation.errors import ErrorCode
+from game_automation.errors import ErrorCode, FrameworkError
 from game_automation.plugin_sdk.credentials import load_profile, profile_path
 
 

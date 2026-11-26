@@ -3,8 +3,9 @@ import { existsSync, statSync } from 'node:fs';
 import { object, text } from '@game-automation/contracts';
 import { ErrorCode, FrameworkError, frameworkError } from '@game-automation/contracts/errors';
 import { Store } from '../storage/store.js';
-import { integer, optionalText, within, type Fields } from '../storage/values.js';
-import { requireDiskSpace } from '../storage/disk.js';
+import { integer, optionalText, type Fields } from '../utilities/values.js';
+import { within } from '../utilities/files.js';
+import { requireDiskSpace } from '../utilities/disk.js';
 import { Scheduler } from './scheduler.js';
 import { play } from '../gameplay/play.js';
 import { finalizeGames, recoverFinalization } from '../gameplay/finalization.js';
@@ -179,7 +180,6 @@ export class Execution {
     try {
       if (
         ![
-          'game',
           'intake',
           'preprocessing',
           'emulators',
@@ -206,17 +206,12 @@ export class Execution {
       if (reserve < 1 || overhead < 1 || margin < 1 || margin > 100)
         throw new FrameworkError(ErrorCode.INVALID_STORAGE_POLICY);
       requireDiskSpace(this.store.runDirectory(runId), reserve);
-      let task = this.store.input(runId);
+      const task = this.store.input(runId);
       let timeout = 0;
       if (mode === 'preprocessing')
         timeout = integer(object(application['preprocessing'])['batch_timeout_seconds']);
-      else if (
-        !['workflow', 'analysis', 'emulators', 'device', 'observation', 'gameplay'].includes(mode)
-      )
-        timeout =
-          task['kind'] === 'document' || mode === 'intake'
-            ? integer(object(application['intake'] ?? {})['timeout_seconds'] ?? 300)
-            : integer(object(task['limits'])['timeout_seconds']);
+      else if (mode === 'intake')
+        timeout = integer(object(application['intake'] ?? {})['timeout_seconds'] ?? 300);
       const stages: Record<string, string> = {
         preprocessing: 'preprocessing',
         emulators: 'environment',
@@ -232,32 +227,10 @@ export class Execution {
           status: 'running',
           stage: stages[mode] ?? 'intake',
         });
-        const result =
-          mode === 'gameplay'
-            ? await play(this, runId, manifest, task)
-            : await this.tool('stage', runId, {
-                mode,
-                task,
-                manifest,
-                source_file: sourceFile,
-                timeout_seconds: timeout,
-              });
-        if (mode === 'game' || mode === 'intake') task = object(result);
-        if (mode === 'game') {
-          this.store.command('transition', {
-            run_id: runId,
-            status: 'running',
-            stage: 'environment',
-          });
-          await this.tool('stage', runId, {
-            mode: 'environment',
-            task,
-            manifest,
-            source_file: sourceFile,
-            timeout_seconds: timeout,
-          });
-          this.store.command('transition', { run_id: runId, status: 'running', stage: 'launch' });
-          throw new FrameworkError(ErrorCode.DEVICE_NOT_IMPLEMENTED);
+        if (mode === 'gameplay') await play(this, runId, manifest, task);
+        else {
+          const stageInput = { mode, task, manifest, source_file: sourceFile, timeout_seconds: timeout };
+          await this.tool('stage', runId, stageInput);
         }
       }
       this.check(runId);

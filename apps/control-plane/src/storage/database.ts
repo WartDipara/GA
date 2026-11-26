@@ -7,7 +7,7 @@ import { dirname, join } from 'node:path';
 import { object, text } from '@game-automation/contracts';
 import { ErrorCode, FrameworkError } from '@game-automation/contracts/errors';
 import * as statements from './sql/statements.js';
-import { parsed } from './values.js';
+import { parsed } from '../utilities/values.js';
 import { performance } from 'node:perf_hooks';
 import { WriterHealth } from '../observability/writer-health.js';
 

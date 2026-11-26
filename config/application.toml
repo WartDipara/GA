@@ -35,7 +35,6 @@ max_apk_bytes = 8589934592
 
 [codex]
 executable = "codex"
-version = "0.163.0"
 timeout_seconds = 180
 model = "gpt-6-luna"
 reasoning_effort = "medium"

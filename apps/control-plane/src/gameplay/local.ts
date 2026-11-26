@@ -1,7 +1,8 @@
 import { performance } from 'node:perf_hooks';
 import { decode } from '@game-automation/contracts';
 import { ErrorCode, FrameworkError } from '@game-automation/contracts/errors';
-import { canonical, within } from '../storage/values.js';
+import { canonical } from '../utilities/values.js';
+import { within } from '../utilities/files.js';
 import type { Runtime } from './runtime.js';
 import type { Decision, Facts, Observation, Pending, Routine } from './types.js';
 

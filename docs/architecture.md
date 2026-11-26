@@ -1,12 +1,12 @@
 # Architecture and state
 
 The control plane uses TypeScript for the Codex adapter, plugin host and authoritative SQLite
-writer, execution lifecycle, APK scheduler and gameplay loop. Migration is incremental; Python retains
-capability tools, CLI entry points, remaining leaf stages and read-only report projections. See
-[ADR 0002](decisions/0002-typescript-control-plane.md) for ownership and compatibility requirements.
+writer, execution lifecycle, APK scheduler and multi-agent gameplay workflow. Python owns the CLI,
+capability tools, named leaf-stage operations and read-only report projections. The v1 contracts
+remain the boundary across languages.
 
-The transitional executor bridge invokes named Python leaf operations, snapshot utilities and
-renderers; it does not delegate scheduling, gameplay decisions, publication order or terminal-state policy. Python entry points
+The executor bridge invokes named Python leaf operations, snapshot utilities and renderers.
+TypeScript owns scheduling, gameplay decisions, publication order and terminal states. Python entry points
 hold the existing OS execution lock across the remote request. Connection loss aborts execution,
 drains plugin calls, and leaves unknown device outcomes for observation-based recovery.
 
@@ -30,8 +30,9 @@ pin configuration, code digests, schemas, and skills; no hot swapping.
 
 ## Stages and states
 
-Stages: intake -> environment -> launch -> exploration -> reporting. States: queued -> running ->
-succeeded / blocked / failed / cancelled. Blocked runs may resume. After acquiring the OS execution
+The APK workflow runs preprocessing, MuMu environment discovery, preparation, launch, gameplay
+and reporting. Document intake is an independent entry point. Runs transition from queued to
+running, then to succeeded, blocked, failed or cancelled. Blocked runs may resume. After acquiring the OS execution
 lock, a running status left by a previous process becomes blocked and open spans become incomplete.
 Terminal runs are preserved; reruns receive a new run_id under the same task_id.
 The task is the business submission, not an individual stage. Each run has an immutable execution
@@ -98,7 +99,9 @@ and content hashes without copying Skills or contracts. Resume requires the same
 missing or changed resources block execution. Submitted requests remain trace evidence. External
 content is task data, not instructions.
 
-The pinned Codex App Server uses stdio. The adapter handles initialization, thread start/resume,
+The Codex App Server uses stdio. The build detects the selected CLI, generates provider types and
+records the version in the build and execution manifest. The adapter checks that the running CLI
+matches both records. The adapter handles initialization, thread start/resume,
 turn start, public events, and interruption. Sessions are separated by run and role. Task state is
 independent of AI history.
 
@@ -134,13 +137,12 @@ OS-locked workspace. Thread events are marshalled to the plugin RPC loop; databa
 the kernel event loop. The caller-owned URL list is read at runtime without copying addresses into
 traces. Each item owns its directory and temporary files. See [APK preprocessing](preprocessing.md).
 
-The framework implements communication, persistence, Skills, tracing, context inspection, and task
-intake with source attribution and clarification recovery. The environment plugin queries ADB,
-selects a device, and checks boot completion and installed package paths. Environment results are
-diagnostics, not device-control acceptance. Every resume performs fresh checks; no previous result
-authorizes launch. See [task intake](task-intake.md) and [environment checks](environment.md).
-The gameplay runtime now exposes guarded Android actions, process/task observation and scoped
-logcat. SQLite schema version 3 adds shared gameplay checkpoints. The kernel persists intents before
+Task intake records source attribution and clarification recovery. The APK workflow checks the
+explicit MuMu instance and verified serial through the emulator adapter before preparing the target
+package. Resume revalidates relevant device state. See [task intake](task-intake.md),
+[MuMu discovery](emulators.md) and [device preparation](device-preparation.md).
+The gameplay runtime exposes guarded Android actions, process/task observation, scoped logcat
+and durable gameplay checkpoints. The kernel persists intents before
 granting dispatch; the MuMu activation dependency inherits only the matching launch/return grant.
 An already installed matching APK can be explicitly adopted without reinstalling. Local credentials
 are protected by current-user Windows DPAPI and referenced by profile. See [gameplay](gameplay.md).

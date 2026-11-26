@@ -8,7 +8,6 @@ that another plugin may import private implementation files.
 | --- | --- |
 | agent_codex | TypeScript App Server adapter, explicit Skills, structured decisions and public events |
 | task_intake | Canonical JSON handling and AI-assisted text/Markdown intake |
-| environment | Read-only ADB availability, boot and package checks |
 | apk_preprocessing | Resumable downloads, archive checks and concise AAPT2 metadata |
 | emulator_mumu | Vendor discovery, verified sessions and kernel-authorized application activation |
 | android_device | Package installation, process/display state, capture, guarded input and scoped logs |
@@ -23,7 +22,8 @@ Build TypeScript plugins with `npm ci` and `npm run build`. Their manifests use 
 runtime and shared bundles under `var/cache/typescript`. Execution admission checks build-source
 hashes before accepting a bundle. Runtime manifests pin TypeScript sources, the dependency lock,
 the bundle and Node identity. Missing or stale builds block admission instead of silently using a
-previous artifact. Windows uses the native pinned Codex executable without shell interpolation.
+previous artifact. The build detects the configured Codex executable, generates App Server types
+and records the exact version for each batch. Windows starts the native executable directly.
 
 The control plane's `apps/control-plane/src/gameplay/` coordinates exploration, routines and battle goals. Offline report
 generation lives under `src/game_automation/reporting/`; there is no placeholder reporting plugin.

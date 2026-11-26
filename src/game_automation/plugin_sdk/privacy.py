@@ -7,8 +7,7 @@ from difflib import SequenceMatcher
 
 from PIL import Image
 
-from game_automation.common import FrameworkError
-from game_automation.errors import ErrorCode
+from game_automation.errors import ErrorCode, FrameworkError
 
 
 async def credential_regions(data, values):

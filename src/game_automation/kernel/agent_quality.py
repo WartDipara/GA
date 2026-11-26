@@ -5,11 +5,11 @@ import os
 import re
 import tempfile
 
-from game_automation.common import FileLock, FrameworkError
-from game_automation.errors import ErrorCode
+from game_automation.errors import ErrorCode, FrameworkError
 from game_automation.reporting.agent_metrics import version_identity
 from game_automation.reporting.agent_trace import agent_view
 from game_automation.storage.sql_queries import read_query
+from game_automation.utilities.files import FileLock
 
 
 def actor_reference(value):

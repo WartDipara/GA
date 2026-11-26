@@ -6,7 +6,7 @@ Run all commands from the repository root.
 
 - Windows, Python 3.12 and uv.
 - Node.js from `.node-version` and npm.
-- Codex CLI 0.163.0, installed on PATH and signed in locally.
+- Codex CLI on PATH, or selected with `[codex].executable`, signed in locally.
 - MuMu with a dedicated, already-started Android instance for each APK.
 - Android SDK Build Tools (`aapt2`); ADB on PATH or supplied by MuMu.
 
@@ -18,11 +18,15 @@ npm ci
 npm run build
 ```
 
+The build detects the selected Codex CLI version, generates its App Server types, and records the
+version in the artifacts. After changing the CLI, rebuild and use `--new-batch` for resumed work.
+
 ## Configure
 
 1. Check `config/application.toml` for budgets, timeouts and workflow stages.
    `[codex]` selects `model = "gpt-6-luna"` and `reasoning_effort = "medium"`.
-   `[gameplay].max_turns = 0` allows unlimited planning; use a positive limit to bound it.
+   `[gameplay].max_turns = 0` omits the optional lead-turn cap. The workflow cycle limit and
+   no-progress checks still apply.
 2. Keep enabled capabilities in `config/plugins.toml` and Skill bindings in
    `config/skills.toml`.
 3. Save test credentials using the hidden local prompts:

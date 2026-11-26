@@ -6,10 +6,6 @@ enabled = true
 manifest = "plugins/agent_codex/plugin.toml"
 enabled = true
 
-[plugins.environment]
-manifest = "plugins/environment/plugin.toml"
-enabled = true
-
 [plugins.apk_preprocessing]
 manifest = "plugins/apk_preprocessing/plugin.toml"
 enabled = true

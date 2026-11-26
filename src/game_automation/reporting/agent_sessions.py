@@ -2,7 +2,8 @@
 
 import json
 
-from game_automation.common import FrameworkError, within
+from game_automation.errors import FrameworkError
+from game_automation.utilities.files import within
 
 
 def file_preview(store, run_id, reference):

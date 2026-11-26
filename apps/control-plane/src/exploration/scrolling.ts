@@ -1,5 +1,5 @@
 import { decode } from '@game-automation/contracts';
-import { within } from '../storage/values.js';
+import { within } from '../utilities/files.js';
 import type { Runtime } from '../gameplay/runtime.js';
 import type { Action, Observation, Pending } from '../gameplay/types.js';
 import type { Catalog, Element, Inventory, Scroll } from './catalog.js';

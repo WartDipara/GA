@@ -5,8 +5,7 @@ import json
 import tomllib
 from pathlib import Path
 
-from game_automation.common import FrameworkError
-from game_automation.errors import ErrorCode
+from game_automation.errors import ErrorCode, FrameworkError
 from game_automation.plugin_sdk.rpc import serve
 
 MANIFEST = tomllib.loads(Path(__file__).with_name("plugin.toml").read_text(encoding="utf-8"))

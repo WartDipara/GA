@@ -8,9 +8,8 @@ import time
 import tomllib
 from pathlib import Path
 
-from game_automation.common import FileLock, FrameworkError, json_text, redact
 from game_automation.contracts import validate
-from game_automation.errors import ErrorCode
+from game_automation.errors import ErrorCode, FrameworkError
 from game_automation.kernel.workflow.device import preparation_task
 from game_automation.kernel.workflow.gameplay import gameplay_task
 from game_automation.kernel.workflow.intake import intake_status, read_document
@@ -21,6 +20,9 @@ from game_automation.observability import build_insights
 from game_automation.plugin_sdk.credentials import save_profile
 from game_automation.reporting.trace import export_trace
 from game_automation.storage.store import Store
+from game_automation.utilities.files import FileLock
+from game_automation.utilities.redaction import redact
+from game_automation.utilities.values import json_text
 
 READ_ONLY_COMMANDS = {
     "trace-export",
@@ -63,8 +65,6 @@ def parser():
     source.add_argument("--task", type=Path)
     source.add_argument("--document", type=Path, help="UTF-8 TXT or Markdown; copied at submission")
     submit.add_argument("--key", help="Idempotency key")
-    run = commands.add_parser("run", help="Create a run; report missing capabilities as blocked")
-    run.add_argument("task_id")
     intake = commands.add_parser("intake", help="Parse and validate a task without starting a game")
     intake.add_argument("task_id")
     preprocessing = commands.add_parser("preprocess", help="Download and inspect a JSON APK list")
@@ -232,8 +232,6 @@ def run_details(store, run_id):
     details["task_directory"] = str(store.task_dir(details["task_id"]))
     details["execution_directory"] = str(store.run_dir(run_id))
     details["intake"] = intake_status(store, run_id)
-    environment_events = store.events(run_id, kinds=("environment.checked",), limit=1)
-    details["environment"] = environment_events[-1]["payload"] if environment_events else None
     for mode, kind, key in (
         ("device", "device.prepared", "device"),
         ("observation", "device.observed", "observation"),
@@ -422,10 +420,9 @@ def main(argv=None):
             print_json(identifiers)
             asyncio.run(execute(store, run_id, args.input))
             return execution_result(store, run_id)
-        elif args.command in ("run", "intake"):
+        elif args.command == "intake":
             task_id = args.task_id
-            mode = "game" if args.command == "run" else "intake"
-            run_id = new_run(store, task_id, mode)
+            run_id = new_run(store, task_id, "intake")
             print_json({"task_id": task_id, "run_id": run_id})
             asyncio.run(execute(store, run_id))
             return execution_result(store, run_id)

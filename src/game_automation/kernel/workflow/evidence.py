@@ -1,8 +1,8 @@
 import hashlib
 
-from game_automation.common import FrameworkError, within
-from game_automation.errors import ErrorCode
+from game_automation.errors import ErrorCode, FrameworkError
 from game_automation.plugin_sdk.images import png_dimensions
+from game_automation.utilities.files import within
 
 
 def verify_image(run_dir, workspace_ref, image):

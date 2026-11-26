@@ -122,8 +122,9 @@ tools, and attachment references. Text estimates are approximate. Reported usage
 repeated cumulative updates are not billed repeatedly. Unknown baselines remain unknown.
 
 Supplements are append-only task.supplement events. Authentication/quota conditions become
-AI_UNAVAILABLE; resolve the condition and resume. CODEX_VERSION_MISMATCH requires the pinned
-version. SNAPSHOT_CHANGED/RUNTIME_CHANGED require a new execution batch. ACTION_ALREADY_DISPATCHED
+AI_UNAVAILABLE; resolve the condition and resume. For CODEX_VERSION_MISMATCH, run `npm run build`
+with the configured Codex CLI and start a new batch. SNAPSHOT_CHANGED and RUNTIME_CHANGED require
+a new execution batch. ACTION_ALREADY_DISPATCHED
 requires reconciliation, not a force replay.
 
 Device preparation reports `DEVICE_INSTALL_UNKNOWN` when a dispatched installation cannot be

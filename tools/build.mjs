@@ -5,6 +5,8 @@ import { Ajv2020 } from 'ajv/dist/2020.js';
 
 const theme = JSON.parse(await readFile('config/ui-theme.json', 'utf8'));
 const themeSchema = JSON.parse(await readFile('contracts/v1/ui-theme.schema.json', 'utf8'));
+const nodeVersion = (await readFile('.node-version', 'utf8')).trim();
+const nodeTarget = `node${nodeVersion.split('.').slice(0, 2).join('.')}`;
 const validateTheme = new Ajv2020().compile(themeSchema);
 if (!validateTheme(theme)) throw new Error('Invalid UI theme configuration');
 if (theme.default_style && !Object.hasOwn(theme.styles, theme.default_style))
@@ -70,7 +72,7 @@ await build({
   outExtension: { '.js': '.mjs' },
   bundle: true,
   platform: 'node',
-  target: 'node22.19',
+  target: nodeTarget,
   format: 'esm',
   loader: { '.sql': 'text' },
   legalComments: 'eof',
@@ -88,6 +90,7 @@ const files = [
   'src/game_automation/errors.py',
   'var/cache/typescript/agent_codex.mjs',
   'var/cache/typescript/control_plane.mjs',
+  'var/cache/typescript/codex-version.json',
   'var/cache/typescript/trace_ui.js',
   'var/cache/typescript/trace_ui.css',
   'var/cache/typescript/history_search.js',

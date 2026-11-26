@@ -1,24 +1,8 @@
-import { createHash } from 'node:crypto';
+import { checkpointHash } from '../utilities/hashing.js';
 import { decode } from '@game-automation/contracts';
-import { canonical } from '../storage/values.js';
+import { canonical } from '../utilities/values.js';
 import type { Runtime } from './runtime.js';
 import type { Facts, Observation, Pending, Progress, Routine } from './types.js';
-
-// Retain existing checkpoint fingerprints across the Python-to-TypeScript migration.
-export function checkpointHash(value: unknown): string {
-  const format = (item: unknown): string => {
-    if (Array.isArray(item)) return `[${item.map(format).join(', ')}]`;
-    if (item !== null && typeof item === 'object') {
-      const fields = Object.entries(item).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
-      return `{${fields.map(([key, value]) => `${format(key)}: ${format(value)}`).join(', ')}}`;
-    }
-    return (JSON.stringify(item) ?? 'null').replace(
-      /[\u007f-\uffff]/g,
-      (character) => `\\u${character.charCodeAt(0).toString(16).padStart(4, '0')}`,
-    );
-  };
-  return createHash('sha256').update(format(value)).digest('hex');
-}
 
 export class Knowledge {
   readonly entries: NonNullable<Progress['learned_steps']>;

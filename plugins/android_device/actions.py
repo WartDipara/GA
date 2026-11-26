@@ -7,8 +7,8 @@ from capture import masked_image
 from PIL import Image, ImageChops, ImageDraw, ImageStat
 from runtime import same_runtime, snapshot
 
-from game_automation.common import FrameworkError, digest
-from game_automation.errors import ErrorCode
+from game_automation.errors import ErrorCode, FrameworkError
+from game_automation.utilities.values import digest
 
 
 async def execute(device, request):

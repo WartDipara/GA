@@ -11,6 +11,10 @@
 - Start each development increment by checking out a feature branch named codex/<feature> from
   master. Commit the completed increment, merge it into master, and delete the feature branch after
   the merge succeeds. Publish master to the configured push destinations.
+- Keep active documentation aligned with the code. Delete superseded plans, placeholder routes,
+  and their current references when replacing them. Preserve actual run evidence.
+- Keep reusable, domain-independent helpers in explicit utility modules. Reuse existing behavior
+  where semantics match and keep workflow policy in its owning module.
 - Use clear domain names and focused functions. Put one statement on each line, separate logical
   steps with blank lines, and use a maximum Python line length of 100 characters. Split long
   expressions and strings for readability.
@@ -93,8 +97,9 @@
   Business events remain authoritative in SQLite and are not duplicated into another log framework.
 - Development verification remains compilation only. Explicitly requested, bounded real game tasks
   are business executions with recorded evidence, not mock, smoke, or synthetic inference tests.
-- Pin Codex and keep provider details inside its adapter. Review protocol changes before an upgrade;
-  do not make inference calls just to verify a code change.
+- Detect the configured Codex CLI at build time and generate types from its provider protocol.
+  Pin the detected build version in each batch and review protocol changes before an upgrade.
+  Keep provider details in its adapter. Do not make inference calls to verify a code change.
 - Keep publication settings in local Git configuration. Publish to the configured push destinations
   and verify their branch heads without copying remote URLs into tracked documentation. Never
   force-push to resolve divergence.

@@ -1,10 +1,10 @@
 import asyncio
 import time
 
-from game_automation.common import FrameworkError, digest, uid
-from game_automation.errors import ErrorCode
+from game_automation.errors import ErrorCode, FrameworkError
 from game_automation.plugin_sdk.images import png_dimensions
 from game_automation.plugin_sdk.rpc import spawn, terminate
+from game_automation.utilities.values import digest, uid
 
 
 async def read_limited(stream, limit):

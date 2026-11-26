@@ -10,8 +10,12 @@ import json
 import math
 from collections import Counter
 
-from game_automation.common import FrameworkError, digest, redact, skill_prefix, within
+from game_automation.errors import FrameworkError
+from game_automation.prompting.instructions import skill_prefix
 from game_automation.prompting.resources import resource_root
+from game_automation.utilities.files import within
+from game_automation.utilities.redaction import redact
+from game_automation.utilities.values import digest
 
 CATEGORIES = {
     "instructions": "Application instructions",

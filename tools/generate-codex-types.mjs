@@ -1,24 +1,22 @@
 import { spawnSync } from 'node:child_process';
-import { readdir, readFile, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import {
+  lstat, mkdir, mkdtemp, readdir, readFile, realpath, rename, rm, writeFile,
+} from 'node:fs/promises';
+import { join, resolve } from 'node:path';
 
-const configuration = await readFile('config/application.toml', 'utf8');
-const version = /\[codex\][\s\S]*?\nversion = "([^"]+)"/.exec(configuration)?.[1];
-const command = /\[codex\][\s\S]*?\nexecutable = "([^"]+)"/.exec(configuration)?.[1];
-if (!version || !command) throw new Error('Missing pinned Codex runtime');
-const actual = spawnSync(command, ['--version'], { encoding: 'utf8', windowsHide: true });
-if (actual.status !== 0 || actual.stdout.trim() !== `codex-cli ${version}`) {
-  throw new Error('Codex must match the pinned version before generating provider types');
-}
-const generated = spawnSync(
-  command,
-  ['app-server', 'generate-ts', '--out', 'var/cache/typescript/codex'],
-  {
-    encoding: 'utf8',
-    windowsHide: true,
-  },
-);
-if (generated.status !== 0) throw new Error('Cannot generate the pinned provider protocol');
+const options = { encoding: 'utf8', windowsHide: true, timeout: 60_000 };
+const readExecutable = [
+  'import tomllib',
+  'from pathlib import Path',
+  'configuration = tomllib.loads(Path("config/application.toml").read_text(encoding="utf-8"))',
+  'print(configuration["codex"]["executable"])',
+].join('\n');
+const configuration = spawnSync('uv', ['run', 'python', '-c', readExecutable], options);
+const command = configuration.stdout?.trim();
+if (configuration.status !== 0 || !command) throw new Error('Missing Codex executable setting');
+const detected = spawnSync(command, ['--version'], options);
+const version = /^codex-cli (\d+\.\d+\.\d+(?:[-+][\w.-]+)?)$/.exec(detected.stdout?.trim() ?? '')?.[1];
+if (detected.status !== 0 || !version) throw new Error('Cannot detect the installed Codex version');
 
 async function normalize(directory) {
   for (const entry of await readdir(directory, { withFileTypes: true })) {
@@ -31,4 +29,27 @@ async function normalize(directory) {
     }
   }
 }
-await normalize('var/cache/typescript/codex');
+const cache = resolve('var/cache/typescript');
+await mkdir(cache, { recursive: true });
+if (await realpath(cache) !== cache) throw new Error('The TypeScript cache must be a local directory');
+const generatedDir = join(cache, 'codex');
+const next = await mkdtemp(join(cache, 'codex-types-'));
+try {
+  const generated = spawnSync(command, ['app-server', 'generate-ts', '--out', next], options);
+  if (generated.status !== 0) throw new Error('Cannot generate App Server types from installed Codex');
+  await normalize(next);
+  const prior = await lstat(generatedDir).catch((error) => {
+    if (error.code !== 'ENOENT') throw error;
+    return null;
+  });
+  if (prior) {
+    if (!prior.isDirectory() || await realpath(generatedDir) !== generatedDir)
+      throw new Error('The generated Codex directory must be inside the TypeScript cache');
+    await rm(generatedDir, { recursive: true });
+  }
+  await rename(next, generatedDir);
+  await writeFile(join(cache, 'codex-version.json'), `${JSON.stringify({ version })}\n`);
+  process.stdout.write(`Generated App Server types for Codex ${version}.\n`);
+} finally {
+  await rm(next, { recursive: true, force: true });
+}

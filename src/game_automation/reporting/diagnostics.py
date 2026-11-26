@@ -4,9 +4,10 @@ import json
 from collections import Counter
 from urllib.parse import urlencode
 
-from game_automation.common import FrameworkError, within
 from game_automation.contracts import validate
+from game_automation.errors import FrameworkError
 from game_automation.storage.sql_queries import read_query
+from game_automation.utilities.files import within
 
 from .trace_projection import ENDS, STARTS
 

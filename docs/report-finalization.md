@@ -110,7 +110,6 @@ full disk. Recovery needs the retained SQLite database and usable storage. Missi
 cannot be recreated from a report, and database/device uncertainty must remain explicit. Cosmetic
 reporting failures may degrade; uncertain device actions and critical trace failures must block.
 
-Development verification remains compilation and JavaScript syntax checks only. Rebuilding reports
-from existing successful/blocked business evidence does not validate hard-kill, disk-full or power
-loss behavior. Those failure paths have been reviewed in source; no mock, smoke, synthetic inference
-or fault-injection runs are used for this increment.
+Development verification uses compilation and JavaScript syntax checks. Offline report rebuilding
+verifies publication from recorded evidence. Acceptance of process loss, disk exhaustion and
+power interruption requires separate evidence for each condition.

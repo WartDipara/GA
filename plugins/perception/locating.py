@@ -2,7 +2,7 @@
 
 from PIL import Image, ImageChops, ImageDraw, ImageFilter
 
-from game_automation.common import digest
+from game_automation.utilities.values import digest
 
 
 def load_image(path):

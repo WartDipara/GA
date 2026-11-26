@@ -6,8 +6,9 @@ from pathlib import Path
 from string import Template
 from urllib.parse import quote
 
-from game_automation.common import FrameworkError, atomic_json, atomic_text, within
+from game_automation.errors import FrameworkError
 from game_automation.observability import build_insights
+from game_automation.utilities.files import atomic_json, atomic_text, within
 
 
 def export_trace(store, run_id):
