@@ -68,3 +68,13 @@ CREATE TABLE IF NOT EXISTS exploration_records (
     PRIMARY KEY(workspace_key,kind,id)
 );
 CREATE INDEX IF NOT EXISTS exploration_task ON exploration_records(task_id,workspace_key,kind);
+CREATE INDEX IF NOT EXISTS exploration_parent
+    ON exploration_records(workspace_key,kind,json_extract(data,'$.parent_id'));
+CREATE INDEX IF NOT EXISTS exploration_outgoing
+    ON exploration_records(workspace_key,kind,json_extract(data,'$.data.from_page'));
+CREATE INDEX IF NOT EXISTS exploration_status
+    ON exploration_records(workspace_key,kind,json_extract(data,'$.status'));
+CREATE INDEX IF NOT EXISTS exploration_key
+    ON exploration_records(workspace_key,kind,json_extract(data,'$.data.key'));
+CREATE INDEX IF NOT EXISTS exploration_action
+    ON exploration_records(workspace_key,kind,json_extract(data,'$.data.action_id'));

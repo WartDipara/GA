@@ -4,6 +4,7 @@ import { join, relative } from 'node:path';
 import { decode, object, text, type ContractMap } from '@game-automation/contracts';
 import { ErrorCode, FrameworkError } from '@game-automation/contracts/errors';
 import { ActionRepository } from './action-repository.js';
+import { ExplorationRepository } from './exploration-repository.js';
 import { Database } from './database.js';
 import { EventRepository, type EventQuery } from './event-repository.js';
 import { TaskRepository } from './task-repository.js';
@@ -49,6 +50,7 @@ export class Store {
   private readonly databaseOwner: Database;
   private readonly actionRepository: ActionRepository;
   private readonly eventRepository: EventRepository;
+  readonly exploration: ExplorationRepository;
   readonly workflows: WorkflowRepository;
   private readonly taskRecords: TaskRepository;
 
@@ -76,6 +78,7 @@ export class Store {
     this.databaseOwner = new Database(join(root, 'var'));
     this.actionRepository = new ActionRepository(this.orm);
     this.eventRepository = new EventRepository(this.orm);
+    this.exploration = new ExplorationRepository(this.orm);
     this.workflows = new WorkflowRepository(this.orm);
     this.taskRecords = new TaskRepository(this.orm);
   }
@@ -207,16 +210,6 @@ export class Store {
     return progress;
   }
 
-  exploration(key: string): ContractMap['exploration-record'][] {
-    const rows = this.orm
-      .select({ data: explorationRecords.data })
-      .from(explorationRecords)
-      .where(eq(explorationRecords.workspace_key, key))
-      .orderBy(insertionOrder(explorationRecords))
-      .all();
-    return rows.map((row) => decode('exploration-record', parsed(row.data)));
-  }
-
   private commitExploration(runId: string, params: Fields, ids: TraceIds): void {
     const key = text(params['workspace_key']);
     const taskId = text(this.run(runId)['task_id']);
@@ -238,20 +231,9 @@ export class Store {
         record.data.verification = verification.proof;
       }
       if (record.kind === 'edge' && record.status === 'verified') {
-        const row = this.orm
-          .select({ data: explorationRecords.data })
-          .from(explorationRecords)
-          .where(
-            and(
-              eq(explorationRecords.workspace_key, key),
-              eq(explorationRecords.kind, 'element'),
-              eq(explorationRecords.id, record.data.element_id),
-            ),
-          )
-          .get();
-        const element = row ? decode('exploration-record', parsed(row['data'])) : null;
+        const element = this.exploration.get(key, 'element', record.data.element_id);
         const verification =
-          element?.kind === 'element'
+          element
             ? elementVerification(this, key, element, record.data.action_id)
             : null;
         if (

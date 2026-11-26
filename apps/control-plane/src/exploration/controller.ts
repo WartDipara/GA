@@ -7,7 +7,7 @@ import type { Assessment } from '../gameplay/agents.js';
 import { settleAction } from '../gameplay/settlement.js';
 import type { View } from '../gameplay/local.js';
 import type { Action, Decision, Observation, Pending } from '../gameplay/types.js';
-import { Catalog, signature, type Element, type Locator, type Page } from './catalog.js';
+import { Catalog, signature, type Element, type Page } from './catalog.js';
 import { canComplete, destination } from './frontier.js';
 import { locate } from './locating.js';
 import { reviewScroll, scrollViewport } from './scrolling.js';
@@ -29,12 +29,7 @@ export class Exploration {
   }
 
   page(): Page | null {
-    const id = this.catalog.session()?.data.page_id;
-    return (
-      this.catalog
-        .records()
-        .find((record): record is Page => record.kind === 'page' && record.id === id) ?? null
-    );
+    return this.catalog.get('page', this.catalog.session()?.data.page_id) ?? null;
   }
 
   hint(): object | null {
@@ -60,13 +55,8 @@ export class Exploration {
       return null;
     const element = next.element;
     if (element.data.risk !== 'none' || element.data.intent === 'resource') return null;
-    const locator = this.catalog
-      .records()
-      .find(
-        (record): record is Locator =>
-          record.kind === 'locator' && record.id === element.data.locator_id && record.data.active,
-      );
-    if (!locator) return null;
+    const locator = this.catalog.get('locator', element.data.locator_id);
+    if (!locator?.data.active) return null;
     const display = view.observation.runtime.focused_display;
     if (
       !display ||
@@ -173,7 +163,6 @@ export class Exploration {
 
   async review(decision: Decision, view: View, pending: Pending | null): Promise<Page | null> {
     this.scrollKey = null;
-    this.catalog.reconcileLedger(pending?.action_id);
     const inventory = decision.exploration;
     if (!inventory)
       throw new FrameworkError(ErrorCode.AI_OUTPUT_INVALID, 'Exploration inventory missing');
@@ -203,12 +192,7 @@ export class Exploration {
     if (pending.exploration?.mode === 'external_close') this.finishExternal(view.observation);
     this.trackProgress();
     const inventory = decision.exploration;
-    const region = this.catalog
-      .records()
-      .find(
-        (record): record is Element =>
-          record.kind === 'element' && record.id === pending.exploration?.element_id,
-      );
+    const region = this.catalog.get('element', pending.exploration?.element_id);
     const scroll = inventory?.scroll_review.find(
       (review) =>
         !review.loading &&
@@ -237,14 +221,7 @@ export class Exploration {
   }
 
   private wasVerified(pending: Pending): boolean {
-    return this.catalog
-      .records()
-      .some(
-        (record) =>
-          record.kind === 'element' &&
-          record.id === pending.exploration?.element_id &&
-          record.data.ever_verified === true,
-      );
+    return this.catalog.get('element', pending.exploration?.element_id)?.data.ever_verified === true;
   }
 
   private trackProgress(): void {
@@ -259,27 +236,13 @@ export class Exploration {
     const pending = this.runtime.progress.data.pending;
     const expected = pending?.exploration?.expected_page;
     if (!pending?.action_id || !expected || !view.facts.stable) return false;
-    const records = this.catalog.records();
-    const page = records.find(
-      (record): record is Page => record.kind === 'page' && record.id === expected,
-    );
+    const page = this.catalog.get('page', expected);
     if (!page) return false;
-    const element = records.find(
-      (record): record is Element =>
-        record.kind === 'element' &&
-        record.parent_id === expected &&
-        record.data.locator_id !== null,
-    );
-    const locator = records.find(
-      (record): record is Locator =>
-        record.kind === 'locator' &&
-        record.id === element?.data.locator_id &&
-        record.data.active &&
-        record.data.verified,
-    );
+    const element = this.catalog.elements(expected).find((item) => item.data.locator_id !== null);
+    const locator = this.catalog.get('locator', element?.data.locator_id);
     if (
       !element ||
-      !locator ||
+      !locator?.data.active || !locator.data.verified ||
       !(await locate(this.runtime, element, locator, page, view.observation))
     )
       return false;
@@ -307,13 +270,7 @@ export class Exploration {
     observation: Observation,
   ): Promise<Pending['exploration'] | null> {
     if (!page || !['tap', 'long_press', 'swipe', 'back'].includes(action.type)) return null;
-    const elements = this.catalog.records().filter((record): record is Element => {
-      if (
-        record.kind !== 'element' ||
-        record.parent_id !== page.id ||
-        record.data.observation_id !== observation.observation_id
-      )
-        return false;
+    const elements = this.catalog.elements(page.id, observation.observation_id).filter((record) => {
       const bounds = record.data.bounds;
       return (
         bounds[0] <= action.x &&
@@ -360,12 +317,7 @@ export class Exploration {
   redirectStall(): boolean {
     const state = this.runtime.progress.data.exploration_supervisor;
     if (state?.scope !== this.catalog.key || this.runtime.progress.data.pending) return false;
-    const element = this.catalog
-      .records()
-      .find(
-        (record): record is Element =>
-          record.kind === 'element' && record.id === state.last_element_id,
-      );
+    const element = this.catalog.get('element', state.last_element_id);
     if (!element || element.data.supervision?.quarantined) return false;
     const observationId = element.data.supervision?.observation_id;
     if (!observationId) return false;
@@ -381,11 +333,7 @@ export class Exploration {
   ): Promise<boolean> {
     if (!page || this.runtime.progress.data.pending) return false;
     const link = decision.action ? await this.intent(decision.action, page, observation) : null;
-    const element = this.catalog
-      .records()
-      .find(
-        (record): record is Element => record.kind === 'element' && record.id === link?.element_id,
-      );
+    const element = this.catalog.get('element', link?.element_id);
     if (!element) return false;
     if (element.data.supervision?.quarantined) return false;
     const recovering = this.supervisor.redirect(element, observation.observation_id, reason);
@@ -403,13 +351,7 @@ export class Exploration {
 
   permit(action: Action, page: Page | null): boolean {
     if (!page || !['tap', 'long_press', 'swipe'].includes(action.type)) return true;
-    const targets = this.catalog.records().filter((record): record is Element => {
-      if (
-        record.kind !== 'element' ||
-        record.parent_id !== page.id ||
-        record.data.observation_id !== page.data.observation_id
-      )
-        return false;
+    const targets = this.catalog.elements(page.id, page.data.observation_id).filter((record) => {
       const [left, top, right, bottom] = record.data.bounds;
       return (
         left <= action.x &&
@@ -452,12 +394,7 @@ export class Exploration {
     observation: Observation,
   ): Promise<void> {
     if (pending.action.type === 'back' && pending.exploration) {
-      const element = this.catalog
-        .records()
-        .find(
-          (record): record is Element =>
-            record.kind === 'element' && record.id === pending.exploration?.element_id,
-        );
+      const element = this.catalog.get('element', pending.exploration?.element_id);
       if (element) this.bind(pending, id, element, page.id, pending.exploration.mode);
       return;
     }
@@ -569,12 +506,7 @@ export class Exploration {
       link,
     );
     const pending = this.runtime.progress.data.pending;
-    const element = this.catalog
-      .records()
-      .find(
-        (record): record is Element =>
-          record.kind === 'element' && record.id === external.element_id,
-      );
+    const element = this.catalog.get('element', external.element_id);
     if (pending && element) {
       this.bind(pending, id, element, external.page_id, 'external_close');
       pending.expected_outcome = 'Close only the newly opened external page and return to the game';
@@ -594,12 +526,7 @@ export class Exploration {
       current.window_ids?.includes(external.window_id)
     )
       throw new FrameworkError(ErrorCode.GAMEPLAY_BLOCKED, 'External window closure not proven');
-    const element = this.catalog
-      .records()
-      .find(
-        (record): record is Element =>
-          record.kind === 'element' && record.id === external.element_id,
-      );
+    const element = this.catalog.get('element', external.element_id);
     if (element) element.status = 'external_skipped';
     session.data.external = null;
     this.catalog.save(element ? [session, element] : [session]);

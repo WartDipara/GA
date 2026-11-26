@@ -38,6 +38,11 @@ export class Database {
       this.connection.exec(statements.eventUsage);
   }
 
+  // Read-through caches bypass transactions because a nested write can still roll back.
+  get inTransaction(): boolean {
+    return this.depth > 0;
+  }
+
   transaction<T>(operation: () => T): T {
     if (this.failure) throw this.failure;
     if (this.depth > 0) return operation();

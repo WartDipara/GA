@@ -7,52 +7,51 @@ export interface Destination {
 }
 
 export function destination(catalog: Catalog): Destination | null {
-  const records = catalog.records();
   const session = catalog.session();
   const current = session?.data.page_id;
   if (!current) return null;
-  const elements = records.filter((record): record is Element => record.kind === 'element');
   const supervisor = catalog.runtime.progress.data.exploration_supervisor;
   const suspended = supervisor?.scope === catalog.key ? supervisor.feedback?.element_id : null;
-  const pending = elements.filter(
-    (element) =>
-      element.status === 'pending' &&
-      !element.data.supervision?.quarantined &&
-      element.id !== suspended,
-  );
-  const local = pending.filter((element) => element.parent_id === current);
-  local.sort((a, b) => {
-    const priority = (element: Element): number =>
-      element.data.intent === 'close' ? 2 : element.data.kind === 'scroll' ? 1 : 0;
-    return priority(a) - priority(b);
-  });
+  const eligible = (element: Element): boolean =>
+    element.status === 'pending' && !element.data.supervision?.quarantined && element.id !== suspended;
+  const priority = (element: Element): number =>
+    element.data.intent === 'close' ? 2 : element.data.kind === 'scroll' ? 1 : 0;
+  const local = catalog.elements(current).filter(eligible).sort((a, b) => priority(a) - priority(b));
   const first = local[0];
   if (first && first.data.intent !== 'close') {
     const result = { element: first, expectedPage: null, navigating: false };
     return result;
   }
-  const goals = new Set(pending.map((element) => element.parent_id));
-  if (!pending.length && session?.data.root_page && !session.data.sweep_done)
-    goals.add(session.data.root_page);
-  const edges = records.filter(
-    (record): record is Edge => record.kind === 'edge' && record.status === 'verified',
-  );
+
+  const repository = catalog.runtime.store.exploration;
+  const pending = {
+    statuses: ['pending'], eligible: true,
+    ...(suspended ? { excludeId: suspended } : {}),
+  };
+  const root = session.data.root_page;
+  const hasPending = repository.exists(catalog.key, 'element', pending);
+  if (!hasPending && (!root || root === current || session.data.sweep_done)) return null;
+  const returnToRoot = !hasPending;
+  // Walk only reachable neighborhoods. A sibling outside the route is never materialized.
   const queue: { page: string; first: Edge | null }[] = [{ page: current, first: null }];
   const seen = new Set<string>([current]);
   for (let index = 0; index < queue.length; index += 1) {
     const entry = queue[index];
     if (!entry) break;
-    if (goals.has(entry.page) && entry.first) {
+    const goalReached = entry.first && (returnToRoot
+      ? entry.page === root
+      : repository.exists(catalog.key, 'element', { ...pending, parent: entry.page }));
+    if (goalReached && entry.first) {
       const edge = entry.first;
-      const element = elements.find((element) => element.id === edge.data.element_id);
+      const element = catalog.get('element', edge.data.element_id);
       if (element) {
         const result = { element, expectedPage: edge.data.to_page, navigating: true };
         return result;
       }
     }
-    for (const edge of edges) {
-      if (edge.data.from_page !== entry.page || seen.has(edge.data.to_page)) continue;
-      const element = elements.find((element) => element.id === edge.data.element_id);
+    for (const edge of catalog.outgoing(entry.page)) {
+      if (seen.has(edge.data.to_page)) continue;
+      const element = catalog.get('element', edge.data.element_id);
       if (
         !element ||
         element.data.risk !== 'none' ||
@@ -75,16 +74,11 @@ export function destination(catalog: Catalog): Destination | null {
 export function canComplete(catalog: Catalog, page: Page | null): boolean {
   const session = catalog.session();
   if (!page?.data.scan_complete || !session || session.data.external) return false;
-  if (
-    catalog
-      .records()
-      .some(
-        (record) => record.kind === 'element' && ['pending', 'in_progress'].includes(record.status),
-      )
-  )
+  // Existence checks cover the whole workspace without reading or capping its records.
+  const repository = catalog.runtime.store.exploration;
+  if (repository.exists(catalog.key, 'element', { statuses: ['pending', 'in_progress'] }))
     return false;
-  if (catalog.records().some((record) => record.kind === 'page' && !record.data.scan_complete))
-    return false;
+  if (repository.exists(catalog.key, 'page', { unscanned: true })) return false;
   if (session.data.root_page !== page.id || !session.data.sweep_done) {
     if (session.data.root_page === page.id) {
       session.data.sweep_done = true;

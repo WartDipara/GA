@@ -2,7 +2,7 @@ import { decode } from '@game-automation/contracts';
 import { within } from '../utilities/files.js';
 import type { Runtime } from '../gameplay/runtime.js';
 import type { Action, Observation, Pending } from '../gameplay/types.js';
-import type { Catalog, Element, Inventory, Scroll } from './catalog.js';
+import type { Catalog, Inventory, Scroll } from './catalog.js';
 
 export async function scrollViewport(
   runtime: Runtime,
@@ -27,14 +27,9 @@ export function reviewScroll(
 ): void {
   const link = pending.exploration;
   if (!link || link.mode !== 'scroll' || !link.scroll_bounds || !link.viewport) return;
-  const records = catalog.records();
-  const element = records.find(
-    (record): record is Element => record.kind === 'element' && record.id === link.element_id,
-  );
+  const element = catalog.get('element', link.element_id);
   if (!element) return;
-  const prior = records.find(
-    (record): record is Scroll => record.kind === 'scroll' && record.parent_id === element.id,
-  );
+  const prior = catalog.get('scroll', element.id);
   if (prior?.status === 'limited') return;
   const visited = prior?.data.viewports ?? [link.viewport];
   const unchanged = current === link.viewport ? (prior?.data.unchanged ?? 0) + 1 : 0;
@@ -74,11 +69,9 @@ export function reviewScroll(
   const session = catalog.session();
   if (session && !prior?.data.viewports.includes(current)) session.data.novelty += 1;
   const changes = session ? [scroll, element, session] : [scroll, element];
-  if (limited)
-    for (const record of records) {
+  if (limited && element.parent_id !== null)
+    for (const record of catalog.elements(element.parent_id)) {
       if (
-        record.kind !== 'element' ||
-        record.parent_id !== element.parent_id ||
         record.status !== 'pending' ||
         record.id === element.id
       )

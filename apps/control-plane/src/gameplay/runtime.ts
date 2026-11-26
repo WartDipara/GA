@@ -181,12 +181,12 @@ export class Runtime {
     this.execution.checkAction(this.runId);
     decode('gameplay-action', action);
     if (exploration) {
-      const target = this.store
-        .exploration(exploration.workspace_key)
-        .find((record) => record.kind === 'element' && record.id === exploration.element_id);
+      const target = this.store.exploration.get(
+        exploration.workspace_key, 'element', exploration.element_id,
+      );
       const suspended = this.progress.data.exploration_supervisor;
       if (
-        target?.kind === 'element' &&
+        target &&
         (target.data.supervision?.quarantined ||
           (suspended?.scope === exploration.workspace_key &&
             suspended.feedback?.element_id === target.id))

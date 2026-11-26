@@ -28,11 +28,7 @@ export class ExplorationSupervisor {
   ): void {
     const link = pending.exploration;
     if (!link) return;
-    const element = this.catalog
-      .records()
-      .find(
-        (record): record is Element => record.kind === 'element' && record.id === link.element_id,
-      );
+    const element = this.catalog.get('element', link.element_id);
     if (!element) return;
     const state = this.state();
     state.last_element_id = element.id;

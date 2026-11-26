@@ -133,7 +133,7 @@ export async function runTestWorkflow(
   const passive = new PassiveWait(runtime, perception);
   const exploration = runtime.task['goal'] === 'explore' ? new Exploration(runtime) : null;
   const catalog = exploration?.catalog ?? null;
-  catalog?.reconcileLedger();
+  await catalog?.reconcileLedger();
   const knowledge = new Knowledge(runtime);
   const battle = runtime.task['goal'] === 'advance-battle' ? new Battle(runtime) : null;
   const progress = runtime.progress.data;
@@ -246,7 +246,7 @@ export async function runTestWorkflow(
       settleAction(runtime, pending, view.observation, assessment, source);
     }
     if (pending && recorded) {
-      catalog?.reconcileLedger();
+      if (pending.action_id) await catalog?.reconcileLedger(pending.action_id);
       runtime.record('gameplay.outcome.reused', { action_id: pending.action_id, ...recorded });
     }
     const decision = await agents.decide(view, selection.reason, assessment, pending ? 0 : limit, pending);

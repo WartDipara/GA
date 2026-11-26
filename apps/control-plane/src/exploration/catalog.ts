@@ -1,3 +1,4 @@
+import { setImmediate as yieldToKernel } from 'node:timers/promises';
 import { sha256 } from '../utilities/hashing.js';
 import { decode, text, type ContractMap } from '@game-automation/contracts';
 import { ErrorCode, FrameworkError } from '@game-automation/contracts/errors';
@@ -5,6 +6,7 @@ import { parsed, uid } from '../utilities/values.js';
 import type { Runtime } from '../gameplay/runtime.js';
 import type { Facts, Observation, Pending } from '../gameplay/types.js';
 import { destination } from './frontier.js';
+import { NeighborhoodCache } from './neighborhood-cache.js';
 import { elementVerification } from './verification.js';
 
 export type Record = ContractMap['exploration-record'];
@@ -25,18 +27,18 @@ function name(value: string): string {
 }
 
 export class Catalog {
-  private readonly semanticKeys = new Map<string, string | null>();
+  private readonly elementsCache = new NeighborhoodCache<Element>(8, 512 * 1024);
+  private readonly outgoingCache = new NeighborhoodCache<Edge>(8, 128 * 1024);
+  private warmedPage: string | undefined;
   constructor(readonly runtime: Runtime) {}
 
   private semanticKey(page: Page): string | null {
     if (page.data.semantic_key) return page.data.semantic_key;
-    if (this.semanticKeys.has(page.id)) return this.semanticKeys.get(page.id) ?? null;
     const taskId = text(this.runtime.store.run(this.runtime.runId)['task_id']);
     const row = this.runtime.store.eventRecords.latestDecision(taskId, page.data.observation_id);
     const event = row ? decode('trace', parsed(row['data'])) : null;
     const view = event?.payload['exploration'];
     const key = view ? decode('exploration-view', view).page_key : null;
-    this.semanticKeys.set(page.id, key);
     return key;
   }
 
@@ -44,13 +46,62 @@ export class Catalog {
     return `${this.runtime.progress.key}:exploration:${signature(this.runtime.progress.data.identity)}`;
   }
 
-  records(): Record[] {
-    const records = this.runtime.store.exploration(this.key);
-    return records;
+  // Resolve IDs in the current task and identity scope; other catalogs have separate keys.
+  get<K extends Record['kind']>(kind: K, id: string | null | undefined) {
+    return id ? this.runtime.store.exploration.get(this.key, kind, id) : undefined;
   }
 
   session(): Session | undefined {
-    return this.records().find((record): record is Session => record.kind === 'session');
+    return this.get('session', 'current');
+  }
+
+  // Observed targets are scoped by page and observation; historical navigation uses page snapshots.
+  elements(pageId: string, observationId?: string): Element[] {
+    const { store } = this.runtime;
+    const parent = { parent: pageId };
+    if (observationId !== undefined)
+      return store.exploration.list(this.key, 'element', { ...parent, observationId });
+    const load = () => store.exploration.list(this.key, 'element', parent);
+    return store.database.inTransaction ? load() : this.elementsCache.read(this.cacheKey(pageId), load);
+  }
+
+  // Adjacency includes only durable, verified edges. The planner checks element state separately.
+  outgoing(pageId: string): Edge[] {
+    const { store } = this.runtime;
+    const load = () => store.exploration.list(this.key, 'edge', {
+      fromPage: pageId, statuses: ['verified'],
+    });
+    return store.database.inTransaction ? load() : this.outgoingCache.read(this.cacheKey(pageId), load);
+  }
+
+  private cacheKey(pageId: string, preview = false): string {
+    return JSON.stringify([this.key, pageId, preview]);
+  }
+
+  // Prefetch only the same bounded preview that can be sent to an agent.
+  private pagePreview(pageId: string): Element[] {
+    const { store } = this.runtime;
+    const load = () => store.exploration.list(this.key, 'element', { parent: pageId, limit: 120 });
+    return store.database.inTransaction
+      ? load()
+      : this.elementsCache.read(this.cacheKey(pageId, true), load);
+  }
+
+  // Warm a few one-hop pages for return-to-menu loops. Wide graphs load lazily.
+  private nearby(pageId: string): string[] {
+    const neighbors = new Set<string>();
+    for (const edge of this.outgoing(pageId)) {
+      if (edge.data.to_page !== pageId) neighbors.add(edge.data.to_page);
+      if (neighbors.size >= 4) break;
+    }
+    // Repeated calls on the same screen share the prefetch; new outgoing edges invalidate it.
+    const key = this.cacheKey(pageId);
+    if (!this.runtime.store.database.inTransaction && this.warmedPage !== key) {
+      for (const neighbor of neighbors) this.pagePreview(neighbor);
+      this.warmedPage = key;
+    }
+    const result = [...neighbors];
+    return result;
   }
 
   save(records: Record[]): void {
@@ -62,27 +113,42 @@ export class Catalog {
       span_id: this.runtime.step,
     };
     this.runtime.store.command('exploration_commit', request);
+    // A nested write can still roll back. Evict touched pages here and never cache during a transaction.
+    for (const record of records) {
+      if (record.kind === 'element' && record.parent_id !== null) {
+        this.elementsCache.invalidate(this.cacheKey(record.parent_id));
+        this.elementsCache.invalidate(this.cacheKey(record.parent_id, true));
+      }
+      if (record.kind === 'edge') {
+        const key = this.cacheKey(record.data.from_page);
+        this.outgoingCache.invalidate(key);
+        if (this.warmedPage === key) this.warmedPage = undefined;
+      }
+    }
   }
 
+  // Build the lead's bounded read model from page previews and a small frontier sample.
   context(): object {
-    const records = this.records();
-    const session = records.find((record): record is Session => record.kind === 'session');
+    const session = this.session();
     const current = session?.data.page_id;
-    const elements = records.filter((record): record is Element => record.kind === 'element');
-    const page = records.find(
-      (record): record is Page => record.kind === 'page' && record.id === current,
-    );
+    const page = this.get('page', current);
+    const neighbors = current ? this.nearby(current) : [];
+    const repository = this.runtime.store.exploration;
+    const elements = current ? this.pagePreview(current) : [];
+    const frontier = repository.list(this.key, 'element', { statuses: ['pending'], limit: 30 });
     const next = destination(this);
     const feedbackRow = this.runtime.store.eventRecords.latestExplorationRejection(this.key);
     const feedback = feedbackRow ? decode('trace', parsed(feedbackRow['data'])) : null;
     const related = new Set([
-      current,
-      session?.data.root_page,
-      ...elements
-        .filter((element) => element.status === 'pending')
-        .slice(0, 30)
-        .map((element) => element.parent_id),
+      current, session?.data.root_page, next?.expectedPage, ...neighbors,
+      ...frontier.map((element) => element.parent_id),
     ]);
+    const knownPages: Page[] = [];
+    for (const id of related) {
+      const known = this.get('page', id);
+      if (known) knownPages.push(known);
+      if (knownPages.length === 12) break;
+    }
     const result = {
       current_page: page
         ? {
@@ -94,19 +160,14 @@ export class Catalog {
             anchors: page.data.anchors.map((anchor) => anchor.key),
           }
         : null,
-      known_pages: records
-        .filter((record): record is Page => record.kind === 'page' && related.has(record.id))
-        .slice(0, 12)
+      known_pages: knownPages
         .map((page) => ({
           id: page.id,
           page_key: this.semanticKey(page),
           label: page.data.label,
           variant: page.data.variant,
         })),
-      elements: elements
-        .filter((record) => record.parent_id === current)
-        .slice(0, 120)
-        .map((record) => ({
+      elements: elements.map((record) => ({
           id: record.id,
           key: record.data.semantic_key,
           label: record.data.label,
@@ -120,10 +181,7 @@ export class Catalog {
           verification: record.data.verification ?? null,
           verification_issue: record.data.verification_issue ?? '',
         })),
-      frontier: elements
-        .filter((record) => record.status === 'pending')
-        .slice(0, 30)
-        .map((record) => ({ id: record.id, page_id: record.parent_id, label: record.data.label })),
+      frontier: frontier.map((record) => ({ id: record.id, page_id: record.parent_id, label: record.data.label })),
       root_page: session?.data.root_page ?? null,
       sweep_done: session?.data.sweep_done ?? false,
       authority: 'Memory is historical evidence; locate targets in the current observation',
@@ -155,11 +213,8 @@ export class Catalog {
   ingest(view: Inventory, observation: Observation, facts: Facts): Page | null {
     if (!view.authenticated || view.kind === 'external') return null;
     if (!view.inventory_complete && !view.elements.length) return null;
-    const records = this.records();
     const key = signature([name(view.page_key), name(view.variant)]);
-    const previous = records.find(
-      (record): record is Page => record.kind === 'page' && record.data.key === key,
-    );
+    const previous = this.runtime.store.exploration.list(this.key, 'page', { key, limit: 1 })[0];
     const page: Page = {
       kind: 'page',
       id: previous?.id ?? uid('page'),
@@ -187,15 +242,10 @@ export class Catalog {
     const display = observation.runtime.focused_display;
     if (!display) throw new FrameworkError(ErrorCode.STALE_OBSERVATION);
     const seen = new Set<string>();
-    const sealed = records
-      .filter((record): record is Scroll => record.kind === 'scroll' && record.status === 'limited')
-      .map((region) =>
-        records.find(
-          (record): record is Element =>
-            record.kind === 'element' && record.id === region.data.element_id,
-        ),
-      )
-      .filter((element) => element?.parent_id === page.id);
+    const elements = new Map(this.elements(page.id).map((element) => [element.data.key, element]));
+    const sealed = [...elements.values()].filter(
+      (element) => element.data.kind === 'scroll' && this.get('scroll', element.id)?.status === 'limited',
+    );
     for (const candidate of view.elements) {
       const [left, top, right, bottom] = candidate.bounds;
       if (!(left < right && top < bottom && right <= display.width && bottom <= display.height))
@@ -213,12 +263,7 @@ export class Catalog {
           'Duplicate exploration item identity',
         );
       seen.add(targetKey);
-      const known = records.find(
-        (record): record is Element =>
-          record.kind === 'element' &&
-          record.parent_id === page.id &&
-          record.data.key === targetKey,
-      );
+      const known = elements.get(targetKey);
       let status: Element['status'] = known?.status ?? 'pending';
       const blocked = candidate.availability !== 'enabled';
       const prohibited = ['real_payment', 'account_delete', 'unknown'].includes(candidate.risk);
@@ -258,10 +303,7 @@ export class Catalog {
           ...(known?.data.supervision ? { supervision: known.data.supervision } : {}),
         },
       };
-      const prior = records.find(
-        (record): record is Locator =>
-          record.kind === 'locator' && record.id === element.data.locator_id,
-      );
+      const prior = this.get('locator', element.data.locator_id);
       const layout = signature([
         view.layout,
         display.display_id,
@@ -306,7 +348,7 @@ export class Catalog {
       });
       return recurrent && !overTarget;
     });
-    const priorSession = records.find((record): record is Session => record.kind === 'session');
+    const priorSession = this.session();
     const session: Session = {
       kind: 'session',
       id: 'current',
@@ -334,12 +376,7 @@ export class Catalog {
     mode: NonNullable<Pending['exploration']>['mode'] = 'target',
   ): void {
     const action = pending.action;
-    const elements = this.records().filter(
-      (record): record is Element =>
-        record.kind === 'element' &&
-        record.parent_id === page.id &&
-        record.data.observation_id === pending.observation_id,
-    );
+    const elements = this.elements(page.id, pending.observation_id);
     const candidates = elements
       .filter((element) => {
         const [left, top, right, bottom] = element.data.bounds;
@@ -380,42 +417,61 @@ export class Catalog {
     this.save([session]);
   }
 
-  reconcileLedger(projectingAction?: string): void {
-    const records = this.records();
-    const changes: Record[] = [];
-    const events: { kind: string; payload: object }[] = [];
-    for (const element of records) {
-      if (element.kind !== 'element') continue;
-      if (projectingAction && element.data.action_id === projectingAction) continue;
-      if (element.status === 'in_progress' && element.data.action_id) {
-        const taskId = text(this.runtime.store.run(this.runtime.runId)['task_id']);
-        const row = this.runtime.store.actionRecords.forTask(taskId, element.data.action_id);
-        if (row && ['verified', 'reconciled'].includes(text(row['status']))) {
-          element.status = element.data.kind === 'scroll' ? 'pending' : 'unknown';
-          const restored = elementVerification(
-            this.runtime.store,
-            this.key,
-            element,
-            element.data.action_id,
-          );
-          if (restored.status === 'verified' && element.data.kind !== 'scroll') {
-            element.status = 'verified';
-            element.data.ever_verified = true;
-            element.data.verification = restored.proof;
-          }
-          changes.push(element);
-          events.push({
-            kind: 'exploration.association.restored',
-            payload: {
-              element_id: element.id,
-              action_id: element.data.action_id,
-              ledger_status: row['status'],
-              status: element.status,
-            },
-          });
+  // Review stored proofs once at startup, or reconcile only the action whose receipt was recovered.
+  async reconcileLedger(actionId?: string): Promise<void> {
+    const { store } = this.runtime;
+    const repository = store.exploration;
+    let reviewed = 0;
+    const records = [
+      repository.review(this.key, 'element', actionId),
+      repository.review(this.key, 'edge', actionId),
+    ];
+    for (const group of records) {
+      for (const record of group) {
+        if (record.kind === 'element') this.reconcileElement(record);
+        else this.reconcileEdge(record);
+        reviewed += 1;
+        // Each repair is committed before yielding so cancellation cannot leave a transaction open.
+        if (reviewed % 64 === 0) {
+          await yieldToKernel();
+          this.runtime.execution.check(this.runtime.runId);
         }
       }
-      if (element.status !== 'verified' && !element.data.ever_verified) continue;
+    }
+  }
+
+  private reconcileElement(element: Element): void {
+    const changes: Record[] = [];
+    const events: { kind: string; payload: object }[] = [];
+    if (element.status === 'in_progress' && element.data.action_id) {
+      const taskId = text(this.runtime.store.run(this.runtime.runId)['task_id']);
+      const row = this.runtime.store.actionRecords.forTask(taskId, element.data.action_id);
+      if (row && ['verified', 'reconciled'].includes(text(row['status']))) {
+        element.status = element.data.kind === 'scroll' ? 'pending' : 'unknown';
+        const restored = elementVerification(
+          this.runtime.store,
+          this.key,
+          element,
+          element.data.action_id,
+        );
+        if (restored.status === 'verified' && element.data.kind !== 'scroll') {
+          element.status = 'verified';
+          element.data.ever_verified = true;
+          element.data.verification = restored.proof;
+        }
+        changes.push(element);
+        events.push({
+          kind: 'exploration.association.restored',
+          payload: {
+            element_id: element.id,
+            action_id: element.data.action_id,
+            ledger_status: row['status'],
+            status: element.status,
+          },
+        });
+      }
+    }
+    if (element.status === 'verified' || element.data.ever_verified) {
       const verification = elementVerification(this.runtime.store, this.key, element);
       if (verification.status === 'verified') {
         if (JSON.stringify(element.data.verification) !== JSON.stringify(verification.proof)) {
@@ -430,75 +486,64 @@ export class Catalog {
             },
           });
         }
-        continue;
+      } else {
+        const previous = element.status;
+        if (previous === 'verified') element.status = 'unknown';
+        element.data.ever_verified = false;
+        element.data.verification = null;
+        element.data.verification_issue = verification.reason;
+        changes.push(element);
+        const locators = this.runtime.store.exploration.list(this.key, 'locator', { parent: element.id });
+        for (const locator of locators) {
+          if (!locator.data.active) continue;
+          locator.status = 'stale';
+          locator.data.active = false;
+          locator.data.verified = false;
+          changes.push(locator);
+        }
+        events.push({
+          kind: 'exploration.verification.invalidated',
+          payload: {
+            element_id: element.id,
+            action_id: element.data.action_id,
+            previous_status: previous,
+            status: element.status,
+            reason: verification.reason,
+            replayed: false,
+          },
+        });
       }
-      const previous = element.status;
-      if (previous === 'verified') element.status = 'unknown';
-      element.data.ever_verified = false;
-      element.data.verification = null;
-      element.data.verification_issue = verification.reason;
-      changes.push(element);
-      for (const locator of records) {
-        if (locator.kind !== 'locator' || locator.parent_id !== element.id || !locator.data.active)
-          continue;
-        locator.status = 'stale';
-        locator.data.active = false;
-        locator.data.verified = false;
-        changes.push(locator);
-      }
-      events.push({
-        kind: 'exploration.verification.invalidated',
-        payload: {
-          element_id: element.id,
-          action_id: element.data.action_id,
-          previous_status: previous,
-          status: element.status,
-          reason: verification.reason,
-          replayed: false,
-        },
-      });
     }
-    for (const edge of records) {
-      if (edge.kind !== 'edge' || edge.status !== 'verified') continue;
-      const element = records.find(
-        (record): record is Element =>
-          record.kind === 'element' && record.id === edge.data.element_id,
-      );
-      const verification = element
-        ? elementVerification(this.runtime.store, this.key, element, edge.data.action_id)
-        : null;
-      if (
-        verification?.status === 'verified' &&
-        verification.proof.after_observation_id === edge.data.observation_id
-      )
-        continue;
-      edge.status = 'invalidated';
-      edge.data.verification_issue =
-        verification?.status === 'unknown'
-          ? verification.reason
-          : 'edge-observation-does-not-match-action';
-      changes.push(edge);
-      events.push({
-        kind: 'exploration.edge.invalidated',
-        payload: {
-          edge_id: edge.id,
-          element_id: edge.data.element_id,
-          action_id: edge.data.action_id,
-          reason: edge.data.verification_issue,
-        },
-      });
-    }
+    if (!changes.length) return;
     this.runtime.store.database.transaction(() => {
       this.save(changes);
       for (const event of events) this.runtime.record(event.kind, { ...event.payload });
     });
   }
 
+  private reconcileEdge(edge: Edge): void {
+    const element = this.get('element', edge.data.element_id);
+    const verification = element
+      ? elementVerification(this.runtime.store, this.key, element, edge.data.action_id)
+      : null;
+    if (verification?.status === 'verified' &&
+        verification.proof.after_observation_id === edge.data.observation_id)
+      return;
+    edge.status = 'invalidated';
+    edge.data.verification_issue = verification?.status === 'unknown'
+      ? verification.reason : 'edge-observation-does-not-match-action';
+    const evidence = {
+      edge_id: edge.id, element_id: edge.data.element_id, action_id: edge.data.action_id,
+      reason: edge.data.verification_issue,
+    };
+    this.runtime.store.database.transaction(() => {
+      this.save([edge]);
+      this.runtime.record('exploration.edge.invalidated', evidence);
+    });
+  }
+
   backTarget(page: Page, observation: Observation): Element {
-    const known = this.records().find(
-      (record): record is Element =>
-        record.kind === 'element' && record.parent_id === page.id && record.data.kind === 'back',
-    );
+    const known = this.elements(page.id).find((element) => element.data.kind === 'back');
     if (known) return known;
     const display = observation.runtime.focused_display;
     if (!display) throw new FrameworkError(ErrorCode.STALE_OBSERVATION);
@@ -535,17 +580,11 @@ export class Catalog {
   outcome(pending: Pending, page: Page | null, observation: Observation, verified: boolean): void {
     const link = pending.exploration;
     if (!link || link.workspace_key !== this.key || !pending.action_id) return;
-    const records = this.records();
-    const assigned = records.filter(
-      (record): record is Element =>
-        record.kind === 'element' && record.data.action_id === pending.action_id,
-    );
+    const assigned = this.runtime.store.exploration.list(this.key, 'element', {
+      actionId: pending.action_id, limit: 2,
+    });
     if (assigned.length > 1) throw new FrameworkError(ErrorCode.INVALID_STATE);
-    const element =
-      assigned[0] ??
-      records.find(
-        (record): record is Element => record.kind === 'element' && record.id === link.element_id,
-      );
+    const element = assigned[0] ?? this.get('element', link.element_id);
     if (!element) throw new FrameworkError(ErrorCode.INVALID_STATE);
     if (element.id !== link.element_id) {
       this.runtime.record('exploration.association.reconciled', {
@@ -555,9 +594,7 @@ export class Catalog {
       });
       link.element_id = element.id;
     }
-    const locator = records.find(
-      (record): record is Locator => record.kind === 'locator' && record.id === link.locator_id,
-    );
+    const locator = this.get('locator', link.locator_id);
     const verification =
       verified && link.mode !== 'external_close'
         ? elementVerification(this.runtime.store, this.key, element, pending.action_id)

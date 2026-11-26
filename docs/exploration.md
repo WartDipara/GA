@@ -38,6 +38,18 @@ still require planning and cannot be replayed merely because a balance changes. 
 paths may use local verification, with a fresh lead inventory after at most five local steps.
 System Back is recorded as navigation, separately identified from screen tap targets.
 
+The runtime reads SQLite by page, observation, verified outgoing edge or action ID. A breadth-first
+search expands adjacency only for reachable pages. Completion uses workspace-wide existence
+queries so Agent preview limits cannot hide unfinished work. Restored proofs are checked in
+bounded batches before use. A recovered receipt checks only the records for that action.
+
+Page elements and outgoing edges use separate process-local caches, each limited to eight entries.
+Their admission budgets are 512 KiB and 128 KiB of serialized records respectively. The lead gets
+at most 120 elements, 30 pending-target summaries and 12 related pages. The first lead read after
+entering a page prefetches previews for up to four verified one-hop destinations. Larger page
+records remain queryable. Writes evict the touched page snapshots, and reads within a transaction
+bypass caching so uncommitted records cannot survive a rollback.
+
 Scrollable containers retain content fingerprints and per-container traversal state. Each swipe
 exposes approximately 70 percent of the container with overlap. Bottom confirmation requires two
 unchanged viewport results plus semantic bottom evidence. Repeated cycles, confirmed unbounded
