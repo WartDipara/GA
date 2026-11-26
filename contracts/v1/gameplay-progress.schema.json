@@ -304,6 +304,14 @@
             "test_objective": {
               "type": "string",
               "maxLength": 2000
+            },
+            "routine_step": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4
+            },
+            "routine_boot_id": {
+              "type": "string"
             }
           },
           "required": [
@@ -625,6 +633,9 @@
             "type": "integer",
             "minimum": 0
           }
+        },
+        "screen_key": {
+          "type": "string"
         }
       },
       "required": [
@@ -880,6 +891,12 @@
         "unchanged": {
           "type": "integer",
           "minimum": 0
+        },
+        "measurement": {
+          "enum": [
+            "android-controls",
+            "lead-observation"
+          ]
         }
       },
       "required": [
@@ -910,6 +927,28 @@
       "required": [
         "observation_id",
         "rechecks"
+      ],
+      "additionalProperties": false
+    },
+    "routine_cursor": {
+      "type": "object",
+      "properties": {
+        "run_id": {
+          "type": "string"
+        },
+        "next_step": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 5
+        },
+        "blocked": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "run_id",
+        "next_step",
+        "blocked"
       ],
       "additionalProperties": false
     }

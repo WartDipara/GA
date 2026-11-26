@@ -88,13 +88,25 @@ export class PassiveWait {
       stage: update.stage, process, unit: numeric ? unit : 'unknown',
       completed: numeric ? completed : null, total: numeric ? total : null,
       observation_id: observation.observation_id, sampled_at_ms: now, unchanged,
+      measurement: observed && main ? 'android-controls' : 'lead-observation',
     };
-    progress.update_wait = sample;
-    runtime.progress.save();
+    runtime.store.database.transaction(() => {
+      progress.update_wait = sample;
+      if (eta !== null && sample.measurement === 'android-controls' &&
+          previous?.measurement === 'android-controls') {
+        const proof = checkpointHash(['update', process, update.stage, unit, completed, total]);
+        runtime.watchdog?.observeProgress(proof);
+        runtime.record('gameplay.update.progress', {
+          proof, previous_observation_id: previous.observation_id,
+          observation_id: observation.observation_id, completed, total, unit,
+        });
+      }
+      runtime.progress.save();
+    });
     const planned = eta ?? minimumWaitMs * 2 ** Math.min(unchanged, 4);
     return this.wait(view, 'gameplay.update', planned, maximumUpdateWaitMs, {
       sample, previous_observation_id: previous?.observation_id ?? null,
-      estimated_remaining_ms: eta, measurement: observed ? 'android-controls' : 'lead-observation',
+      estimated_remaining_ms: eta, measurement: sample.measurement,
     });
   }
 

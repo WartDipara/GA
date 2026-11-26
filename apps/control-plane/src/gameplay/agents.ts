@@ -180,6 +180,21 @@ export class TestAgents {
     }
   }
 
+  private validateResponse<T>(
+    span: string, validate: () => T, parent = this.runtime.step,
+  ): T {
+    try {
+      const response = validate();
+      this.runtime.record('gameplay.agent.response.accepted', {}, span, parent);
+      return response;
+    } catch (error) {
+      this.runtime.record('gameplay.agent.response.rejected', {
+        error: frameworkError(error).details(),
+      }, span, parent);
+      throw error;
+    }
+  }
+
   private gameReference(skill: string): string | null {
     const apk = decode('apk-metadata', this.runtime.task['metadata']);
     if (apk.versionCode === null) return null;
@@ -214,9 +229,11 @@ export class TestAgents {
         worker, 'test-worker-result', 'test_workers',
         [skill], task, selected, view.observation, request.question, span,
       );
-      if (result.response.observations.some((fact) =>
-        !selected.some((item) => fact.evidence_ref === item.id)))
-        throw new FrameworkError(ErrorCode.AI_OUTPUT_INVALID, 'Worker cited an unsupplied observation');
+      this.validateResponse(result.span, () => {
+        if (result.response.observations.some((fact) =>
+          !selected.some((item) => fact.evidence_ref === item.id)))
+          throw new FrameworkError(ErrorCode.AI_OUTPUT_INVALID, 'Worker cited an unsupplied observation');
+      }, span);
       runtime.record('gameplay.delegation.completed', {
         ...metadata, worker_span_id: result.span, result: result.response,
         duration_ms: Math.round(performance.now() - started),
@@ -319,10 +336,27 @@ export class TestAgents {
       };
       const { response: decision, span } = await this.call(lead, 'test-lead-decision', 'test_lead',
         ['test-lead', ...this.active], context, images, observation, reason);
-      if (decision.context_sequence !== handoff.through_sequence)
-        throw new FrameworkError(ErrorCode.STALE_OBSERVATION, 'Lead did not acknowledge the current handoff');
-      if (decision.observation_id !== observation.observation_id || !decision.evidence_refs.includes(observation.observation_id))
-        throw new FrameworkError(ErrorCode.STALE_OBSERVATION);
+      const native = this.validateResponse(span, () => {
+        if (decision.context_sequence !== handoff.through_sequence)
+          throw new FrameworkError(ErrorCode.STALE_OBSERVATION, 'Lead did not acknowledge the current handoff');
+        if (decision.observation_id !== observation.observation_id ||
+            !decision.evidence_refs.includes(observation.observation_id))
+          throw new FrameworkError(ErrorCode.STALE_OBSERVATION);
+        if (['action', 'wait', 'complete', 'blocked'].includes(decision.disposition)) {
+          if (decision.action?.type === 'credential' && !this.active.has('game-entry'))
+            throw new FrameworkError(ErrorCode.CAPABILITY_DENIED, 'Credential input requires the entry Skill');
+          return this.nativeDecision(decision, coordinates, span);
+        }
+        const skill = decision.skill;
+        const canLoad = decision.disposition === 'load_skill' && skill &&
+          (decision.load_game_reference
+            ? referenceSkill !== skill && this.gameReference(skill)
+            : !this.active.has(skill));
+        if (!canLoad && !(decision.disposition === 'request_context' && decision.context_request) &&
+            !(decision.disposition === 'delegate' && decision.delegation))
+          throw new FrameworkError(ErrorCode.AI_OUTPUT_INVALID, 'Invalid lead disposition or repeated Skill request');
+        return null;
+      });
       if (decision.disposition === 'load_skill' && decision.skill && decision.load_game_reference &&
           referenceSkill !== decision.skill && this.gameReference(decision.skill)) {
         this.watchdog.assistance();
@@ -338,10 +372,7 @@ export class TestAgents {
         supplemental.push(await this.supplement(decision.context_request, handoff, view, images, used, span));
       } else if (decision.disposition === 'delegate' && decision.delegation) {
         supplemental.push(await this.supplement(decision.delegation, handoff, view, images, used, span));
-      } else if (['action', 'wait', 'complete', 'blocked'].includes(decision.disposition)) {
-        if (decision.action?.type === 'credential' && !this.active.has('game-entry'))
-          throw new FrameworkError(ErrorCode.CAPABILITY_DENIED, 'Credential input requires the entry Skill');
-        const native = this.nativeDecision(decision, coordinates);
+      } else if (native) {
         this.turns += 1;
         if (native.identity?.small_account && native.identity.server && native.identity.role && primary !== 'game-entry')
           this.active.delete('game-entry');
@@ -352,7 +383,7 @@ export class TestAgents {
     }
   }
 
-  private nativeDecision(decision: Decision, coordinates: Coordinates): Decision {
+  private nativeDecision(decision: Decision, coordinates: Coordinates, span: string): Decision {
     const inventory = decision.exploration;
     const native = decode('test-lead-decision', {
       ...decision,
@@ -368,7 +399,7 @@ export class TestAgents {
       observation_id: decision.observation_id, coordinates: { ...coordinates, space: 'planner_image_pixels' },
       planner_action: decision.action,
     });
-    this.runtime.record('gameplay.decision', { ...native });
+    this.runtime.record('gameplay.decision', { ...native }, span, this.runtime.step);
     return native;
   }
 
@@ -416,16 +447,22 @@ export class TestAgents {
       };
       const { response: verdict, span } = await this.call(judge, 'test-evidence-verdict', 'evidence_judge',
         ['evidence-judge'], context, images, observation, question);
-      if (verdict.context_sequence !== handoff.through_sequence)
-        throw new FrameworkError(ErrorCode.STALE_OBSERVATION, 'Judge did not acknowledge the current handoff');
+      this.validateResponse(span, () => {
+        if (verdict.context_sequence !== handoff.through_sequence)
+          throw new FrameworkError(ErrorCode.STALE_OBSERVATION, 'Judge did not acknowledge the current handoff');
+        if (verdict.status === 'delegate' && verdict.delegation) return;
+        if (verdict.status === 'request_context' && verdict.context_request) return;
+        if (!['unknown', 'verified', 'deviated'].includes(verdict.status))
+          throw new FrameworkError(ErrorCode.AI_OUTPUT_INVALID, 'Invalid verdict disposition');
+        if (verdict.evidence_refs.some((id) => !images.some((item) => item.id === id)) ||
+            (verdict.status !== 'unknown' && !verdict.evidence_refs.includes(current.id)))
+          throw new FrameworkError(ErrorCode.AI_OUTPUT_INVALID, 'Verdict must cite supplied observations');
+      });
       if (verdict.status === 'delegate' && verdict.delegation) {
         supplemental.push(await this.supplement(verdict.delegation, handoff, view, images, used, span));
       } else if (verdict.status === 'request_context' && verdict.context_request) {
         supplemental.push(await this.supplement(verdict.context_request, handoff, view, images, used, span));
       } else if (verdict.status === 'unknown' || verdict.status === 'verified' || verdict.status === 'deviated') {
-        if (verdict.evidence_refs.some((id) => !images.some((item) => item.id === id)) ||
-            (verdict.status !== 'unknown' && !verdict.evidence_refs.includes(current.id)))
-          throw new FrameworkError(ErrorCode.AI_OUTPUT_INVALID, 'Verdict must cite supplied observations');
         if (verdict.status === 'verified' && unavailable.length) {
           const result: Assessment = {
             status: 'unknown', reason: 'Required historical observation is unavailable',

@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "reason": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2000
+    },
+    "evidence_refs": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 240
+      },
+      "maxItems": 16
+    },
+    "missing_evidence": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 2000
+      },
+      "maxItems": 8
+    },
+    "status": {
+      "enum": [
+        "verified",
+        "deviated"
+      ]
+    },
+    "observation_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "observation_run": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "required": [
+    "reason",
+    "evidence_refs",
+    "missing_evidence",
+    "status",
+    "observation_id",
+    "observation_run"
+  ],
+  "additionalProperties": false,
+  "$id": "https://game-automation.local/contracts/v1/action-settlement"
+}

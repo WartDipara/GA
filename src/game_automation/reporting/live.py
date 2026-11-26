@@ -16,7 +16,6 @@ from game_automation.storage.store import Store
 from game_automation.utilities.files import within
 
 from .agent_trace import agent_view, render_retained_trace
-from .compact_trace import render_compact
 from .execution import SETTLED_STATUSES
 from .history import execution_index, history_view, render_execution, render_history, task_document
 from .live_feed import event_page
@@ -282,10 +281,7 @@ class TraceHandler(BaseHTTPRequestHandler):
             self.respond_document(store, document)
             return
         if relative == "reports/trace.html":
-            try:
-                document = render_retained_trace(store, run_id)
-            except Exception:
-                document = render_compact(store, run_id, degraded=True)
+            document = render_retained_trace(store, run_id)
             self.respond_document(store, decorate_document(store, run_id, document, "trace.html"))
             return
         if relative == "reports/exploration.html":

@@ -1,6 +1,9 @@
 """Python leaf-stage tools for the TypeScript executor; no scheduling or terminal-state decisions."""
 
 import asyncio
+import json
+import subprocess
+import sys
 from pathlib import Path
 
 from game_automation.errors import ErrorCode, FrameworkError
@@ -36,11 +39,35 @@ async def invoke_async(root, operation, **request):
 def handle_tool(root, method, params):
     if method != "execution.tool":
         raise FrameworkError(ErrorCode.METHOD_NOT_FOUND)
-    store = Store.open_readonly(root) if params["operation"] == "render" else Store(root)
+    if params["operation"] == "render":
+        return render_report(root, params["run_id"], params["input"])
+    store = Store(root)
     try:
         return tool(store, params["run_id"], params["operation"], params["input"])
     finally:
         store.close()
+
+
+def render_report(root, run_id, inputs):
+    timeout = inputs["timeout_ms"]
+    if type(timeout) is not int or not 1 <= timeout <= 30_000:
+        raise FrameworkError(ErrorCode.INVALID_PROTOCOL)
+    command = [
+        sys.executable, "-m", "game_automation.reporting.components",
+        str(root), run_id, inputs["component"],
+    ]
+    try:
+        rendered = subprocess.run(
+            command, cwd=root, capture_output=True, timeout=timeout / 1000,
+            creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
+            check=True,
+        )
+        result = json.loads(rendered.stdout)
+    except subprocess.TimeoutExpired as exc:
+        raise FrameworkError(ErrorCode.TIMEOUT, "Report renderer exceeded its time budget") from exc
+    except (OSError, subprocess.CalledProcessError, ValueError) as exc:
+        raise FrameworkError(ErrorCode.REPORT_GENERATION_FAILED) from exc
+    return result
 
 
 def tool(store, run_id, operation, inputs):
@@ -50,10 +77,6 @@ def tool(store, run_id, operation, inputs):
         if operation == "freeze":
             return freeze(store, run_id, parent_run=inputs.get("parent_run"))
         return load(store, run_id)
-    if operation == "render":
-        from game_automation.reporting.components import render_component
-
-        return render_component(store, run_id, inputs["component"])
     if operation in ("workflow_validate", "workflow_input"):
         from .assembly import build_workflow
         from .scheduler import WorkflowContext, validate_workflow

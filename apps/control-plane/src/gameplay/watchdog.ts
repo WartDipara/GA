@@ -4,12 +4,14 @@ import { ErrorCode, FrameworkError } from '@game-automation/contracts/errors';
 import { integer, type Fields } from '../utilities/values.js';
 import type { Runtime } from './runtime.js';
 import type { Decision, Observation, Pending, Progress } from './types.js';
+import type { View } from './local.js';
 import type { Assessment } from './agents.js';
 
 export class Watchdog {
   readonly data: NonNullable<Progress['watchdog']>;
   reconciling: boolean;
   private updated = performance.now();
+  private recoveryAssistance = 0;
   constructor(
     readonly runtime: Runtime,
     readonly settings: Fields,
@@ -21,10 +23,15 @@ export class Watchdog {
       previous && (!previous.scope || previous.scope === scope)
         ? previous
         : { rounds: 0, elapsed_seconds: 0, history: [], proofs: [] };
+    const screenKey = runtime.progress.data.checkpoint?.['screen_key'];
+    if (previous === this.data && typeof screenKey === 'string')
+      this.data.screen_key ??= screenKey;
     this.data.scope = scope;
     runtime.progress.data.watchdog = this.data;
-    this.reconciling = Boolean(this.data.blocked && runtime.progress.data.pending);
-    if (this.reconciling) runtime.record('gameplay.watchdog.reconciliation', { scope });
+    this.reconciling = this.data.blocked === true;
+    if (this.reconciling) runtime.record('gameplay.watchdog.reconciliation', {
+      scope, pending_action: runtime.progress.data.pending?.action_id ?? null,
+    });
   }
 
   check(): void {
@@ -53,19 +60,25 @@ export class Watchdog {
   }
 
   assistance(): void {
+    const limit = integer(this.settings['no_progress_rounds'] ?? 24);
+    if (this.reconciling) {
+      this.recoveryAssistance += 1;
+      if (this.recoveryAssistance >= limit) this.block('reconciliation-without-new-evidence');
+      return;
+    }
     this.data.rounds += 1;
     this.runtime.progress.save();
-    if (this.data.rounds >= integer(this.settings['no_progress_rounds'] ?? 24))
-      this.block('assistance-without-verified-progress');
+    if (this.data.rounds >= limit) this.block('assistance-without-verified-progress');
     this.check();
   }
 
   review(
     decision: Decision,
-    observation: Observation,
+    view: View,
     pending: Pending | null,
     assessment: Assessment | null,
   ): void {
+    const { observation, facts } = view;
     this.check();
     this.data.rounds += 1;
     const state = decision.state_key || 'unknown';
@@ -75,6 +88,16 @@ export class Watchdog {
       assessment.evidence_refs.includes(observation.observation_id);
     const previous = this.data.state;
     const exploring = this.runtime.task['goal'] === 'explore';
+    if (this.reconciling) {
+      const changed = facts.stable && previous && previous !== state && state !== 'unknown' &&
+        this.data.screen_key !== undefined && this.data.screen_key !== facts.screen_key;
+      if (!verified && !changed && decision.disposition !== 'complete')
+        this.block('reconciliation-without-new-evidence');
+      if (verified || changed)
+        this.observeProgress(checkpointHash(['resume', previous, state, pending?.action_id]));
+      this.reconciling = false;
+      if (decision.disposition === 'complete') return;
+    }
     if (!exploring && verified && previous && state !== previous && state !== 'unknown') {
       const signature = checkpointHash([previous, state, pending.action.type]);
       if (!this.data.proofs.includes(signature)) {
@@ -86,6 +109,7 @@ export class Watchdog {
     if (verified && pending.action.type !== 'launch')
       this.runtime.progress.data.recovery_rounds = 0;
     this.data.state = state;
+    if (facts.stable) this.data.screen_key = facts.screen_key;
     if (!exploring && decision.action && decision.action.type !== 'wait') {
       const fingerprint = checkpointHash([state, decision.action]);
       this.data.history = [...this.data.history, fingerprint].slice(-16);
@@ -93,7 +117,6 @@ export class Watchdog {
       if (count >= 3) this.runtime.record('gameplay.stall', { fingerprint, count });
       if (count >= 5) this.block('repeated-state-and-action-cycle');
     }
-    this.reconciling = false;
     this.check();
     this.data.blocked = false;
     this.runtime.progress.save();
@@ -108,6 +131,7 @@ export class Watchdog {
     this.data.history = [];
     this.data.corrections = {};
     this.data.blocked = false;
+    this.reconciling = false;
     this.runtime.progress.save();
   }
 

@@ -22,6 +22,9 @@ REPORT_KINDS = (
     "gameplay.agent.completed",
     "gameplay.agent.rejected",
     "gameplay.agent.incomplete",
+    "gameplay.agent.response.accepted",
+    "gameplay.agent.response.rejected",
+    "gameplay.lifecycle.skipped",
     "gameplay.correction",
     "gameplay.cache.hit",
     "gameplay.cache.invalidated",
@@ -238,6 +241,10 @@ def gameplay_report(store, run_id):
                 "gameplay.agent.completed", "gameplay.agent.rejected", "gameplay.agent.incomplete"
             )
         ],
+        "agent_response_validations": [
+            event for event in events
+            if event["kind"].startswith("gameplay.agent.response.")
+        ],
         "ai_trigger_reasons": dict(reasons),
         "deterministic_steps": sum(
             item["source"] not in agent_sources for item in origins
@@ -264,6 +271,7 @@ def gameplay_report(store, run_id):
         ),
         "restored_from": selected("gameplay.progress.restored"),
         "lifecycle": selected("gameplay.lifecycle.finished"),
+        "lifecycle_skipped": selected("gameplay.lifecycle.skipped"),
         "finalization_issues": selected("gameplay.lifecycle.incomplete")
         + selected("gameplay.finalization.issue")
         + selected("gameplay.diagnostics.incomplete"),

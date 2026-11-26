@@ -1,3 +1,4 @@
+import { performance } from 'node:perf_hooks';
 import { publish } from '../reporting/publication.js';
 import { existsSync, statSync } from 'node:fs';
 import { object, text } from '@game-automation/contracts';
@@ -41,6 +42,7 @@ const boundaries: Record<string, string[]> = {
 export class Execution {
   readonly deadline: TaskDeadline;
   readonly signal: AbortSignal;
+  private reportDeadline: number | null = null;
 
   constructor(
     readonly store: Store,
@@ -145,6 +147,7 @@ export class Execution {
     const repaired: unknown[] = [];
     const rows = this.store.eventRecords.reportRuns();
     for (const row of rows) {
+      if (this.reportingTimeLeft() <= 0) break;
       const runId = text(row['run_id']);
       if (!settledStatuses.has(text(this.store.run(runId)['status']))) continue;
       const request = this.store.events(runId, { kinds: ['report.requested'], limit: 1 }).at(-1);
@@ -185,6 +188,20 @@ export class Execution {
       if (!complete) repaired.push(await this.publish(runId));
     }
     return repaired;
+  }
+
+  private reportingTimeLeft(): number {
+    const now = performance.now();
+    this.reportDeadline ??= now + 120_000;
+    return Math.floor(this.reportDeadline - now);
+  }
+
+  async render(runId: string, component: string): Promise<unknown> {
+    const timeout = Math.min(30_000, this.reportingTimeLeft());
+    if (timeout <= 0)
+      throw new FrameworkError(ErrorCode.TIMEOUT, 'Report publication budget exhausted');
+    const input = { component, timeout_ms: timeout };
+    return this.tool('render', runId, input);
   }
 
   async publish(runId: string): Promise<Fields> {
@@ -296,7 +313,7 @@ export class Execution {
       this.store.command('transition', { run_id: runId, status, reason: failure.details() });
     } finally {
       try {
-        if (!this.deadline.expired() && loadedManifest && settledStatuses.has(text(this.store.run(runId)['status'])))
+        if (loadedManifest && settledStatuses.has(text(this.store.run(runId)['status'])))
           await finalizeGames(this, runId, loadedManifest);
       } finally {
         if (ownsDeadline) this.deadline.dispose();
@@ -305,6 +322,7 @@ export class Execution {
             settledStatuses.has(text(this.store.run(runId)['status']))) {
           if (mode === 'workflow') {
             for (const child of this.store.workflows.children(runId)) {
+              if (this.reportingTimeLeft() <= 0) break;
               if (settledStatuses.has(child.status)) await this.publish(child.id);
             }
           }

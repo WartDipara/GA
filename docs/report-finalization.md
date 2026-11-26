@@ -11,10 +11,11 @@ cause the scheduler to repeat it, or prevent another report component from being
 
 TypeScript owns publication order, component boundaries, receipts, pending-request repair and the
 minimal outcome report. Python rich renderers are read-only projection tools: they may write report
-files, but cannot publish states or events. Their temporary compatibility bridge is separate from
-the gameplay loop. If that bridge disconnects, the kernel still writes the minimal outcome and a
-degraded receipt. Report components have spans and measured durations; interrupted publications
-close unfinished components as incomplete before a new publication attempt.
+files through isolated renderer processes with read-only SQLite connections. Each renderer has
+at most 30 seconds. A reporting command or execution shares a two-minute rendering budget across
+its publications. Timeouts produce degraded receipts with component errors. Requests that exceed
+the budget remain available for report-only repair. Interrupted publications close unfinished
+components as incomplete before a new attempt.
 
 ## Publication order
 
@@ -61,8 +62,8 @@ The minimal `execution.json/html` report requires no screenshot, action input fi
 pricing file or rich frontend asset. It records the actual outcome, original reason, recent failed
 calls and unresolved actions. Missing retained action inputs are marked unavailable while other
 action records remain usable. Missing or invalid optional version/pricing evidence stays unknown.
-A failed rich trace renderer falls back to a bounded recorded-event timeline with a degradation
-notice. The original event store and retained files remain available for diagnosis.
+A failed trace renderer is recorded in the component receipt. The original event store and
+retained files remain available for diagnosis.
 
 Report writes use a unique temporary file in the destination directory, UTF-8/LF encoding, flush,
 file `fsync`, then atomic replacement. An unsuccessful write does not truncate the previous target.
@@ -88,20 +89,19 @@ Unclosed call, step and workflow-stage boundaries receive `incomplete` events wi
 the run becomes blocked with `PREVIOUS_PROCESS_EXITED`. Device action outcomes are not changed to
 success. Fresh device reconciliation is still required before future gameplay can continue.
 
-Pending/degraded publications are retried once per entry before business work, independently of
-runtime manifest compatibility. Old Skills or changed code therefore do not prevent report-only
-reconstruction. Terminal business runs are never restarted by repair. Historical executions without
+Use `report --pending` to retry pending or degraded publications within a fresh reporting
+budget. Report-only reconstruction is independent of runtime manifest compatibility. Terminal business runs are never restarted by repair. Historical executions without
 publication tracking are rebuilt only when explicitly selected. Successful component timing records
 are retained even if a later renderer fails.
 
 | Failure boundary | Recovery behavior |
 | --- | --- |
-| Game/plugin failure or deadline | Persist actual failed/blocked outcome, then finalize all reports |
+| Game/plugin failure or deadline | Persist the outcome and request, then render within the reporting budget |
 | Cancellation before dispatch | The same `finally` path publishes outcome and other reports |
 | Snapshot preparation failure | Persist blocked/cancelled state and publish available evidence |
 | Renderer exception or missing attachment | Record component failure or evidence gap; attempt remaining components |
 | Process dies after outcome commit | The pending request is retried without executing the task |
-| Process dies during active work | On the next locked entry, mark unclosed boundaries unknown and publish a checkpoint |
+| Process dies during active work | On the next locked entry, mark unclosed boundaries unknown and queue a checkpoint report |
 | Process dies after receipt write but before finished event | Retry the publication; never infer completion from file presence |
 | Disk is full/unwritable or SQLite cannot commit | Preserve what was already durable; repair after storage is restored |
 

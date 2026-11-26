@@ -1,10 +1,12 @@
 import { performance } from 'node:perf_hooks';
-import { decode } from '@game-automation/contracts';
+import { decode, text } from '@game-automation/contracts';
 import { ErrorCode, FrameworkError } from '@game-automation/contracts/errors';
 import { canonical } from '../utilities/values.js';
 import { within } from '../utilities/files.js';
+import type { Assessment } from './agents.js';
+import { settleAction } from './settlement.js';
 import type { Runtime } from './runtime.js';
-import type { Decision, Facts, Observation, Pending, Routine } from './types.js';
+import type { Decision, Facts, Observation, Pending, Progress, Routine } from './types.js';
 
 export type View = { observation: Observation; facts: Facts };
 
@@ -144,45 +146,62 @@ export async function executeRoutine(
 ): Promise<View> {
   if (steps.length < 1 || steps.length > 5)
     throw new FrameworkError(ErrorCode.INVALID_CONTRACT, 'Routines require one to five steps');
+  const progress = runtime.progress.data;
+  const cursor = runtime.task['goal'] === 'routine' ? routineCursor(runtime) : null;
+  if (cursor?.blocked || (cursor && cursor.next_step > steps.length))
+    throw new FrameworkError(ErrorCode.GAMEPLAY_BLOCKED, 'The routine checkpoint cannot continue');
+
   runtime.begin('guarded-routine');
   const perception = new Perception(runtime);
   try {
     let view = facts ? { observation: initial, facts } : await perception.settle(initial);
-    for (const step of steps) {
-      const selected = route(view, step);
-      runtime.record('gameplay.route', selected);
-      if (selected.route !== 'routine')
-        throw new FrameworkError(
-          ErrorCode.GAMEPLAY_BLOCKED,
-          'Routine conditions changed; planning is required',
-        );
-      const actionId = await runtime.perform(step.action, view.observation, 'routine');
+    for (const [index, step] of steps.entries()) {
+      if (cursor && index < cursor.next_step) continue;
+      let pending = cursor ? progress.pending : null;
+      if (pending) {
+        if (pending.routine_step !== index || !pending.routine_boot_id ||
+            canonical(pending.action) !== canonical(step.action))
+          throw new FrameworkError(ErrorCode.ACTION_ALREADY_DISPATCHED, 'Pending action differs from the routine step');
+      } else {
+        const selected = route(view, step);
+        runtime.record('gameplay.route', selected);
+        if (selected.route !== 'routine')
+          throw new FrameworkError(ErrorCode.GAMEPLAY_BLOCKED, 'Routine preconditions changed');
+        const checkpoint = cursor
+          ? { routine_step: index, routine_boot_id: view.observation.runtime.boot_id }
+          : {};
+        await runtime.perform(step.action, view.observation, 'routine', null, null, null, checkpoint);
+        pending = progress.pending;
+        if (!pending?.action_id) throw new FrameworkError(ErrorCode.INVALID_STATE);
+      }
+      const boot = pending.routine_boot_id ?? view.observation.runtime.boot_id;
       const after = await perception.settle(view.observation);
       const status = !step.after.length
         ? 'unknown'
-        : view.observation.runtime.boot_id !== after.observation.runtime.boot_id
+        : boot !== after.observation.runtime.boot_id
           ? 'deviated'
           : step.after.every((condition) => matches(condition, after.observation, after.facts))
             ? 'verified'
-            : after.facts.stable
-              ? 'deviated'
-              : 'unknown';
-      const result = {
+            : after.facts.stable ? 'deviated' : 'unknown';
+      if (status === 'unknown') {
+        runtime.record('gameplay.outcome.unknown', { action_id: pending.action_id, source: 'routine' });
+        throw new FrameworkError(ErrorCode.GAMEPLAY_BLOCKED, 'Routine outcome requires reconciliation');
+      }
+      const assessment: Assessment = {
         status,
-        observation_id: after.observation.observation_id,
-        before_observation_id: view.observation.observation_id,
-        source: 'local-predicates',
-        business_goal_verified: false,
+        reason: status === 'verified' ? 'Routine exit conditions matched' : 'Routine exit conditions deviated',
+        evidence_refs: [after.observation.observation_id],
+        missing_evidence: [],
       };
-      runtime.record('gameplay.outcome', result);
-      if (status !== 'verified')
-        throw new FrameworkError(
-          ErrorCode.GAMEPLAY_BLOCKED,
-          'Routine stopped because the expected result is unverified',
-        );
-      runtime.outcome(runtime.runId, actionId, 'verified', result);
-      runtime.progress.data.pending = null;
-      runtime.checkpoint(after.observation);
+      settleAction(runtime, pending, after.observation, assessment, 'local-predicates',
+        cursor || status === 'verified' ? () => {
+          if (!cursor) return;
+          cursor.blocked = status === 'deviated';
+          if (!cursor.blocked) cursor.next_step = index + 1;
+        } : undefined,
+      );
+      if (status === 'deviated')
+        throw new FrameworkError(ErrorCode.GAMEPLAY_BLOCKED, 'Routine exit conditions deviated');
       view = after;
     }
     runtime.finish();
@@ -191,4 +210,29 @@ export async function executeRoutine(
     runtime.finish(error);
     throw error;
   }
+}
+
+function routineCursor(runtime: Runtime): NonNullable<Progress['routine_cursor']> {
+  const { store, runId } = runtime;
+  const progress = runtime.progress.data;
+  const saved = progress.routine_cursor;
+  const taskId = store.run(runId)['task_id'];
+  const runs = new Set<string>();
+  let owner = runId;
+  for (;;) {
+    if (runs.has(owner) || store.run(owner)['task_id'] !== taskId ||
+        canonical(store.input(owner)) !== canonical(runtime.task))
+      throw new FrameworkError(ErrorCode.INVALID_STATE, 'Invalid routine continuation');
+    runs.add(owner);
+    if (saved?.run_id === owner) return saved;
+    const link = store.events(owner, { kinds: ['run.continued_from'], limit: 1 }).at(-1);
+    if (!link) break;
+    owner = text(link.payload['run_id']);
+  }
+  if ([...runs].some((id) => store.actionRecords.total(id) > 0))
+    throw new FrameworkError(ErrorCode.ACTION_ALREADY_DISPATCHED, 'Routine has an action history without a durable step index');
+  const cursor = { run_id: runId, next_step: 0, blocked: false };
+  progress.routine_cursor = cursor;
+  runtime.progress.save();
+  return cursor;
 }

@@ -3,6 +3,8 @@ import { decode, text } from '@game-automation/contracts';
 import { ErrorCode, FrameworkError } from '@game-automation/contracts/errors';
 import { within } from '../utilities/files.js';
 import type { Runtime } from '../gameplay/runtime.js';
+import type { Assessment } from '../gameplay/agents.js';
+import { settleAction } from '../gameplay/settlement.js';
 import type { View } from '../gameplay/local.js';
 import type { Action, Decision, Observation, Pending } from '../gameplay/types.js';
 import { Catalog, signature, type Element, type Locator, type Page } from './catalog.js';
@@ -281,38 +283,21 @@ export class Exploration {
       !(await locate(this.runtime, element, locator, page, view.observation))
     )
       return false;
-    const outcome = {
-      source: 'verified-page-anchors',
-      observation_run: this.runtime.runId,
-      observation_id: view.observation.observation_id,
-      page_id: page.id,
-      business_goal_verified: false,
+    const assessment: Assessment = {
+      status: 'verified',
+      reason: 'Stable observation matched the destination page anchors',
+      evidence_refs: [view.observation.observation_id],
+      missing_evidence: [],
     };
-    this.runtime.store.database.transaction(() => {
-      const previouslyVerified = this.wasVerified(pending);
-      this.runtime.outcome(pending.run_id, text(pending.action_id), 'verified', outcome);
+    const previouslyVerified = this.wasVerified(pending);
+    const evidence = { page_id: page.id };
+    settleAction(this.runtime, pending, view.observation, assessment, 'verified-page-anchors', () => {
       this.catalog.outcome(pending, page, view.observation, true);
       this.catalog.move(page, view.observation);
-      const progress = this.runtime.progress.data;
-      if (pending.test_attempt) {
-        const attempts = progress.test_attempts ??= {};
-        attempts[pending.test_attempt] = 'verified';
-      }
-      const path = progress.paths.find((item) => item.action_id === pending.action_id);
-      if (path) {
-        path.status = 'verified';
-        path.after = view.observation.observation_id;
-      }
-      this.runtime.record('gameplay.outcome', { action_id: pending.action_id, status: 'verified', ...outcome });
-      progress.pending = null;
-      this.runtime.checkpoint(view.observation);
       this.supervisor.review(
-        pending,
-        page,
-        view.observation,
-        !previouslyVerified && this.wasVerified(pending),
+        pending, page, view.observation, !previouslyVerified && this.wasVerified(pending),
       );
-    });
+    }, evidence);
     return true;
   }
 

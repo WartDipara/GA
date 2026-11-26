@@ -18,16 +18,28 @@ async function closeGame(
   const instance = text(task['instance_id']);
   const apkKey = `${String(task['source_run'])}:${String(task['apk_index'])}`;
   const remaining = execution.deadline.remaining();
-  if (store.actionRecords.hasUnresolvedForWorkspace(instance, apkKey) ||
-      (remaining !== null && remaining < actionReserveMs))
-    return;
+  const unresolved = store.actionRecords.unresolvedForWorkspace(instance, apkKey);
   const state = store.events(runId, { kinds: ['run.state'], limit: 1 }).at(-1);
-  const attempted = store.events(runId, { kinds: ['gameplay.lifecycle.started'], limit: 1 }).at(-1);
+  const attempted = store.events(runId, {
+    kinds: ['gameplay.lifecycle.started', 'gameplay.lifecycle.skipped'], limit: 1,
+  }).at(-1);
   if (
     attempted?.payload['operation'] === 'close' &&
     attempted.payload['state_event_id'] === state?.event_id
   )
     return;
+  if (unresolved.length || (remaining !== null && remaining < actionReserveMs)) {
+    const skipped = {
+      operation: 'close',
+      status: 'skipped',
+      reason: unresolved.length ? 'unresolved-action' : 'task-deadline',
+      action_ids: unresolved.map((action) => action.action_id),
+      remaining_ms: remaining,
+      state_event_id: state?.event_id ?? null,
+    };
+    store.event(runId, 'gameplay.lifecycle.skipped', skipped);
+    return;
+  }
   try {
     const limit = AbortSignal.timeout(90_000);
     const signal = remaining === null ? limit : AbortSignal.any([limit, execution.signal]);

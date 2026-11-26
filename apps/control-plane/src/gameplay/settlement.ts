@@ -1,11 +1,11 @@
-import { decode, object, text } from '@game-automation/contracts';
+import { decode, object, text, type ContractMap } from '@game-automation/contracts';
 import { ErrorCode, FrameworkError } from '@game-automation/contracts/errors';
+import type { Fields } from '../utilities/values.js';
 import type { Assessment } from './agents.js';
-import type { View } from './local.js';
 import type { Runtime } from './runtime.js';
-import type { Pending } from './types.js';
+import type { Observation, Pending } from './types.js';
 
-type RecordedAssessment = Assessment & { observation_id: string; observation_run: string };
+type RecordedAssessment = ContractMap['action-settlement'];
 
 export function readSettlement(runtime: Runtime, pending: Pending): RecordedAssessment | null {
   if (!pending.action_id) return null;
@@ -16,37 +16,33 @@ export function readSettlement(runtime: Runtime, pending: Pending): RecordedAsse
   const result = object(row['result'] ?? {});
   const status = result['status'];
   if (status !== 'verified' && status !== 'deviated') return null;
-  const verdict = decode('test-evidence-verdict', {
+  if (result['source'] === 'local-predicates' && result['business_goal_verified'] === false &&
+      typeof result['before_observation_id'] === 'string' && result['reason'] === undefined)
+    return null;
+  const receipt = {
     status,
+    observation_id: result['observation_id'],
+    observation_run: result['observation_run'],
     reason: result['reason'],
     evidence_refs: result['evidence_refs'],
     missing_evidence: result['missing_evidence'],
-    delegation: null,
-    context_request: null,
-    context_sequence: 0,
-  });
-  return {
-    status,
-    observation_id: text(result['observation_id']),
-    observation_run: text(result['observation_run']),
-    reason: verdict.reason,
-    evidence_refs: verdict.evidence_refs,
-    missing_evidence: verdict.missing_evidence,
   };
+  return decode('action-settlement', receipt);
 }
 
 export function settleAction(
-  runtime: Runtime, pending: Pending, view: View, assessment: Assessment, source: string,
+  runtime: Runtime, pending: Pending, observation: Observation, assessment: Assessment,
+  source: string, commitCheckpoint?: true | (() => void), evidence?: Fields,
 ): void {
   if (assessment.status === 'unknown') return;
   const { progress } = runtime;
   const actionId = text(pending.action_id);
-  const observationId = view.observation.observation_id;
+  const observationId = observation.observation_id;
   const { status } = assessment;
-  const outcome = {
-    source, action_id: actionId, observation_run: runtime.runId,
-    observation_id: observationId, ...assessment,
-  };
+  const receipt = decode('action-settlement', {
+    observation_run: runtime.runId, observation_id: observationId, ...assessment,
+  });
+  const outcome = { ...evidence, ...receipt, source, action_id: actionId };
   runtime.store.database.transaction(() => {
     runtime.outcome(pending.run_id, actionId, status === 'verified' ? 'verified' : 'reconciled', outcome);
     runtime.record('gameplay.outcome', outcome);
@@ -64,6 +60,10 @@ export function settleAction(
         after: observationId, objective: pending.test_objective, status, type: pending.action.type,
       });
     }
-    progress.save();
+    if (commitCheckpoint) {
+      progress.data.pending = null;
+      if (typeof commitCheckpoint === 'function') commitCheckpoint();
+      runtime.checkpoint(observation);
+    } else progress.save();
   });
 }

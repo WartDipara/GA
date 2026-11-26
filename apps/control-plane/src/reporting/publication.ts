@@ -8,7 +8,7 @@ import { uid, type Fields } from '../utilities/values.js';
 import type { Execution } from '../workflow/execution.js';
 import { settledStatuses } from '../workflow/state-policy.js';
 
-function outcome(execution: Execution, runId: string, snapshot: Fields): string {
+function outcome(execution: Execution, runId: string, snapshot: Fields): void {
   const store = execution.store;
   const run = store.run(runId);
   const states = store.events(runId, { kinds: ['run.state'], limit: 1 });
@@ -19,6 +19,7 @@ function outcome(execution: Execution, runId: string, snapshot: Fields): string 
       'gameplay.lifecycle.started',
       'gameplay.lifecycle.finished',
       'gameplay.lifecycle.incomplete',
+      'gameplay.lifecycle.skipped',
       'gameplay.finalization.issue',
       'gameplay.diagnostics.incomplete',
     ],
@@ -69,7 +70,6 @@ function outcome(execution: Execution, runId: string, snapshot: Fields): string 
     .replaceAll('>', '&gt;');
   const document = `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'"><title>Execution outcome</title><style>body{font:16px system-ui;max-width:1100px;margin:32px auto;padding:20px}pre{white-space:pre-wrap;overflow-wrap:anywhere}</style><h1>Execution outcome</h1><p>Recorded outcomes remain authoritative. Missing evidence is not success.</p><pre>${escaped}</pre></html>`;
   atomicText(join(directory, 'execution.html'), document);
-  return document;
 }
 
 function workflow(execution: Execution, runId: string, snapshot: Fields): void {
@@ -139,7 +139,6 @@ export async function publish(execution: Execution, runId: string): Promise<Fiel
   if (['gameplay', 'workflow'].includes(text(run['mode']))) components.push('exploration');
   components.push('trace', 'context', 'index', 'task_index');
   const outcomes: Fields = {};
-  let fallback: string | null = null;
   let degraded = false;
   for (const component of components) {
     const span = uid('span');
@@ -152,40 +151,18 @@ export async function publish(execution: Execution, runId: string): Promise<Fiel
     const componentStarted = performance.now();
     let result: Fields = { status: 'complete' };
     try {
-      if (component === 'outcome') fallback = outcome(execution, runId, snapshot);
+      if (component === 'outcome') outcome(execution, runId, snapshot);
       else if (component === 'workflow') workflow(execution, runId, snapshot);
       else {
         if (component === 'trace') store.health(runId, true);
-        result = object(await execution.tool('render', runId, { component }));
+        result = object(await execution.render(runId, component));
         if (!['complete', 'failed'].includes(text(result['status'])))
           throw new FrameworkError(ErrorCode.INVALID_PROTOCOL);
       }
     } catch (error) {
       result = { status: 'failed', error: frameworkError(error).details() };
     }
-    if (result['status'] !== 'complete') {
-      degraded = true;
-      if (component === 'trace') {
-        try {
-          let compact = false;
-          try {
-            const rendered = object(
-              await execution.tool('render', runId, { component: 'compact_trace' }),
-            );
-            compact = rendered['status'] === 'complete';
-          } catch (error) {
-            result['compact_error'] = frameworkError(error).details();
-          }
-          if (!compact) {
-            fallback ??= outcome(execution, runId, snapshot);
-            atomicText(join(store.runDirectory(runId), 'reports/trace.html'), fallback);
-          }
-          result['fallback'] = 'reports/trace.html';
-        } catch (error) {
-          result['fallback_error'] = frameworkError(error).details();
-        }
-      }
-    }
+    if (result['status'] !== 'complete') degraded = true;
     result['duration_ms'] = Math.round(performance.now() - componentStarted);
     outcomes[component] = result;
     store.event(runId, 'report.component.finished', { ...boundary, ...result }, { span_id: span });

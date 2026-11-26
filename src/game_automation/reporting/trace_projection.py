@@ -46,11 +46,16 @@ DETAILS = (
     "gameplay.observation",
     "gameplay.agent.coordinates",
     "gameplay.agent.assistance",
+    "gameplay.agent.response.accepted",
+    "gameplay.agent.response.rejected",
+    "gameplay.foreground.already_satisfied",
     "gameplay.outcome.unknown",
     "gameplay.outcome.reused",
     "gameplay.update.wait",
     "gameplay.update.wait.finished",
     "gameplay.update.stalled",
+    "gameplay.update.progress",
+    "gameplay.lifecycle.skipped",
     "gameplay.network.wait",
     "gameplay.network.wait.finished",
     "gameplay.network.classified",
@@ -122,6 +127,11 @@ def enrich_span(span, event):
         attributes["gen_ai.agent.name"] = payload.get("role")
     if kind == "ai.summary_availability":
         attributes["game_automation.public_summary_available"] = payload.get("available")
+    if kind == "gameplay.agent.response.accepted":
+        attributes["game_automation.agent.response_status"] = "accepted"
+    elif kind == "gameplay.agent.response.rejected":
+        attributes["game_automation.agent.response_status"] = "rejected"
+        attributes["game_automation.agent.response_error"] = payload.get("error")
     if kind == "gameplay.decision":
         attributes["game_automation.decision.reason_summary"] = payload.get("reason_summary")
         attributes["game_automation.decision.objective"] = payload.get("objective")

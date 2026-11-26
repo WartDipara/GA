@@ -122,7 +122,9 @@ transition and battle waiting use local observations without per-frame model cal
 During updates, the lead identifies the stage and reports visible bytes or percentages. The kernel
 compares observations from the same running process and stage. It estimates remaining time from
 measured progress, bounds the wait to 2–60 seconds and samples again. Missing or unchanged readings
-use bounded backoff. Waits respect the task deadline and never send device input. This path is
+use bounded backoff. Two corroborated, increasing Android control readings from the same
+process and update stage reset the no-progress clock. Waits respect the task deadline and never
+send device input. This path is
 available while an action is unknown, with the lead limited to observations and waiting.
 
 Connection errors suspend new input while the kernel observes again after 3 and 10 seconds. The
@@ -134,7 +136,10 @@ available as diagnostics.
 screen guard and explicit before/after predicates. Learned routines additionally require exact
 sanitized image matching and bind APK, identity, process and layout. Only observed, verified,
 low-risk tap/back transitions are learned. Sensitive screens and resource consumption are excluded.
-Mismatch exits the fast path. No game-specific coordinates or scripts exist in the public core.
+A standalone routine commits each verified step with its next-step index. An interrupted action
+is reconciled from fresh evidence before the next step. A deviated step ends the routine. A
+historical execution with action records and no durable step index cannot automatically resume.
+Mismatch exits the learned fast path.
 
 Native battle prefers existing automatic combat/navigation. Advancement requires an observed
 victory settlement and a subsequent changed stage marker. Skill selection, waiting and disappearing
@@ -192,7 +197,8 @@ and effort. Supported effort settings are
 `low`, `medium`, `high`, `xhigh`, and `max`. Model-specific availability depends on the
 configured provider. Settings are frozen when
 a batch is created. Create a new batch to use edited settings when resuming. The `ai.runtime`
-event records the requested settings and the values reported by Codex.
+event records the requested settings and the values reported by Codex. Changes to the application
+configuration require a rebuild before creating a new batch.
 
 See the
 [official provider configuration](https://developers.openai.com/siwc/token-sharing-open-source/codex-app-server).

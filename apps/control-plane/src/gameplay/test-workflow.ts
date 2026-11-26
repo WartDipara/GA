@@ -209,8 +209,8 @@ export async function runTestWorkflow(
     runtime.record('gameplay.route', selection);
     runtime.begin(selection.reason);
     let assessment: Assessment | null = recorded;
-    let source = judgeId;
     if (pending && !recorded) {
+      let source = judgeId;
       const execution = pending.action_id ? runtime.store.deviceAction(pending.run_id, pending.action_id) : null;
       if (!execution || !['executed', 'unknown'].includes(text(execution['status'])))
         throw new FrameworkError(ErrorCode.ACTION_ALREADY_DISPATCHED, 'Pending action and ledger disagree');
@@ -243,7 +243,7 @@ export async function runTestWorkflow(
         view = refreshed ?? await perception.wait(view.observation);
         continue;
       }
-      settleAction(runtime, pending, view, assessment, source);
+      settleAction(runtime, pending, view.observation, assessment, source);
     }
     if (pending && recorded) {
       catalog?.reconcileLedger();
@@ -272,7 +272,7 @@ export async function runTestWorkflow(
         runtime.progress.save();
       });
     }
-    watchdog.review(decision, view.observation, pending, assessment);
+    watchdog.review(decision, view, pending, assessment);
     await updateIdentity(runtime, agents, decision, view);
     runtime.progress.update(decision, view.observation.observation_id);
     const phase = decision.battle_progress;

@@ -32,8 +32,9 @@ durability has real disk cost; bounded batching reduces repeated commits without
 overhead. Resource-use or latency guarantees require measurements on the actual workload.
 
 A trace or evidence write failure prevents new device actions. Unknown action outcomes must be
-observed and reconciled before continuing. Report components fail independently, retain fallback
-outcome records where possible and support report-only recovery after storage becomes available.
+observed and reconciled before continuing. Report components fail independently, and the committed
+outcome remains available for report-only recovery. Agent response validation records use the same
+span as the completed call. They identify proposal validation separately from model completion.
 The read-only viewer can stop or fail without stopping the workflow's authoritative recording.
 
 Inspect writer overhead or retained evidence without starting a writer, model or device:

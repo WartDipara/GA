@@ -12,7 +12,7 @@ import { Peer } from '@game-automation/plugin-sdk/rpc';
 import { Store } from './storage/store.js';
 import { atomicJson } from './utilities/files.js';
 import { sha256 } from './utilities/hashing.js';
-import { type Fields } from './utilities/values.js';
+import { integer, type Fields } from './utilities/values.js';
 import { Execution } from './workflow/execution.js';
 
 const root = resolve(process.argv[2] ?? '.');
@@ -116,7 +116,11 @@ const server = createServer((socket) => {
       ownedExecutions.add(id);
       const tool = async (operation: string, runId: string, input: Fields): Promise<unknown> => {
         const request = { operation, run_id: runId, input };
-        return peer.request('execution.tool', request, 0, operation === 'render' ? undefined : controller.signal);
+        if (operation === 'render') {
+          const timeout = integer(input['timeout_ms']);
+          return peer.request('execution.tool', request, timeout + 5_000);
+        }
+        return peer.request('execution.tool', request, 0, controller.signal);
       };
       const execution = new Execution(store, tool, controller, drainCalls);
       activeExecution = execution;
@@ -131,7 +135,6 @@ const server = createServer((socket) => {
         }
         if (method === 'execution.run') {
           await execution.recover();
-          await execution.repairReports();
           const runId = text(params['run_id']);
           if (store.input(runId)['workflow_run'])
             throw new FrameworkError(

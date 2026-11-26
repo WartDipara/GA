@@ -9,7 +9,8 @@ import { previousClose } from '../storage/lifecycle.js';
 import type { Execution } from '../workflow/execution.js';
 import { executeRoutine, Perception } from './local.js';
 import { AgentDirectory } from './agent-directory.js';
-import { readSettlement } from './settlement.js';
+import type { Assessment } from './agents.js';
+import { readSettlement, settleAction } from './settlement.js';
 import { runTestWorkflow } from './test-workflow.js';
 import { ProgressStore } from './progress.js';
 import { confirmSession, Runtime } from './runtime.js';
@@ -62,36 +63,50 @@ async function reconcile(runtime: Runtime, observation: Observation): Promise<vo
       canReconcile = sameProcess(intent.runtime, observation.runtime);
     const passive = action.type === 'wait';
     const actionId = text(previous['action_id']);
-    if (previous['status'] === 'prepared')
-      runtime.outcome(priorRun, actionId, 'rejected', { dispatched: false });
-    else if (canReconcile || passive) {
-      runtime.outcome(priorRun, actionId, passive ? 'reconciled' : 'verified', {
-        observation_run: runtime.runId,
-        observation_id: observation.observation_id,
-        business_goal_verified: false,
+    if (previous['status'] === 'prepared') {
+      runtime.store.database.transaction(() => {
+        runtime.outcome(priorRun, actionId, 'rejected', { dispatched: false });
+        progress.pending = null;
+        runtime.progress.save();
       });
-      runtime.record('gameplay.action.reconciled', { action_id: actionId, action_run: priorRun });
-    } else if (
-      !['capture', 'activate-game', 'return-to-game', 'routine'].includes(
-        text(runtime.task['goal']),
-      ) &&
-      previous['capability'] === 'device.execute'
-    ) {
-      const imagePath = within(directory, intent.observation_path);
-      const pending = progress.pending ?? {
-        observation_id: 'interrupted-observation',
-        action,
-        expected_outcome: 'Reconcile interrupted action',
-        image_ref: relative(directory, imagePath).replaceAll('\\', '/'),
-        run_id: priorRun,
+      return;
+    }
+    const imagePath = within(directory, intent.observation_path);
+    const pending = checkpoint ?? {
+      observation_id: 'interrupted-observation',
+      action,
+      expected_outcome: 'Reconcile interrupted action',
+      image_ref: relative(directory, imagePath).replaceAll('\\', '/'),
+      run_id: priorRun,
+    };
+    if (pending.run_id !== priorRun || (pending.action_id && pending.action_id !== actionId))
+      throw new FrameworkError(ErrorCode.ACTION_ALREADY_DISPATCHED, 'Checkpoint and action ledger disagree');
+    pending.action_id = actionId;
+    if (pending.routine_step !== undefined && runtime.task['goal'] === 'routine') {
+      progress.pending = pending;
+      resolved = false;
+    } else if (canReconcile) {
+      const assessment: Assessment = {
+        status: 'verified',
+        reason: 'Fresh observation verified the target in the foreground',
+        evidence_refs: [observation.observation_id],
+        missing_evidence: [],
       };
-      if (pending.action_id && pending.action_id !== actionId)
-        throw new FrameworkError(
-          ErrorCode.ACTION_ALREADY_DISPATCHED,
-          'Checkpoint and action ledger disagree',
-        );
-      pending.run_id = priorRun;
-      pending.action_id = actionId;
+      settleAction(runtime, pending, observation, assessment, 'device-runtime', true);
+      return;
+    } else if (passive) {
+      runtime.store.database.transaction(() => {
+        const outcome = {
+          action_id: actionId, observation_run: runtime.runId,
+          observation_id: observation.observation_id, business_goal_verified: false,
+        };
+        runtime.outcome(priorRun, actionId, 'reconciled', outcome);
+        runtime.record('gameplay.action.reconciled', outcome);
+        progress.pending = null;
+        runtime.checkpoint(observation);
+      });
+      return;
+    } else if (!['capture', 'activate-game', 'return-to-game', 'routine'].includes(text(runtime.task['goal']))) {
       progress.pending = pending;
       resolved = false;
     } else
@@ -106,11 +121,19 @@ async function reconcile(runtime: Runtime, observation: Observation): Promise<vo
 
 async function playBound(runtime: Runtime, agents: AgentDirectory): Promise<void> {
   let observation = await runtime.observe();
-  runtime.checkpoint(observation);
+  const goal = text(runtime.task['goal']);
+  if (!runtime.progress.data.checkpoint || ['activate-game', 'return-to-game', 'routine', 'capture'].includes(goal))
+    runtime.checkpoint(observation);
   runtime.diagnostics.request();
   await reconcile(runtime, observation);
-  const goal = text(runtime.task['goal']);
   if (goal === 'activate-game' || goal === 'return-to-game') {
+    if (observation.runtime.alive &&
+        observation.runtime.focused_display?.package_name === runtime.task['target']) {
+      runtime.record('gameplay.foreground.already_satisfied', {
+        goal, observation_id: observation.observation_id,
+      });
+      return;
+    }
     runtime.begin(goal);
     const action = decode('gameplay-action', {
       type: goal === 'activate-game' && !observation.runtime.alive ? 'launch' : 'return',
@@ -122,19 +145,28 @@ async function playBound(runtime: Runtime, agents: AgentDirectory): Promise<void
       bounds: null,
       credential_field: null,
     });
-    const actionId = await runtime.perform(action, observation);
+    await runtime.perform(action, observation);
+    const pending = runtime.progress.data.pending;
+    if (!pending?.action_id) throw new FrameworkError(ErrorCode.INVALID_STATE);
     const after = await runtime.observe();
     const focused = after.runtime.focused_display;
     const verified =
       after.runtime.alive &&
       focused?.package_name === runtime.task['target'] &&
       (action.type !== 'return' || sameProcess(observation.runtime, after.runtime));
-    const outcome = { observation_id: after.observation_id, verified };
-    runtime.record('gameplay.outcome', outcome);
-    if (!verified) throw new FrameworkError(ErrorCode.GAMEPLAY_BLOCKED);
-    runtime.outcome(runtime.runId, actionId, 'verified', outcome);
-    runtime.progress.data.pending = null;
-    runtime.checkpoint(after);
+    if (!verified) {
+      runtime.record('gameplay.outcome.unknown', {
+        action_id: pending.action_id, observation_id: after.observation_id,
+      });
+      throw new FrameworkError(ErrorCode.GAMEPLAY_BLOCKED);
+    }
+    const assessment: Assessment = {
+      status: 'verified',
+      reason: 'Target process verified in the foreground',
+      evidence_refs: [after.observation_id],
+      missing_evidence: [],
+    };
+    settleAction(runtime, pending, after, assessment, 'device-runtime', true);
   } else if (goal === 'routine') {
     const routine = decode('gameplay-routine', { steps: runtime.task['actions'] });
     await executeRoutine(runtime, observation, routine.steps);

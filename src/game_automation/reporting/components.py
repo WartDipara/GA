@@ -1,12 +1,13 @@
 """Read-only rich renderers; publication policy belongs to the TypeScript control plane."""
 
+import json
+import sys
 import traceback
 from pathlib import Path
 
 from game_automation.errors import ErrorCode, FrameworkError
-from game_automation.utilities.files import atomic_text
+from game_automation.storage.store import Store
 
-from .compact_trace import render_compact
 from .exploration import exploration_report
 from .gameplay import gameplay_report
 from .history import index_reports
@@ -28,9 +29,6 @@ def render_component(store, run_id, component):
             task_report(store, store.run(run_id)["task_id"])
         elif component == "index":
             index_reports(store, run_id)
-        elif component == "compact_trace":
-            document = render_compact(store, run_id, degraded=True)
-            atomic_text(store.run_dir(run_id) / "reports/trace.html", document)
         else:
             raise FrameworkError(ErrorCode.INVALID_PROTOCOL)
     except Exception as exc:
@@ -48,3 +46,17 @@ def render_component(store, run_id, component):
         return result
     result = {"status": "complete"}
     return result
+
+
+def main():
+    root, run_id, component = sys.argv[1:]
+    store = Store.open_readonly(Path(root))
+    try:
+        result = render_component(store, run_id, component)
+        print(json.dumps(result))
+    finally:
+        store.close()
+
+
+if __name__ == "__main__":
+    main()
