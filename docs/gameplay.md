@@ -1,61 +1,57 @@
-# Hybrid gameplay
+# Game testing workflow
 
-## Module boundaries
+## Workflow and roles
 
-Gameplay orchestration lives in `apps/control-plane/src/gameplay/`. It calls the TypeScript plugin
-host and sole state writer directly. Python handles image processing, DPAPI and device capabilities
-through independent plugins; it no longer runs a gameplay loop. Stored checkpoints are decoded
-against `gameplay-progress` before reuse. The language migration has compilation verification only;
-historical device evidence does not establish acceptance of the migrated runtime.
-Each planning turn rechecks the manifest digest, pinned implementation files, shared Skills and
-their references, and contracts. Changed or missing dependencies block that batch before inference.
+After the verified game launch, `play` enters the TypeScript testing workflow. The same workflow
+serves login and interaction, reachable exploration, and native battle. Capture, foreground
+return, explicit activation, and caller-supplied routines use the deterministic entry points.
+The control plane owns state and device authorization. Plugins use JSON-RPC and handle device
+access, image processing, credentials, and model transport as independent capabilities.
 
-| Component | Boundary |
+| Role | Responsibility |
 | --- | --- |
-| DeviceRuntime | Bound process/task/display observations and kernel-authorized input |
-| Perception | Local frame comparison, accessible candidates and explicit unknown results |
-| ProgressStore | Identity, prerequisite-ordered goals, milestones and durable checkpoints |
-| DecisionRouter | Deterministic selection between a guarded routine and planning |
-| Planner | Structured Codex decisions using pinned shared Skills and sanitized images |
-| RoutineExecutor | One guarded proposal at a time, at most five steps |
-| OutcomeVerifier | Local predicates, followed by semantic review when required |
-| EvidenceRecorder | Existing host tracing, screenshot admission and process-scoped logs |
+| Test lead | Own the goal, select a Skill, ask for missing context, delegate an observation, or propose one action. |
+| Evidence judge | Independently assess the outcome of an action, observed identity or battle state, or the evidence for goal completion. |
+| Interface worker | Read visible interface text, controls, and state from one screenshot. |
+| Exploration worker | List visible entries and scroll candidates for the current viewport. |
+| Comparison worker | Describe observable differences between a before and after image. |
 
-The kernel owns device authority and business state. Plugins exchange JSON-RPC data and never
-read each other's implementations or the business database. Login, exploration and native battle
-share one observation/decision/execution loop. Public reasoning summaries remain optional.
+Workers run only within a core Agent's one-question delegation. They return observations,
+candidate explanations, and evidence gaps. Each returned fact cites an image passed to the worker.
+The workflow handles one device action at a time. It persists the expected result and action
+intent before dispatch, then checks local predicates or invokes the evidence judge. An unresolved
+action remains in the ledger and blocks new device inputs until reconciled.
 
-The planner receives sanitized images bounded to 1280 pixels on the long edge and 768 pixels on
-the short edge. Each image declares its coordinate space. Perception targets and the pending
-action are projected into their corresponding image coordinates; proposed points and rectangles
-are validated and converted back to native display pixels before authorization. Original device
-screenshots remain unchanged. Traces retain the submitted image geometry, model coordinates and
-native decision, so a scale or rotation problem can be diagnosed without guessing where a tap went.
-Moving an existing task to this explicit coordinate space invalidates its old stall counter once;
-identity, action outcomes and recovery limits are preserved.
+## Handoffs and Skills
 
-Planning context includes the most recent action's actual execution status and result. A rejected
-action with no dispatch must not be described as completed. Credential actions focus a point inside
-the declared field bounds; values are resolved locally from the credential profile. Masked fields
-do not establish an account mismatch or failed input. Input command completion and authenticated
-game entry remain separate outcomes.
+A handoff includes the task goal, current observation, last verified milestone or interaction,
+pending action, and a versioned index of retained execution records. The lead also receives bound
+identity, subgoals, recent attempts, settled results, and user supplements. A judge receives the
+specific question, action intent, recorded execution, and relevant before and after evidence.
+Each core response acknowledges the current handoff version. Key recorded exchanges are provided
+up front. Both core roles can request a scoped transcript page by execution, call span, subgoal,
+action, or observation, with a cursor for older records or a longer excerpt. Retained public model
+messages and submitted inputs can be inspected without relying on the provider session. Missing
+historical artifacts are recorded as unavailable.
 
-Use `game-auto provide <run_id> --text "..."` to clarify a blocked task before resuming its owning
-workflow. Gameplay planning receives the task's append-only supplements, including their source
-events, across child stages and new batches. Clarifications remain scoped to their stated target;
-they cannot override kernel action restrictions or apply to another business task.
+Core role instructions and the active goal Skill are loaded by default. Entry, exploration,
+battle, and recovery Skills can be requested by name. Workers receive only the assigned Skill.
+A Skill can expose a game reference at `references/games/<package>/<version-code>.md` under its
+own directory. The lead can request the matching reference if one is pinned in the batch. The
+manifest digest, implementation files, shared Skills, references, and contracts are checked before
+inference. Changed dependencies require a new batch. Submitted inputs preserve the actual text.
 
-The project owner separately authorizes mandatory game/SDK entry terms for the configured test
-account across game-testing tasks. The shared game-exploration Skill directs the planner to accept
-required User Agreement/Privacy Policy controls when unchecked, verify the resulting state, and
-continue entry without treating acceptance as successful login. Already accepted controls are not
-toggled again. Optional marketing consent and unrelated contracts are outside this authorization;
-explicit task restrictions may narrow or withdraw it.
+The lead receives sanitized images bounded to 1280 pixels on the long edge and 768 pixels on the
+short edge. Each image declares its coordinate space. Perception targets and actions are expressed
+in image pixels and validated when converted back to native coordinates. Raw screenshots and
+credential values remain local. Device command status and authenticated entry are separate facts.
+Use `game-auto provide <run_id> --text "..."` to add scoped user clarification before resuming the
+owning workflow. Supplements cannot override kernel action restrictions.
 
-Both exploration and battle planning explicitly load this shared Skill on each turn. Submitted
-requests retain its pinned reference and instruction text as trace evidence. Changed Skill content
-requires a new execution batch; existing batch evidence and historical agreement blockers remain
-unchanged.
+Mandatory game or SDK entry terms for the configured test account are covered by the project's
+standing authorization. The entry Skill checks required controls, avoids toggling accepted terms,
+and distinguishes agreement acceptance from successful login. Optional consent and unrelated
+contracts remain outside scope. Explicit task restrictions can narrow the authorization.
 
 ## Prepare and run
 
@@ -96,8 +92,8 @@ remain bound across batches; identity changes require attention.
 Pending actions follow the kernel ledger. A failure before dispatch clears the pending proposal
 only when no intent was created or the new intent was rejected. Unknown/executed intents retain
 their action IDs for reconciliation, including failed cached routines. No new proposal may replace
-an unresolved one. Accepted semantic outcomes commit before the progress watchdog can stop the
-next action; a stop must not discard an already available verification. Unresolved installation
+an unresolved one. When accepted, outcomes and their progress commit through the existing writer before the next
+device action. An interrupted verification keeps the pending action available for reconciliation. Unresolved installation
 intents return to device preparation instead of being decoded as gameplay actions.
 
 ```powershell
@@ -110,9 +106,9 @@ to the same task and restores scoped progress. A credential profile replaced in 
 reuse another account's progress. Stable recovery categories have a persisted two-round limit.
 Three repeated state/goal observations enter stall handling.
 
-There is no default overall duration or planning-turn limit. Individual commands/model requests
-are bounded. Optional `--max-turns <n>` bounds one invocation; its last planning round does not
-dispatch another input requiring a further verification round.
+Time limits still apply to individual commands and model requests. A workflow invocation allows
+up to 1,000 cycles before a resume is required. Optional `--max-turns <n>` also bounds the number of
+lead decisions. At either limit, the workflow can settle pending work and stops new dispatches.
 
 ## Local execution and native battle
 
@@ -151,7 +147,7 @@ uv run game-auto export-trace <run_id> --format html
 uv run game-auto compare-games <first_run> <second_run>
 ```
 
-Gameplay JSON/HTML show decisions, action paths, before/after evidence, outcome sources, AI calls,
+Gameplay JSON/HTML show agent nodes, decisions, action paths, before and after evidence, AI calls,
 deterministic steps, waiting, correction and cache statistics. Rebuilding them never contacts devices
 or models. Large traces use bounded HTML previews; complete events remain in SQLite and `trace`
 streams them. Large context views identify their limited event window. The existing context
@@ -159,7 +155,7 @@ projection remains inspired by dsh-context.
 
 Each action exposes `execution_duration_ms` and `execution_status`, joined by its span to the
 host's existing monotonic call timer. Timing includes device execution checks and plugin overhead;
-it excludes AI planning, subsequent waiting, log collection and outcome review. Failed/incomplete
+it excludes AI node calls, subsequent waiting, log collection and outcome review. Failed/incomplete
 calls retain their elapsed time. Missing terminal records remain unknown, never zero. The HTML
 report lists the 20 longest measured actions and shows timing beside each action record. Rebuilding
 older reports uses their original call measurements without operating the device.

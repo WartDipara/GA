@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://game-automation.local/contracts/v1/gameplay-decision",
+  "$id": "https://game-automation.local/contracts/v1/test-lead-decision",
   "type": "object",
   "properties": {
     "observation_id": {
@@ -39,7 +39,10 @@
         "action",
         "wait",
         "complete",
-        "blocked"
+        "blocked",
+        "load_skill",
+        "request_context",
+        "delegate"
       ]
     },
     "risk": {
@@ -129,36 +132,6 @@
           "type": "null"
         }
       ]
-    },
-    "previous_outcome": {
-      "type": "object",
-      "properties": {
-        "status": {
-          "enum": [
-            "verified",
-            "deviated",
-            "unknown",
-            "not_applicable"
-          ]
-        },
-        "reason": {
-          "type": "string",
-          "maxLength": 2000
-        },
-        "evidence_refs": {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "maxLength": 2000
-          }
-        }
-      },
-      "required": [
-        "status",
-        "reason",
-        "evidence_refs"
-      ],
-      "additionalProperties": false
     },
     "identity": {
       "anyOf": [
@@ -629,6 +602,85 @@
           "type": "null"
         }
       ]
+    },
+    "skill": {
+      "enum": [
+        "game-entry",
+        "game-exploration",
+        "game-battle",
+        "game-recovery"
+      ]
+    },
+    "context_request": {
+      "type": "object",
+      "properties": {
+        "run_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 240
+        },
+        "before_sequence": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "turn": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 240
+        },
+        "action": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 240
+        },
+        "observation": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 240
+        },
+        "subgoal": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 240
+        },
+        "offset": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "run_id"
+      ],
+      "additionalProperties": false
+    },
+    "delegation": {
+      "type": "object",
+      "properties": {
+        "specialty": {
+          "enum": [
+            "interface",
+            "exploration",
+            "comparison"
+          ]
+        },
+        "question": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        }
+      },
+      "required": [
+        "specialty",
+        "question"
+      ],
+      "additionalProperties": false
+    },
+    "load_game_reference": {
+      "type": "boolean"
+    },
+    "context_sequence": {
+      "type": "integer",
+      "minimum": 0
     }
   },
   "required": [
@@ -641,10 +693,10 @@
     "disposition",
     "risk",
     "action",
-    "previous_outcome",
     "identity",
     "sensitive_regions",
-    "local_after"
+    "local_after",
+    "context_sequence"
   ],
   "additionalProperties": false
 }

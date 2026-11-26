@@ -3,7 +3,7 @@
 `game-auto exploration <run_id> --format json` reads the task's discovered page and element catalog
 without starting a model, writer or device. Pages form a directed graph, including self loops and
 shared destinations. Elements retain separate container/item identities; coordinates are evidence,
-not permanent identifiers. Canvas candidates come from the planner's current sanitized image.
+not permanent identifiers. Canvas candidates come from the lead's current sanitized image.
 
 The TypeScript kernel alone commits catalog records and their correlated delta events in one
 SQLite transaction. Records are scoped by task, APK workspace, credential profile and observed
@@ -35,7 +35,7 @@ Only verified outcomes promote a locator; deviations retire that locator version
 
 Current-page pending items precede navigation along a shortest verified safe path. Resource actions
 still require planning and cannot be replayed merely because a balance changes. Known page return
-paths may use local verification, with a fresh planner inventory after at most five local steps.
+paths may use local verification, with a fresh lead inventory after at most five local steps.
 System Back is recorded as navigation, separately identified from screen tap targets.
 
 Scrollable containers retain content fingerprints and per-container traversal state. Each swipe
@@ -64,7 +64,7 @@ unsupported edges. Repair events and catalog changes commit together; original e
 business outcomes are retained. Valid legacy bindings acquire explicit proof without executing an
 action. Reports show invalidated edges and link verified evidence to the action's original batch.
 
-A blocked planner assessment settles the current execution after saving its observation, action
+A blocked lead assessment settles the current execution after saving its observation, action
 outcome and checkpoint. It records `exploration.branch.blocked` and preserves the remaining queue;
 it does not report the branch as skipped or request another plan against the same evidence.
 Rejected proposals and premature completion receive at most one correction round per observation.

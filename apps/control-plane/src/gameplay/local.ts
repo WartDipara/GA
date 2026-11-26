@@ -3,7 +3,7 @@ import { decode } from '@game-automation/contracts';
 import { ErrorCode, FrameworkError } from '@game-automation/contracts/errors';
 import { canonical, within } from '../storage/values.js';
 import type { Runtime } from './runtime.js';
-import type { Decision, Facts, Observation, Routine } from './types.js';
+import type { Decision, Facts, Observation, Pending, Routine } from './types.js';
 
 export type View = { observation: Observation; facts: Facts };
 
@@ -102,6 +102,16 @@ function matches(
     case 'alive':
       return observation.runtime.alive === (condition.value === 'true');
   }
+}
+
+export function verifiesLocalOutcome(pending: Pending, view: View): boolean {
+  return Boolean(
+    pending.risk === 'none' && ['tap', 'back'].includes(pending.action.type) &&
+    pending.local_after?.length && view.facts.stable &&
+    pending.local_after.some((condition) => condition.kind === 'screen' &&
+      condition.value !== pending.screen_key) &&
+    pending.local_after.every((condition) => matches(condition, view.observation, view.facts)),
+  );
 }
 
 export function route(

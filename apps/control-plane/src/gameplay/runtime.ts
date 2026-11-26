@@ -47,8 +47,8 @@ export class Runtime {
     this.watchdog?.check();
   }
 
-  record(kind: string, payload: Fields, span: string | null = this.step): string {
-    const event = this.store.event(this.runId, kind, payload, { span_id: span });
+  record(kind: string, payload: Fields, span: string | null = this.step, parent: string | null = null): string {
+    const event = this.store.event(this.runId, kind, payload, { span_id: span, parent_span_id: parent });
     return text(event['event_id']);
   }
 
@@ -175,6 +175,7 @@ export class Runtime {
     targetGuard: string | null = null,
     pageGuard: ContractMap['perception-locate-result']['page_guard'] = null,
     exploration: Pending['exploration'] | null = null,
+    intent: Omit<Partial<Pending>, 'action' | 'observation_id' | 'run_id' | 'image_ref'> = {},
   ): Promise<string> {
     await this.admit();
     decode('gameplay-action', action);
@@ -219,6 +220,7 @@ export class Runtime {
       data.recovery_rounds += 1;
     }
     data.pending = {
+      ...intent,
       observation_id: observation.observation_id,
       action,
       run_id: this.runId,

@@ -3,7 +3,7 @@
 The TypeScript kernel owns progress decisions and recovery budgets. Model state names,
 coordinates and discovery counts do not independently reset the exploration watchdog.
 A first verified element requires the existing action ledger and post-action observation chain.
-Both local navigation and planner-driven actions feed the same supervisor after settlement.
+Both local navigation and lead-proposed actions feed the same supervisor after settlement.
 
 The supervisor retains 48 transition fingerprints across resumes. Fingerprints use page,
 element, action type and destination, not pixel coordinates. Three repeated transitions
@@ -14,7 +14,7 @@ After recovery exhaustion the element becomes limited and is excluded from route
 
 `exploration.supervision.progress` records accepted and rejected progress with action and
 observation references. `exploration.supervision.intervention` records recovery rounds,
-limits, quarantine and the instruction supplied through the persisted planner context.
+limits, quarantine and the instruction supplied through the persisted lead context.
 These records use the existing writer and transaction; no extra log writer or model is used.
 
 The bounded transition window is not proof that every long cycle can be recognized.
@@ -24,7 +24,7 @@ outcomes still depend on current evidence; compilation does not demonstrate game
 ## Isolation and stopping
 
 Recovery feedback suspends the offending target from local selection and verified navigation
-routes. Planner proposals targeting it are rejected before dispatch, including long presses.
+routes. Lead proposals targeting it are rejected before dispatch, including long presses.
 The final device admission also checks suspension to cover a watchdog intervention that occurs
 after planning. Fresh observations do not reset planning-correction counts for the same page
 and reason. Kernel-issued correction counts are persisted alongside the watchdog checkpoint.
@@ -32,7 +32,7 @@ and reason. Kernel-issued correction counts are persisted alongside the watchdog
 At the no-progress boundary, a settled, identified target can enter bounded recovery and the
 kernel can redirect to another reachable frontier. This is recorded as a redirect, never as
 verified progress. Unknown pending outcomes cannot be bypassed. Exhausted recovery leaves the
-target limited across batches. If no alternative is reachable, or the planner repeatedly ignores
+target limited across batches. If no alternative is reachable, or the lead repeatedly ignores
 alternatives, the execution becomes blocked and uses the existing settled-state report pipeline.
 
 Scroll progress requires a verified action, stable post-action observation, changed local

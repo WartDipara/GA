@@ -67,6 +67,9 @@ Batch stages may follow the group, but cannot consume an individual APK's output
 To connect another existing module, register its runtime `Stage` and compatibility input adapter,
 then include its name in the composition. No scheduler loop or plugin internals need to change.
 
+After a verified `launch`, `play` runs the [game testing workflow](gameplay.md). Its core Agent
+nodes and device actions settle through the same task-owned state and event writer.
+
 ## Checkpoints and evidence
 
 The scheduler holds the existing process execution lock across the entire workflow. Child stages

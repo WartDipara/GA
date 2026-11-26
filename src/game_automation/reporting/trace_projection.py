@@ -9,6 +9,7 @@ STARTS = {
     "execution.segment.started": "chain",
     "call.started": "tool",
     "gameplay.step.started": "step",
+    "gameplay.agent.started": "step",
     "workflow.stage.started": "chain",
     "report.component.started": "chain",
     "gameplay.lifecycle.started": "chain",
@@ -22,6 +23,9 @@ ENDS = {
     "gameplay.step.completed": "ok",
     "gameplay.step.failed": "error",
     "gameplay.step.incomplete": "incomplete",
+    "gameplay.agent.completed": "ok",
+    "gameplay.agent.rejected": "error",
+    "gameplay.agent.incomplete": "incomplete",
     "workflow.stage.completed": "ok",
     "workflow.stage.failed": "error",
     "workflow.stage.incomplete": "incomplete",
@@ -37,6 +41,9 @@ DETAILS = (
     "gameplay.outcome",
     "gameplay.observation",
     "gameplay.planner.coordinates",
+    "gameplay.agent.coordinates",
+    "gameplay.agent.assistance",
+    "gameplay.outcome.unknown",
     "gameplay.action.origin",
     "gameplay.goal.completed",
     "action.intent",
@@ -231,7 +238,10 @@ class TraceFold:
             run_id, kinds=tuple(STARTS), after=self.through, through=watermark
         ):
             payload = event["payload"]
-            name = payload.get("capability") or payload.get("stage") or event["kind"]
+            name = (
+                payload.get("capability") or payload.get("stage")
+                or payload.get("role") or event["kind"]
+            )
             kind = "chat" if name == "ai.decide" else STARTS[event["kind"]]
             span = span_record(
                 run_id, event["span_id"], name, kind, event["timestamp"], event["parent_span_id"]

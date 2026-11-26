@@ -7,7 +7,7 @@ import { within, type Fields } from '../storage/values.js';
 import { previousClose } from '../storage/lifecycle.js';
 import type { Execution } from '../workflow/execution.js';
 import { executeRoutine, Perception } from './local.js';
-import { runLoop } from './loop.js';
+import { runTestWorkflow } from './test-workflow.js';
 import { ProgressStore } from './progress.js';
 import { confirmSession, Runtime } from './runtime.js';
 import type { Observation } from './types.js';
@@ -142,7 +142,7 @@ async function playBound(runtime: Runtime): Promise<void> {
       reason: 'unknown-state-or-new-goal',
       screen_key: view.facts.screen_key,
     });
-  } else await runLoop(runtime, observation);
+  } else await runTestWorkflow(runtime, observation);
 }
 
 export async function play(

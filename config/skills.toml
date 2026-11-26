@@ -1,7 +1,8 @@
 base = "project-base"
 [stages]
 intake = ["task-intake"]
-exploration = ["game-exploration"]
 reporting = ["report-analysis"]
-battle = ["game-exploration", "game-battle"]
 observability = ["trace-analysis"]
+test_lead = ["test-lead", "game-entry", "game-exploration", "game-battle", "game-recovery"]
+evidence_judge = ["evidence-judge"]
+test_workers = ["test-interface", "test-frontier", "test-comparison"]

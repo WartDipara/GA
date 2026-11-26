@@ -186,9 +186,8 @@ export class Exploration {
     return page;
   }
 
-  outcome(decision: Decision, view: View, pending: Pending, page: Page | null): void {
+  outcome(decision: Decision, view: View, pending: Pending, page: Page | null, verified: boolean): void {
     const previouslyVerified = this.wasVerified(pending);
-    const verified = decision.previous_outcome.status === 'verified';
     this.catalog.outcome(pending, page, view.observation, verified);
     if (verified && decision.exploration && this.scrollKey)
       reviewScroll(
@@ -294,7 +293,18 @@ export class Exploration {
       this.runtime.outcome(pending.run_id, text(pending.action_id), 'verified', outcome);
       this.catalog.outcome(pending, page, view.observation, true);
       this.catalog.move(page, view.observation);
-      this.runtime.progress.data.pending = null;
+      const progress = this.runtime.progress.data;
+      if (pending.test_attempt) {
+        const attempts = progress.test_attempts ??= {};
+        attempts[pending.test_attempt] = 'verified';
+      }
+      const path = progress.paths.find((item) => item.action_id === pending.action_id);
+      if (path) {
+        path.status = 'verified';
+        path.after = view.observation.observation_id;
+      }
+      this.runtime.record('gameplay.outcome', { action_id: pending.action_id, status: 'verified', ...outcome });
+      progress.pending = null;
       this.runtime.checkpoint(view.observation);
       this.supervisor.review(
         pending,

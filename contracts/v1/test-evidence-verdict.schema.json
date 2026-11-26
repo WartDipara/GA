@@ -1,0 +1,115 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "status": {
+      "enum": [
+        "verified",
+        "deviated",
+        "unknown",
+        "delegate",
+        "request_context"
+      ]
+    },
+    "reason": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2000
+    },
+    "evidence_refs": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 240
+      },
+      "maxItems": 16
+    },
+    "missing_evidence": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 2000
+      },
+      "maxItems": 8
+    },
+    "delegation": {
+      "type": "object",
+      "properties": {
+        "specialty": {
+          "enum": [
+            "interface",
+            "exploration",
+            "comparison"
+          ]
+        },
+        "question": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        }
+      },
+      "required": [
+        "specialty",
+        "question"
+      ],
+      "additionalProperties": false
+    },
+    "context_request": {
+      "type": "object",
+      "properties": {
+        "run_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 240
+        },
+        "before_sequence": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "turn": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 240
+        },
+        "action": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 240
+        },
+        "observation": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 240
+        },
+        "subgoal": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 240
+        },
+        "offset": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "run_id"
+      ],
+      "additionalProperties": false
+    },
+    "context_sequence": {
+      "type": "integer",
+      "minimum": 0
+    }
+  },
+  "required": [
+    "status",
+    "reason",
+    "evidence_refs",
+    "missing_evidence",
+    "context_sequence"
+  ],
+  "additionalProperties": false,
+  "$id": "https://game-automation.local/contracts/v1/test-evidence-verdict"
+}

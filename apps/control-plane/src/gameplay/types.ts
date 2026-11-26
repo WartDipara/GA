@@ -1,7 +1,7 @@
 import type { ContractMap } from '@game-automation/contracts';
 
 export type Action = ContractMap['gameplay-action'];
-export type Decision = ContractMap['gameplay-decision'];
+export type Decision = ContractMap['test-lead-decision'];
 export type Progress = ContractMap['gameplay-progress'];
 export type Facts = ContractMap['perception-result'];
 export type Observation = ContractMap['device-capture-result'] & {

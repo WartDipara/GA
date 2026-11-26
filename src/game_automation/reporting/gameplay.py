@@ -18,11 +18,16 @@ REPORT_KINDS = (
     "gameplay.action.origin",
     "gameplay.wait",
     "gameplay.planner.requested",
+    "gameplay.agent.started",
+    "gameplay.agent.completed",
+    "gameplay.agent.rejected",
+    "gameplay.agent.incomplete",
     "gameplay.correction",
     "gameplay.cache.hit",
     "gameplay.cache.invalidated",
     "gameplay.goal.completed",
     "gameplay.outcome",
+    "gameplay.outcome.unknown",
     "ai.usage",
     "gameplay.battle.observed",
     "gameplay.battle.advanced",
@@ -146,6 +151,7 @@ def write_html(store, run_id, report):
             "snapshot",
             "goal",
             "ai_calls",
+            "agent_nodes",
             "deterministic_steps",
             "dispatched_actions",
             "wait_duration_ms",
@@ -215,14 +221,24 @@ def gameplay_report(store, run_id):
     origins = selected("gameplay.action.origin")
     waits = selected("gameplay.wait")
     reasons = Counter(item["reason"] for item in selected("gameplay.planner.requested"))
+    agent_nodes = selected("gameplay.agent.started")
+    reasons.update(item["question"] for item in agent_nodes if item["role"] == "test-lead")
     report = {
         "run_id": run_id,
         "state": store.run(run_id)["status"],
         "snapshot": snapshot_metadata(store, run_id),
         "goal": task["goal"],
         "ai_calls": sum(item["capability"] == "ai.decide" for item in starts),
+        "agent_nodes": dict(Counter(item["role"] for item in agent_nodes)),
+        "agent_node_outcomes": [
+            event for event in events if event["kind"] in (
+                "gameplay.agent.completed", "gameplay.agent.rejected", "gameplay.agent.incomplete"
+            )
+        ],
         "ai_trigger_reasons": dict(reasons),
-        "deterministic_steps": sum(item["source"] != "planner" for item in origins),
+        "deterministic_steps": sum(
+            item["source"] not in ("planner", "test-lead") for item in origins
+        ),
         "dispatched_actions": len(actions),
         "action_path": action_path(store, run_id),
         "decisions": decisions,
@@ -232,6 +248,7 @@ def gameplay_report(store, run_id):
         "cache_invalidations": selected("gameplay.cache.invalidated"),
         "verified_business_goals": selected("gameplay.goal.completed"),
         "outcomes": selected("gameplay.outcome"),
+        "unresolved_outcomes": selected("gameplay.outcome.unknown"),
         "battle_progress": selected("gameplay.battle.observed"),
         "stage_advances": selected("gameplay.battle.advanced"),
         "usage": selected("ai.usage") or None,

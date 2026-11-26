@@ -269,6 +269,41 @@
                 "mode"
               ],
               "additionalProperties": false
+            },
+            "test_attempt": {
+              "type": "string",
+              "maxLength": 128
+            },
+            "local_after": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "enum": [
+                      "screen",
+                      "image",
+                      "control",
+                      "focused_package",
+                      "alive"
+                    ]
+                  },
+                  "value": {
+                    "type": "string",
+                    "maxLength": 2000
+                  }
+                },
+                "required": [
+                  "kind",
+                  "value"
+                ],
+                "additionalProperties": false
+              },
+              "maxItems": 10
+            },
+            "test_objective": {
+              "type": "string",
+              "maxLength": 2000
             }
           },
           "required": [
@@ -719,12 +754,6 @@
         "minimum": 0
       }
     },
-    "planner_coordinate_space": {
-      "type": "string"
-    },
-    "planner_coordinate_action_dispatched": {
-      "type": "boolean"
-    },
     "exploration_supervisor": {
       "type": "object",
       "properties": {
@@ -786,6 +815,16 @@
         "feedback"
       ],
       "additionalProperties": false
+    },
+    "test_attempts": {
+      "type": "object",
+      "maxProperties": 2000,
+      "additionalProperties": {
+        "enum": [
+          "verified",
+          "deviated"
+        ]
+      }
     }
   },
   "required": [

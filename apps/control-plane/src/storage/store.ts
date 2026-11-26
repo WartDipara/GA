@@ -34,6 +34,8 @@ export interface EventQuery {
   kinds?: string[];
   limit?: number;
   through?: number;
+  capability?: string;
+  reference?: { field: string; value: string };
 }
 
 function subject(task: Fields): string {
@@ -136,6 +138,14 @@ export class Store {
     if (query.kinds?.length) {
       sql += ` AND kind IN (${query.kinds.map(() => '?').join(',')})`;
       arguments_.push(...query.kinds);
+    }
+    if (query.capability) {
+      sql += " AND json_extract(data,'$.payload.capability')=?";
+      arguments_.push(query.capability);
+    }
+    if (query.reference) {
+      sql += ' AND json_extract(data,?)=?';
+      arguments_.push(query.reference.field, query.reference.value);
     }
     sql += query.limit ? ' ORDER BY seq DESC LIMIT ?' : ' ORDER BY seq';
     if (query.limit) arguments_.push(query.limit);

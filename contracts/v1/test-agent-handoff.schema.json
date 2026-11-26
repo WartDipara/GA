@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "role": {
+      "enum": [
+        "test-lead",
+        "evidence-judge"
+      ]
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 240
+    },
+    "through_sequence": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "goal": {
+      "enum": [
+        "login-and-interact",
+        "explore",
+        "advance-battle"
+      ]
+    },
+    "question": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2000
+    },
+    "observation_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 240
+    },
+    "last_verified_milestone": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "pending_action": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "transcript": {
+      "type": "array",
+      "items": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "run_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 240
+          },
+          "through_sequence": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "run_id",
+          "through_sequence"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "role",
+    "run_id",
+    "through_sequence",
+    "goal",
+    "question",
+    "observation_id",
+    "last_verified_milestone",
+    "pending_action",
+    "transcript"
+  ],
+  "additionalProperties": false,
+  "$id": "https://game-automation.local/contracts/v1/test-agent-handoff"
+}

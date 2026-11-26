@@ -43,7 +43,7 @@ export class Battle {
         to_stage: proposal.stage,
         settlement,
         observation_id: current,
-        source: 'model-semantic-review',
+        source: 'evidence-judge',
         run_id: this.runtime.runId,
       };
       this.data.advances.push(advancement);

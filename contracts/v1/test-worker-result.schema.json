@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "observations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "description": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "evidence_ref": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 240
+          }
+        },
+        "required": [
+          "description",
+          "evidence_ref"
+        ],
+        "additionalProperties": false
+      },
+      "maxItems": 20
+    },
+    "candidate_explanations": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 2000
+      },
+      "maxItems": 8
+    },
+    "missing_evidence": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 2000
+      },
+      "maxItems": 8
+    }
+  },
+  "required": [
+    "observations",
+    "candidate_explanations",
+    "missing_evidence"
+  ],
+  "additionalProperties": false,
+  "$id": "https://game-automation.local/contracts/v1/test-worker-result"
+}

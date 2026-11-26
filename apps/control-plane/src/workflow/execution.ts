@@ -14,6 +14,11 @@ export type Tool = (operation: string, runId: string, input: Fields) => Promise<
 const boundaries: Record<string, string[]> = {
   'execution.segment.started': ['execution.segment.finished', 'execution.segment.incomplete'],
   'call.started': ['call.completed', 'call.failed', 'call.incomplete'],
+  'gameplay.agent.started': [
+    'gameplay.agent.completed',
+    'gameplay.agent.rejected',
+    'gameplay.agent.incomplete',
+  ],
   'gameplay.step.started': [
     'gameplay.step.completed',
     'gameplay.step.failed',

@@ -4,6 +4,7 @@ import { integer, type Fields } from '../storage/values.js';
 import { checkpointHash } from './knowledge.js';
 import type { Runtime } from './runtime.js';
 import type { Decision, Observation, Pending, Progress } from './types.js';
+import type { Assessment } from './agents.js';
 
 export class Watchdog {
   readonly data: NonNullable<Progress['watchdog']>;
@@ -51,14 +52,26 @@ export class Watchdog {
     }
   }
 
-  review(decision: Decision, observation: Observation, pending: Pending | null): void {
+  assistance(): void {
+    this.data.rounds += 1;
+    this.runtime.progress.save();
+    if (this.data.rounds >= integer(this.settings['no_progress_rounds'] ?? 24))
+      this.block('assistance-without-verified-progress');
+    this.check();
+  }
+
+  review(
+    decision: Decision,
+    observation: Observation,
+    pending: Pending | null,
+    assessment: Assessment | null,
+  ): void {
     this.check();
     this.data.rounds += 1;
     const state = decision.state_key || 'unknown';
-    const assessment = decision.previous_outcome;
     const verified =
       pending &&
-      assessment.status === 'verified' &&
+      assessment?.status === 'verified' &&
       assessment.evidence_refs.includes(observation.observation_id);
     const previous = this.data.state;
     const exploring = this.runtime.task['goal'] === 'explore';
