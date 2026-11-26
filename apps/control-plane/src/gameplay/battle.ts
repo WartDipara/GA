@@ -13,7 +13,7 @@ export class Battle {
     };
   }
 
-  update(proposal: Decision['battle_progress'], observation: Observation): void {
+  update(proposal: Decision['battle_progress'], observation: Observation, source: string): void {
     if (!proposal) return;
     const current = observation.observation_id;
     if (!proposal.evidence_refs.includes(current))
@@ -43,7 +43,7 @@ export class Battle {
         to_stage: proposal.stage,
         settlement,
         observation_id: current,
-        source: 'evidence-judge',
+        source,
         run_id: this.runtime.runId,
       };
       this.data.advances.push(advancement);

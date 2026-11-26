@@ -49,6 +49,37 @@ supervisor_recovery_rounds = 2
 evidence_budget_bytes = 4294967296
 reserve_bytes = 2147483648
 
+# Agent IDs are routing names. Assign each job title to exactly one agent.
+[gameplay.agents.agent_tom]
+job_title = "Test Lead"
+describ = "Own the test goal and propose the next bounded workflow step."
+model = "gpt-6-luna"
+reasoning_effort = "medium"
+
+[gameplay.agents.agent_ray]
+job_title = "Evidence Judge"
+describ = "Independently verify outcomes against recorded evidence."
+model = "gpt-6-luna"
+reasoning_effort = "medium"
+
+[gameplay.agents.agent_mia]
+job_title = "Interface Specialist"
+describ = "Identify visible controls and interface states."
+model = "gpt-6-luna"
+reasoning_effort = "medium"
+
+[gameplay.agents.agent_lee]
+job_title = "Exploration Specialist"
+describ = "Find visible candidates for exploration."
+model = "gpt-6-luna"
+reasoning_effort = "medium"
+
+[gameplay.agents.agent_zoe]
+job_title = "Comparison Specialist"
+describ = "Compare supplied before and after observations."
+model = "gpt-6-luna"
+reasoning_effort = "medium"
+
 [workflow]
 # Wall-clock limit for the entire workflow or a standalone play execution.
 total_timeout_seconds = 3600

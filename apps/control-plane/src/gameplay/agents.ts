@@ -9,6 +9,7 @@ import { redact } from '../utilities/redaction.js';
 import { strings, uid, type Fields } from '../utilities/values.js';
 import { within } from '../utilities/files.js';
 import type { Catalog } from '../exploration/catalog.js';
+import { type AgentDirectory, type GameplayAgent, type GameplayJob } from './agent-directory.js';
 import { rectangle, projectAction } from './coordinates.js';
 import { verifyPlanningDependencies } from './dependencies.js';
 import { Handoffs, type ContextRequest } from './handoff.js';
@@ -26,10 +27,10 @@ type Skill = NonNullable<Decision['skill']>;
 type Output = 'test-lead-decision' | 'test-evidence-verdict' | 'test-worker-result';
 type Image = { id: string; path: string; coordinates: Coordinates };
 
-const specialty: Record<Delegation['specialty'], string> = {
-  interface: 'test-interface',
-  exploration: 'test-frontier',
-  comparison: 'test-comparison',
+const workerRoutes: Record<Delegation['specialty'], { job: GameplayJob; skill: string }> = {
+  interface: { job: 'Interface Specialist', skill: 'test-interface' },
+  exploration: { job: 'Exploration Specialist', skill: 'test-frontier' },
+  comparison: { job: 'Comparison Specialist', skill: 'test-comparison' },
 };
 const triggers: Record<Skill, string> = {
   'game-entry': 'Identify sign-in, account, server and role. Deliver an entry action or blocker.',
@@ -42,6 +43,7 @@ export class TestAgents {
   turns = 0;
   private leadCalls = 0;
   private readonly handoffs: Handoffs;
+  private readonly codex: Fields;
   private readonly active: Set<Skill>;
   private readonly images = new Map<string, Image>();
 
@@ -49,7 +51,15 @@ export class TestAgents {
     readonly runtime: Runtime,
     readonly watchdog: Watchdog,
     readonly catalog: Catalog | null,
+    readonly directory: AgentDirectory,
   ) {
+    const application = object(runtime.manifest['application']);
+    const codex = object(application['codex']);
+    this.codex = {
+      executable: codex['executable'],
+      version: codex['version'],
+      timeout_seconds: codex['timeout_seconds'],
+    };
     this.handoffs = new Handoffs(runtime);
     this.active = new Set();
   }
@@ -75,7 +85,7 @@ export class TestAgents {
   }
 
   private async call<K extends Output>(
-    role: string,
+    agent: GameplayAgent,
     output: K,
     stage: string,
     skills: string[],
@@ -88,7 +98,8 @@ export class TestAgents {
     const { runtime } = this;
     const span = uid('span');
     const start = performance.now();
-    const metadata = { role, question, observation_id: observation.observation_id };
+    const { id: role, job_title: jobTitle, describ } = agent;
+    const metadata = { role, job_title: jobTitle, question, observation_id: observation.observation_id };
     runtime.record('gameplay.agent.started', metadata, span, parent);
     try {
       await verifyPlanningDependencies(runtime);
@@ -114,10 +125,11 @@ export class TestAgents {
       }
       const data = {
         ...context,
+        agent: { id: role, job_title: jobTitle, describ },
         image_order: images.map((item) => item.id),
         image_coordinates: Object.fromEntries(images.map((item) => [item.id, item.coordinates])),
       };
-      if (role === 'test-lead') {
+      if (jobTitle === 'Test Lead') {
         for (const name of this.active) {
           const reference = this.gameReference(name);
           if (!reference || context['reference_skill'] !== name) continue;
@@ -132,11 +144,14 @@ export class TestAgents {
       input.push({ type: 'text', text: prompt });
       for (const item of images) input.push({ type: 'localImage', path: item.path });
       const turn = { input, outputSchema: schema(output) };
+      const codex = {
+        ...this.codex, model: agent.model, reasoning_effort: agent.reasoning_effort,
+      };
       const request = {
-        codex: object(runtime.manifest['application'])['codex'],
+        codex,
         workspace,
         role,
-        thread_id: role === 'test-lead' && this.leadCalls++ % 30
+        thread_id: jobTitle === 'Test Lead' && this.leadCalls++ % 30
           ? runtime.store.session(runtime.runId, role) : null,
         turn,
       };
@@ -180,7 +195,10 @@ export class TestAgents {
     const started = performance.now();
     const selected = images.slice(0, request.specialty === 'comparison' ? 2 : 1);
     const task = { question: request.question, observation_ids: selected.map((item) => item.id) };
+    const { job, skill } = workerRoutes[request.specialty];
+    const worker = this.directory.agent(job);
     const metadata = {
+      worker_role: worker.id,
       capability: `gameplay.delegate.${request.specialty}`, role, ...request, ...task,
     };
     runtime.record('gameplay.delegation.started', metadata, span, parent);
@@ -193,8 +211,8 @@ export class TestAgents {
         return result;
       }
       const result = await this.call(
-        `worker-${request.specialty}`, 'test-worker-result', 'test_workers',
-        [specialty[request.specialty]], task, selected, view.observation, request.question, span,
+        worker, 'test-worker-result', 'test_workers',
+        [skill], task, selected, view.observation, request.question, span,
       );
       if (result.response.observations.some((fact) =>
         !selected.some((item) => fact.evidence_ref === item.id)))
@@ -225,7 +243,9 @@ export class TestAgents {
     parent: string,
   ): Promise<Fields> {
     const lookup = 'run_id' in request;
-    const key = lookup ? checkpointHash(request) : `worker-${request.specialty}`;
+    const key = lookup
+      ? checkpointHash(request)
+      : this.directory.agent(workerRoutes[request.specialty].job).id;
     if (used.has(key) || used.size >= 4)
       throw new FrameworkError(ErrorCode.GAMEPLAY_BLOCKED, 'Context request or delegation budget exhausted');
     used.add(key);
@@ -251,7 +271,8 @@ export class TestAgents {
       candidates: view.facts.candidates.map((candidate) => ({ ...candidate, bounds: rectangle(candidate.bounds, coordinates) })),
       excluded_regions: view.facts.excluded_regions.map((bounds) => rectangle(bounds, coordinates)),
     };
-    const handoff = this.handoffs.build('test-lead', observation, reason);
+    const lead = this.directory.agent('Test Lead');
+    const handoff = this.handoffs.build(lead.id, observation, reason);
     const used = new Set<string>();
     const supplemental: Fields[] = [];
     const primary = handoff.goal === 'explore' ? 'game-exploration' :
@@ -296,7 +317,7 @@ export class TestAgents {
         reference_skill: referenceSkill,
         supplemental,
       };
-      const { response: decision, span } = await this.call('test-lead', 'test-lead-decision', 'test_lead',
+      const { response: decision, span } = await this.call(lead, 'test-lead-decision', 'test_lead',
         ['test-lead', ...this.active], context, images, observation, reason);
       if (decision.context_sequence !== handoff.through_sequence)
         throw new FrameworkError(ErrorCode.STALE_OBSERVATION, 'Lead did not acknowledge the current handoff');
@@ -360,7 +381,8 @@ export class TestAgents {
   ): Promise<Assessment> {
     const { runtime } = this;
     const observation = view.observation;
-    const handoff = this.handoffs.build('evidence-judge', observation, question);
+    const judge = this.directory.agent('Evidence Judge');
+    const handoff = this.handoffs.build(judge.id, observation, question);
     const current = await this.image(runtime.runId, observation.observation_id, observation.evidence_ref);
     const images = [current];
     let action = null;
@@ -387,12 +409,12 @@ export class TestAgents {
     for (;;) {
       const context = {
         handoff: { ...handoff, pending_action: pending ? { action_id: pending.action_id, action, expected_outcome: pending.expected_outcome } : null },
-        key_exchanges: this.handoffs.recent(handoff),
+        key_exchanges: this.handoffs.recent(handoff, true),
         action_id: pending?.action_id ?? null,
         evidence, supplemental, unavailable_observations: unavailable,
         time_budget: runtime.execution.deadline.context(),
       };
-      const { response: verdict, span } = await this.call('evidence-judge', 'test-evidence-verdict', 'evidence_judge',
+      const { response: verdict, span } = await this.call(judge, 'test-evidence-verdict', 'evidence_judge',
         ['evidence-judge'], context, images, observation, question);
       if (verdict.context_sequence !== handoff.through_sequence)
         throw new FrameworkError(ErrorCode.STALE_OBSERVATION, 'Judge did not acknowledge the current handoff');

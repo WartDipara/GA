@@ -182,7 +182,19 @@ advancement against the execution evidence. Measure cache efficiency separately.
 
 The Codex adapter uses App Server stdio and an isolated HTTP Responses provider with existing
 OpenAI authentication, leaving global settings unchanged. The build records the detected CLI
-version in each new batch. See the
+version in each new batch.
+
+Set `model` and `reasoning_effort` in `config/application.toml`. The five tables under
+`[gameplay.agents]` are keyed by routing ID, for example `agent_tom` and `agent_ray`. Set
+`job_title` to bind each job to a single agent and `describ` to describe its scope. The runtime
+uses that agent's ID for calls, delegation, sessions and traces. Each table requires its own model
+and effort. Supported effort settings are
+`low`, `medium`, `high`, `xhigh`, and `max`. Model-specific availability depends on the
+configured provider. Settings are frozen when
+a batch is created. Create a new batch to use edited settings when resuming. The `ai.runtime`
+event records the requested settings and the values reported by Codex.
+
+See the
 [official provider configuration](https://developers.openai.com/siwc/token-sharing-open-source/codex-app-server).
 Development verification uses compilation/syntax checking only. No mock, smoke or synthetic
 inference tests are used. Bounded real game tasks retain separate acceptance evidence.

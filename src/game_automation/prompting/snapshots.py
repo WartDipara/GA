@@ -7,6 +7,7 @@ import tomllib
 from pathlib import Path
 
 from game_automation import __version__
+from game_automation.contracts import validate
 from game_automation.errors import ErrorCode, FrameworkError
 from game_automation.kernel.capability_router import load_plugins
 from game_automation.prompting.instructions import skill_prefix
@@ -155,6 +156,8 @@ def freeze(store, run_id, *, parent_run=None):
     codex_version = verify_build(root)
     application = tomllib.loads((root / "config/application.toml").read_text(encoding="utf-8"))
     application["codex"]["version"] = codex_version
+    agent_settings = application.get("gameplay", {}).get("agents")
+    validate(resource_roots["contracts"], "gameplay-agent-settings", agent_settings)
     source_hashes = implementation_hashes(root, plugins)
     manifest = {
         "framework_version": __version__,

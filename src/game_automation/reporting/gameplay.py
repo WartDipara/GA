@@ -222,7 +222,10 @@ def gameplay_report(store, run_id):
     waits = selected("gameplay.wait")
     reasons = Counter(item["reason"] for item in selected("gameplay.planner.requested"))
     agent_nodes = selected("gameplay.agent.started")
-    reasons.update(item["question"] for item in agent_nodes if item["role"] == "test-lead")
+    lead_roles = {"test-lead"}
+    lead_roles.update(item["role"] for item in agent_nodes if item.get("job_title") == "Test Lead")
+    reasons.update(item["question"] for item in agent_nodes if item["role"] in lead_roles)
+    agent_sources = {"planner", *lead_roles}
     report = {
         "run_id": run_id,
         "state": store.run(run_id)["status"],
@@ -237,7 +240,7 @@ def gameplay_report(store, run_id):
         ],
         "ai_trigger_reasons": dict(reasons),
         "deterministic_steps": sum(
-            item["source"] not in ("planner", "test-lead") for item in origins
+            item["source"] not in agent_sources for item in origins
         ),
         "dispatched_actions": len(actions),
         "action_path": action_path(store, run_id),

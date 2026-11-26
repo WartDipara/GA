@@ -24,7 +24,9 @@ version in the artifacts. After changing the CLI, rebuild and use `--new-batch` 
 ## Configure
 
 1. Check `config/application.toml` for budgets, timeouts and workflow stages.
-   `[codex]` selects `model = "gpt-6-luna"` and `reasoning_effort = "medium"`.
+   Each gameplay agent has a named table such as `[gameplay.agents.agent_tom]`.
+   Set its `job_title`, `describ`, `model`, and `reasoning_effort` there.
+   New batches use the edited settings.
    `[gameplay].max_turns = 0` omits the optional lead-turn cap. The workflow cycle limit and
    no-progress checks still apply.
 2. Keep enabled capabilities in `config/plugins.toml` and Skill bindings in

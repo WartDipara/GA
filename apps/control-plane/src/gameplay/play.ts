@@ -8,6 +8,7 @@ import { type Fields } from '../utilities/values.js';
 import { previousClose } from '../storage/lifecycle.js';
 import type { Execution } from '../workflow/execution.js';
 import { executeRoutine, Perception } from './local.js';
+import { AgentDirectory } from './agent-directory.js';
 import { readSettlement } from './settlement.js';
 import { runTestWorkflow } from './test-workflow.js';
 import { ProgressStore } from './progress.js';
@@ -103,7 +104,7 @@ async function reconcile(runtime: Runtime, observation: Observation): Promise<vo
   runtime.progress.save();
 }
 
-async function playBound(runtime: Runtime): Promise<void> {
+async function playBound(runtime: Runtime, agents: AgentDirectory): Promise<void> {
   let observation = await runtime.observe();
   runtime.checkpoint(observation);
   runtime.diagnostics.request();
@@ -145,7 +146,7 @@ async function playBound(runtime: Runtime): Promise<void> {
       reason: 'unknown-state-or-new-goal',
       screen_key: view.facts.screen_key,
     });
-  } else await runTestWorkflow(runtime, observation);
+  } else await runTestWorkflow(runtime, observation, agents);
 }
 
 export async function play(
@@ -155,6 +156,7 @@ export async function play(
   task: Fields,
 ): Promise<void> {
   const store = execution.store;
+  const agents = new AgentDirectory(manifest);
   const host = Host.fromManifest(store, runId, manifest, execution.signal, () => execution.checkAction(runId));
   const call = (capability: string, input: Fields): Promise<unknown> =>
     host.execute('call', input, {
@@ -246,7 +248,7 @@ export async function play(
   );
   try {
     await runtime.admit(true);
-    await playBound(runtime);
+    await playBound(runtime, agents);
     runtime.finish();
   } catch (error) {
     runtime.finish(error);

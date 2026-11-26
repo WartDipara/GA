@@ -54,7 +54,7 @@ export class Handoffs {
     return decode('test-agent-handoff', prepared);
   }
 
-  recent(handoff: Handoff): Fields[] {
+  recent(handoff: Handoff, independentReview = false): Fields[] {
     const result: Fields[] = [];
     for (const source of handoff.transcript.slice(-2)) {
       const events = this.runtime.store.events(source.run_id, {
@@ -64,8 +64,9 @@ export class Handoffs {
         limit: 4,
       });
       for (const event of events) {
-        if (handoff.role === 'evidence-judge' &&
-            (event.payload['role'] === 'test-lead' || event.kind === 'gameplay.decision')) continue;
+        const leadDecision = event.payload['job_title'] === 'Test Lead' ||
+          event.payload['role'] === 'test-lead' || event.kind === 'gameplay.decision';
+        if (independentReview && leadDecision) continue;
         const output = object(event.payload['summary'] ?? event.payload);
         result.push({
           run_id: source.run_id, event_id: event.event_id, seq: event.seq,

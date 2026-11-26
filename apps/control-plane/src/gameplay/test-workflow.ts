@@ -6,6 +6,7 @@ import { Battle } from './battle.js';
 import { Exploration } from '../exploration/controller.js';
 import { Knowledge } from './knowledge.js';
 import { executeRoutine, Perception, route, verifiesLocalOutcome, type View } from './local.js';
+import type { AgentDirectory } from './agent-directory.js';
 import { TestAgents, type Assessment } from './agents.js';
 import { PassiveWait } from './passive-wait.js';
 import { readSettlement, settleAction } from './settlement.js';
@@ -68,7 +69,7 @@ async function complete(
   runtime.record('gameplay.goal.completed', {
     goal: runtime.task['goal'],
     observation_id: observation.observation_id,
-    source: 'evidence-judge',
+    source: agents.directory.agent('Evidence Judge').id,
     evidence_refs: acceptance.evidence_refs,
     identity: progress.identity,
     objective: decision.objective,
@@ -125,7 +126,9 @@ async function updateIdentity(
   });
 }
 
-export async function runTestWorkflow(runtime: Runtime, initial: Observation): Promise<void> {
+export async function runTestWorkflow(
+  runtime: Runtime, initial: Observation, directory: AgentDirectory,
+): Promise<void> {
   const perception = new Perception(runtime);
   const passive = new PassiveWait(runtime, perception);
   const exploration = runtime.task['goal'] === 'explore' ? new Exploration(runtime) : null;
@@ -140,7 +143,9 @@ export async function runTestWorkflow(runtime: Runtime, initial: Observation): P
     () => exploration?.redirectStall() ?? false,
   );
   runtime.watchdog = watchdog;
-  const agents = new TestAgents(runtime, watchdog, catalog);
+  const agents = new TestAgents(runtime, watchdog, catalog, directory);
+  const judgeId = directory.agent('Evidence Judge').id;
+  const leadId = directory.agent('Test Lead').id;
   let view = await perception.settle(initial);
   let cachedSteps = 0;
   let cycles = 0;
@@ -204,7 +209,7 @@ export async function runTestWorkflow(runtime: Runtime, initial: Observation): P
     runtime.record('gameplay.route', selection);
     runtime.begin(selection.reason);
     let assessment: Assessment | null = recorded;
-    let source = 'evidence-judge';
+    let source = judgeId;
     if (pending && !recorded) {
       const execution = pending.action_id ? runtime.store.deviceAction(pending.run_id, pending.action_id) : null;
       if (!execution || !['executed', 'unknown'].includes(text(execution['status'])))
@@ -282,7 +287,7 @@ export async function runTestWorkflow(runtime: Runtime, initial: Observation): P
         view = await perception.wait(view.observation);
         continue;
       }
-      battle.update(phase, view.observation);
+      battle.update(phase, view.observation, judgeId);
     }
     progress.checkpoint = {
       run_id: runtime.runId,
@@ -391,7 +396,9 @@ export async function runTestWorkflow(runtime: Runtime, initial: Observation): P
         sensitive_regions: view.observation.sensitive_regions,
         ...(testAttempt ? { test_attempt: testAttempt } : {}),
       };
-      actionId = await runtime.perform(action, view.observation, 'test-lead', null, null, link, intent);
+      actionId = await runtime.perform(
+        action, view.observation, leadId, null, null, link, intent,
+      );
     } catch (error) {
       if (!(error instanceof FrameworkError) || error.code !== ErrorCode.STALE_OBSERVATION || progress.pending)
         throw error;

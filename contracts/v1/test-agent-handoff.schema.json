@@ -3,9 +3,17 @@
   "type": "object",
   "properties": {
     "role": {
-      "enum": [
-        "test-lead",
-        "evidence-judge"
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^agent_[a-z][a-z0-9_]{0,47}$"
+        },
+        {
+          "enum": [
+            "test-lead",
+            "evidence-judge"
+          ]
+        }
       ]
     },
     "run_id": {
