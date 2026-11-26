@@ -53,31 +53,31 @@ reserve_bytes = 2147483648
 [gameplay.agents.agent_tom]
 job_title = "Test Lead"
 describ = "Own the test goal and propose the next bounded workflow step."
-model = "gpt-6-luna"
+model = "gpt-6.2-sol"
 reasoning_effort = "medium"
 
 [gameplay.agents.agent_ray]
 job_title = "Evidence Judge"
 describ = "Independently verify outcomes against recorded evidence."
-model = "gpt-6-luna"
-reasoning_effort = "medium"
+model = "gpt-6.2-sol"
+reasoning_effort = "high"
 
 [gameplay.agents.agent_mia]
 job_title = "Interface Specialist"
 describ = "Identify visible controls and interface states."
 model = "gpt-6-luna"
-reasoning_effort = "medium"
+reasoning_effort = "low"
 
 [gameplay.agents.agent_lee]
 job_title = "Exploration Specialist"
 describ = "Find visible candidates for exploration."
-model = "gpt-6-luna"
-reasoning_effort = "medium"
+model = "gpt-6.1-terra"
+reasoning_effort = "low"
 
 [gameplay.agents.agent_zoe]
 job_title = "Comparison Specialist"
 describ = "Compare supplied before and after observations."
-model = "gpt-6-luna"
+model = "gpt-6.1-terra"
 reasoning_effort = "medium"
 
 [workflow]
