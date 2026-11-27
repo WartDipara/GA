@@ -290,13 +290,14 @@ class Store:
         ]
         return action_ids
 
-    def reserve_device(self, run_id, instance_id, instance_index, apk_key):
+    def reserve_device(self, run_id, instance_index, instance_id, apk_key, *, installed_target):
         self._write(
             "reserve_device",
             run_id=run_id,
             instance_id=instance_id,
             instance_index=instance_index,
             apk_key=apk_key,
+            installed_target=installed_target,
         )
 
     def begin_device_action(

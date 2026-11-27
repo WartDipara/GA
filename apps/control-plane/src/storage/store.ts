@@ -556,6 +556,7 @@ export class Store {
   deviceReservation(instance: string, index: number, apkKey: string | null): {
     existing: DeviceBinding | undefined;
     conflicts: DeviceBinding[];
+    transferable: DeviceBinding[];
   } {
     const sameInstance = eq(deviceBindings.instance_id, instance);
     const rows = this.orm
@@ -566,8 +567,26 @@ export class Store {
     const existing = rows.find((row) =>
       row.instance_id === instance && row.apk_key === apkKey && row.instance_index === index,
     );
-    const result = { existing, conflicts: rows.filter((row) => row !== existing) };
+    const conflicts: DeviceBinding[] = [];
+    const transferable: DeviceBinding[] = [];
+    for (const row of rows) {
+      if (row === existing) continue;
+      const owner = this.deviceReservationOwner(row);
+      if (row.apk_key === apkKey || owner.owner_status === 'running' ||
+          this.run(row.run_id)['status'] === 'running') conflicts.push(row);
+      else transferable.push(row);
+    }
+    const result = { existing, conflicts, transferable };
     return result;
+  }
+
+  assertDeviceWorkspaceAttached(sourceRun: string, apkKey: string): void {
+    const detached = this.events(sourceRun, {
+      kinds: ['device.workspace.detached'],
+      reference: { field: 'workspace', value: apkKey },
+      limit: 1,
+    });
+    if (detached.length) throw new FrameworkError(ErrorCode.DEVICE_RECONCILIATION_DETACHED);
   }
 
   deviceReservationOwner(binding: DeviceBinding) {
@@ -605,7 +624,16 @@ export class Store {
     const instance = text(params['instance_id']);
     const apkKey = text(params['apk_key']);
     const index = integer(params['instance_index']);
-    const { existing, conflicts } = this.deviceReservation(instance, index, apkKey);
+    const task = this.input(runId);
+    const run = this.run(runId);
+    const sourceRun = text(task['source_run']);
+    if (run['cancel_requested']) throw new FrameworkError(ErrorCode.CANCELLED);
+    if (run['status'] !== 'running' ||
+        !['device_preparation', 'gameplay'].includes(text(task['kind'])) ||
+        apkKey !== `${sourceRun}:${String(task['apk_index'])}` || index !== task['instance_index'])
+      throw new FrameworkError(ErrorCode.CAPABILITY_DENIED);
+    this.assertDeviceWorkspaceAttached(sourceRun, apkKey);
+    const { existing, conflicts, transferable } = this.deviceReservation(instance, index, apkKey);
     if (conflicts.length) {
       const owners = conflicts.map((binding) => this.deviceReservationOwner(binding));
       throw this.deviceReservationError(index, owners);
@@ -618,18 +646,58 @@ export class Store {
         });
       return;
     }
+    for (const binding of transferable) {
+      const priorTask = this.input(binding.run_id);
+      if (task['kind'] === 'device_preparation' && task['adopt_existing'] !== true &&
+          params['installed_target'] !== false && priorTask['target'] === task['target'])
+        throw new FrameworkError(
+          ErrorCode.DEVICE_PACKAGE_CONFLICT,
+          `The previous task's package is installed on MuMu instance ${index}. ` +
+          `Use --adopt-existing for a matching APK or explicitly release the reservation before a clean installation.\n` +
+          `Preview release: uv run --locked game-auto release-device ${binding.run_id}`,
+        );
+    }
     const binding = {
       instance_id: instance,
       apk_key: apkKey,
       instance_index: index,
       run_id: runId,
     };
+    for (const prior of transferable) {
+      const unresolved = this.relinquishDevice(prior, runId);
+      const transfer = {
+        reservation_run: prior.run_id,
+        new_run: runId,
+        instance_index: index,
+        unresolved_actions: unresolved,
+      };
+      this.event(prior.run_id, 'device.reservation.transferred', transfer);
+      this.event(runId, 'device.reservation.received', transfer);
+    }
     this.orm.insert(deviceBindings).values(binding).run();
     this.event(runId, 'device.reserved', {
       instance_id: instance,
       instance_index: index,
       apk_key: apkKey,
     });
+  }
+
+  private relinquishDevice(binding: DeviceBinding, recipient: string | null) {
+    const unresolved = this.actionRecords.unresolvedForWorkspace(binding.instance_id, binding.apk_key);
+    if (unresolved.length) {
+      // Later observations may belong to a different workspace, so they cannot settle these actions.
+      const sourceRun = text(this.input(binding.run_id)['source_run']);
+      const detached = {
+        workspace_key: binding.apk_key,
+        instance_index: binding.instance_index,
+        reservation_run: binding.run_id,
+        recipient_run: recipient,
+        unresolved_actions: unresolved,
+      };
+      this.event(sourceRun, 'device.workspace.detached', detached);
+    }
+    this.orm.delete(deviceBindings).where(eq(deviceBindings.run_id, binding.run_id)).run();
+    return unresolved;
   }
 
   private releaseDevice(runId: string, apply: boolean): Fields {
@@ -641,10 +709,9 @@ export class Store {
       .where(eq(deviceBindings.run_id, runId))
       .get();
     if (!binding) throw new FrameworkError(ErrorCode.NOT_FOUND, 'Reservation not found');
-    const unresolved = this.actionRecords.unresolvedForWorkspace(
-      binding.instance_id,
-      binding.apk_key,
-    );
+    const unresolved = apply
+      ? this.relinquishDevice(binding, null)
+      : this.actionRecords.unresolvedForWorkspace(binding.instance_id, binding.apk_key);
     const result = {
       reservation: binding,
       released: apply,
@@ -654,7 +721,6 @@ export class Store {
     };
     if (apply) {
       this.event(runId, 'device.reservation.released', result);
-      this.orm.delete(deviceBindings).where(eq(deviceBindings.run_id, runId)).run();
       const state = this.events(runId, { kinds: ['run.state'], limit: 1 }).at(-1);
       this.event(runId, 'report.requested', {
         request_id: uid('report'),

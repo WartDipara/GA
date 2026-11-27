@@ -357,6 +357,9 @@
             },
             "apk_key": {
               "type": "string"
+            },
+            "installed_target": {
+              "type": "boolean"
             }
           },
           "required": [

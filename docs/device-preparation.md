@@ -26,17 +26,21 @@ APK bytes are verified before installation. Reading this historical output does 
 old producer or require all of its former shared contracts to remain current. Executing an old
 batch still requires its pinned dependencies to match.
 
-The kernel reserves one instance for one preprocessing workspace. Both sides have database unique
-constraints; a different APK cannot claim the same instance, and the same workspace cannot claim
-another instance. Reservations persist across failures, cancellation, and successful preparation. A
-new execution batch for the same workspace may reuse its reservation and reconcile earlier actions,
-including after a runtime upgrade. Earlier actions and failures remain in their original run. A
-different preprocessing workspace cannot claim an occupied instance, even for an identical APK.
-Automatic release, rebinding and instance creation remain unavailable.
+The kernel binds an instance to one preprocessing workspace at a time. The composed workflow
+checks the live instance and records its availability before downloading APKs. A running owner
+keeps exclusive access. After the owner stops and the executor drains its calls, a new workspace
+can take over the instance. Device preparation checks and transfers ownership atomically before
+issuing device actions. The previous and new reservation records link the transfer in trace.
 
-The composed workflow checks the live instance and its reservation before APK downloads. The
-workflow status and trace record the result. Device preparation repeats the check when it acquires
-the reservation, so a competing reservation between those checks still blocks device actions.
+A workspace can resume reconciliation while its original reservation remains in place. If it
+relinquishes the device with unresolved actions, the kernel preserves those actions and blocks
+reconciliation for that workspace. Start a fresh workflow to test again. Later observations from
+another workspace cannot verify the earlier device actions.
+
+When automatic takeover would remove the previous workspace's installed package, preparation
+stops before changing ownership or app data. Use `--adopt-existing` for an exact APK match, or
+explicitly release the reservation to authorize subsequent clean installation under the regular
+workflow settings.
 
 For explicitly reusing a dedicated instance after its prior execution has stopped, preview and
 release the original reservation through the kernel:
@@ -47,12 +51,10 @@ uv run --locked game-auto release-device <reservation_run_id> --apply
 ```
 
 The command requires exclusive execution ownership and rejects active runs or plugin calls. It
-only removes the reservation: it does not operate Android, remove application data, delete task
-history, or mark unresolved actions successful. Its preview and committed event list unresolved
-actions, which remain owned by their original APK workspace. A new workspace cannot reconcile or
-replay those actions. Returning to the original workspace still requires observing and reconciling
-its pending actions. The release and report request commit together; report-only repair remains
-available. Subsequent preparation must resolve the real instance and verify the installed APK.
+releases the reservation without operating Android or clearing app data. Its preview and committed
+event list unresolved actions. Applying the release detaches their workspace from reconciliation
+and keeps their recorded outcomes in task history. The release and report request commit together;
+report-only repair remains available. Subsequent preparation verifies the live instance and APK.
 
 The adapter derives instance identity from the resolved manager location, instance index, and MuMu's
 creation timestamp. Session requests pin that identity and the advertised ADB endpoint. Each Android

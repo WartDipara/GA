@@ -206,8 +206,14 @@ async def prepare_device(store, run_id, host, manifest, task):
     budget = await asyncio.to_thread(installation_budget, path, metadata, settings["reserve_bytes"])
     session = await device_session(store, run_id, host, manifest, task)
     apk_key = f"{task['source_run']}:{task['apk_index']}"
-    store.reserve_device(run_id, session["instance_id"], session["instance_index"], apk_key)
     before = await inspect_package(host, session, metadata["packageName"])
+    if before["installed"] and task.get("adopt_existing"):
+        if before["sha256"] != metadata["sha256"]:
+            raise FrameworkError(ErrorCode.DEVICE_PACKAGE_CONFLICT)
+    store.reserve_device(
+        run_id, session["instance_index"], session["instance_id"], apk_key,
+        installed_target=before["installed"],
+    )
     previous = store.latest_device_action(run_id)
     if previous:
         history = {
@@ -263,8 +269,6 @@ async def prepare_device(store, run_id, host, manifest, task):
         }
         host.record("device.installation.reconciled", reconciled)
     elif before["installed"] and task.get("adopt_existing"):
-        if before["sha256"] != metadata["sha256"]:
-            raise FrameworkError(ErrorCode.DEVICE_PACKAGE_CONFLICT)
         host.record(
             "device.installation.adopted",
             {"sha256": before["sha256"], "preserved_application_data": True},

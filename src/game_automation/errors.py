@@ -100,6 +100,10 @@ class ErrorCode(StrEnum):
         "DEVICE_IDENTITY_CHANGED",
         "The selected instance was replaced or its endpoint changed; execution blocked",
     )
+    DEVICE_RECONCILIATION_DETACHED = (
+        "DEVICE_RECONCILIATION_DETACHED",
+        "The device was relinquished with an unresolved action; start a fresh workflow",
+    )
     DEVICE_PACKAGE_CONFLICT = (
         "DEVICE_PACKAGE_CONFLICT",
         "The target package already exists without a matching installation record",

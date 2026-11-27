@@ -281,10 +281,15 @@ def execution_result(store, run_id):
         ErrorCode.DISK_BUDGET_EXCEEDED,
         ErrorCode.DEVICE_SPACE_INSUFFICIENT,
     )
+    device_handoff_codes = (
+        ErrorCode.DEVICE_BINDING_CONFLICT,
+        ErrorCode.DEVICE_PACKAGE_CONFLICT,
+        ErrorCode.DEVICE_RECONCILIATION_DETACHED,
+    )
     for reason in reasons:
         if reason and reason.get("code") in disk_warning_codes:
             print(f"Warning: {reason['message']}", file=sys.stderr)
-        if reason and reason.get("code") == ErrorCode.DEVICE_BINDING_CONFLICT:
+        if reason and reason.get("code") in device_handoff_codes:
             print(reason["message"], file=sys.stderr)
     return 0 if details["status"] == "succeeded" else 2
 

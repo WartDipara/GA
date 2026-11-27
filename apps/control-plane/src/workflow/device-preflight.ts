@@ -43,7 +43,10 @@ export async function verifyWorkflowDevices(
         throw new FrameworkError(ErrorCode.DEVICE_IDENTITY_CHANGED);
       // Only a bound preprocessing child identifies the same APK workspace on resume.
       const apkKey = sourceRun ? `${sourceRun}:${apkIndex}` : null;
-      const { existing, conflicts } = store.deviceReservation(session.instance_id, instanceIndex, apkKey);
+      if (sourceRun && apkKey) store.assertDeviceWorkspaceAttached(sourceRun, apkKey);
+      const { existing, conflicts, transferable } = store.deviceReservation(
+        session.instance_id, instanceIndex, apkKey,
+      );
       if (conflicts.length) {
         const owners = conflicts.map((binding) => store.deviceReservationOwner(binding));
         device['status'] = 'conflict';
@@ -52,6 +55,10 @@ export async function verifyWorkflowDevices(
       }
       device['status'] = existing ? 'reserved-for-workspace' : 'available';
       if (existing) device['owners'] = [store.deviceReservationOwner(existing)];
+      if (transferable.length) {
+        device['status'] = 'available-for-handoff';
+        device['owners'] = transferable.map((binding) => store.deviceReservationOwner(binding));
+      }
     }
   } catch (error) {
     const result = { devices, error: frameworkError(error).details() };
