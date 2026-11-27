@@ -10,6 +10,7 @@
     "packageManager": { "name": "npm", "version": "11.12.0", "onFail": "error" }
   },
   "scripts": {
+    "game": "uv run --locked game-auto workflow --input var/inputs/apks.json --goal login-and-interact --instances",
     "trace": "node tools/serve-trace.mjs",
     "generate": "node tools/generate-contracts.mjs && node tools/generate-codex-types.mjs",
     "check": "npm run generate && tsc --noEmit && eslint apps packages plugins/agent_codex --max-warnings 0",

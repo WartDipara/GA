@@ -61,14 +61,25 @@ Optional local executable overrides: `GAME_AUTO_ADB`, `GAME_AUTO_AAPT2` and
 
 ## Run
 
-Assign one distinct running instance per URL, in the same order:
+For a login test using `var/inputs/apks.json` and the `default` credential profile, pass the
+running MuMu instance index:
+
+```powershell
+npm run game -- 0
+```
+
+For multiple APKs, pass one distinct index per URL in the same order, for example
+`npm run game -- 0 1`. Replace the example indices with those reported by `game-auto emulators`.
+The shortcut accepts additional workflow options, such as `npm run game -- 0 --goal explore`.
+
+The full workflow command is available for explicit inputs and options:
 
 ```powershell
 uv run --locked game-auto workflow --input var/inputs/apks.json --instances <index> --goal explore
 ```
 
-Use `--credentials <profile>` for another vault profile, `--max-turns <count>` to override
-the planning limit, or `--goal login-and-interact` for login and one benign interaction.
+Use `--credentials <profile>` for another vault profile or `--max-turns <count>` to override
+the planning limit.
 For downloads only, use `game-auto preprocess --input var/inputs/apks.json`.
 
 ## Inspect and recover
