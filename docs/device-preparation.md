@@ -34,6 +34,10 @@ including after a runtime upgrade. Earlier actions and failures remain in their 
 different preprocessing workspace cannot claim an occupied instance, even for an identical APK.
 Automatic release, rebinding and instance creation remain unavailable.
 
+The composed workflow checks the live instance and its reservation before APK downloads. The
+workflow status and trace record the result. Device preparation repeats the check when it acquires
+the reservation, so a competing reservation between those checks still blocks device actions.
+
 For explicitly reusing a dedicated instance after its prior execution has stopped, preview and
 release the original reservation through the kernel:
 

@@ -87,6 +87,10 @@ def tool(store, run_id, operation, inputs):
 
         context = StageInputs(store, inputs["task"], inputs["outputs"], inputs["apk_index"])
         return stage_input(inputs["stage"], context)
+    if operation == "device_session_request":
+        from .device import device_session_request
+
+        return device_session_request(inputs["instance_index"], inputs["command_timeout_seconds"])
     if operation != "stage":
         raise FrameworkError(ErrorCode.METHOD_NOT_FOUND)
     return asyncio.run(run_stage(store, run_id, inputs))

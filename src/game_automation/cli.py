@@ -284,6 +284,8 @@ def execution_result(store, run_id):
     for reason in reasons:
         if reason and reason.get("code") in disk_warning_codes:
             print(f"Warning: {reason['message']}", file=sys.stderr)
+        if reason and reason.get("code") == ErrorCode.DEVICE_BINDING_CONFLICT:
+            print(reason["message"], file=sys.stderr)
     return 0 if details["status"] == "succeeded" else 2
 
 

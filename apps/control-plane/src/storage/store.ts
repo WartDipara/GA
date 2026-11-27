@@ -35,6 +35,7 @@ export interface TraceIds {
 }
 
 type StorageMethod = ContractMap['kernel-command']['method'];
+type DeviceBinding = typeof deviceBindings.$inferSelect;
 export type Event = ContractMap['trace'] & { seq: number };
 function subject(task: Fields): string {
   if (task['kind'] === 'apk_batch' || task['kind'] === 'apk_workflow')
@@ -552,29 +553,68 @@ export class Store {
     }
   }
 
+  deviceReservation(instance: string, index: number, apkKey: string | null): {
+    existing: DeviceBinding | undefined;
+    conflicts: DeviceBinding[];
+  } {
+    const sameInstance = eq(deviceBindings.instance_id, instance);
+    const rows = this.orm
+      .select()
+      .from(deviceBindings)
+      .where(apkKey === null ? sameInstance : or(sameInstance, eq(deviceBindings.apk_key, apkKey)))
+      .all();
+    const existing = rows.find((row) =>
+      row.instance_id === instance && row.apk_key === apkKey && row.instance_index === index,
+    );
+    const result = { existing, conflicts: rows.filter((row) => row !== existing) };
+    return result;
+  }
+
+  deviceReservationOwner(binding: DeviceBinding) {
+    const reservation = this.run(binding.run_id);
+    const taskId = text(reservation['task_id']);
+    const workflowId = this.input(binding.run_id)['workflow_run'];
+    const candidate = typeof workflowId === 'string' ? this.run(workflowId) : null;
+    const owner = candidate?.['task_id'] === taskId && candidate['mode'] === 'workflow'
+      ? candidate : reservation;
+    const result = {
+      instance_index: binding.instance_index,
+      reservation_run: binding.run_id,
+      task_id: taskId,
+      owner_run: text(owner['id']),
+      owner_status: text(owner['status']),
+    };
+    return result;
+  }
+
+  deviceReservationError(index: number, owners: ReturnType<Store['deviceReservationOwner']>[]) {
+    const details = owners.map((owner) => {
+      const resume = owner.owner_status === 'blocked'
+        ? `\nResume the owner: uv run --locked game-auto resume ${owner.owner_run}` : '';
+      return `MuMu instance ${owner.instance_index} is reserved by task ${owner.task_id}` +
+        ` (run ${owner.owner_run}, ${owner.owner_status}).${resume}` +
+        `\nPreview release: uv run --locked game-auto release-device ${owner.reservation_run}`;
+    });
+    return new FrameworkError(
+      ErrorCode.DEVICE_BINDING_CONFLICT,
+      `Cannot use MuMu instance ${index}. ${details.join('\n')}`,
+    );
+  }
+
   private reserve(runId: string, params: Fields): void {
     const instance = text(params['instance_id']);
     const apkKey = text(params['apk_key']);
     const index = integer(params['instance_index']);
-    const rows = this.orm
-      .select()
-      .from(deviceBindings)
-      .where(or(eq(deviceBindings.instance_id, instance), eq(deviceBindings.apk_key, apkKey)))
-      .all();
-    if (rows.length) {
-      const row = rows[0];
-      if (
-        !row ||
-        rows.length !== 1 ||
-        row['instance_id'] !== instance ||
-        row['apk_key'] !== apkKey ||
-        row['instance_index'] !== index
-      )
-        throw new FrameworkError(ErrorCode.DEVICE_BINDING_CONFLICT);
-      if (row['run_id'] !== runId)
+    const { existing, conflicts } = this.deviceReservation(instance, index, apkKey);
+    if (conflicts.length) {
+      const owners = conflicts.map((binding) => this.deviceReservationOwner(binding));
+      throw this.deviceReservationError(index, owners);
+    }
+    if (existing) {
+      if (existing.run_id !== runId)
         this.event(runId, 'device.reservation.reused', {
           instance_id: instance,
-          reservation_run: row['run_id'],
+          reservation_run: existing.run_id,
         });
       return;
     }

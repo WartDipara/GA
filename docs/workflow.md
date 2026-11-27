@@ -16,7 +16,11 @@ The example requires two APK URLs and two distinct, already running MuMu instanc
 0 and 1, assigned in URL order. Instance indices identify MuMu instances; they are not display IDs.
 The scheduler does not create, boot, reset or recycle emulator instances. Existing device bindings
 still enforce workspace isolation. Use a dedicated instance for each APK, including duplicate URLs.
-An instance already bound to a different APK workspace is rejected before installation.
+When device preparation is selected, the workflow verifies each live instance and checks its
+reservation before starting any APK downloads. A conflict identifies the owning task, execution
+status, and the command to preview release. A resumed workflow can reuse the reservation for its
+retained preprocessing output. Preparation checks and acquires the reservation atomically before
+any installation or removal.
 
 The default goal for new workflows is `explore`, using the encrypted local `default` credential
 profile. It proceeds from login into reachable-content exploration. Use `--credentials <profile>`

@@ -26,6 +26,15 @@ export async function revalidateDeviceStage(
   confirmSession(session, object(actual));
   if (actual.instance_index !== task['instance_index'])
     throw new FrameworkError(ErrorCode.DEVICE_IDENTITY_CHANGED);
+  if (kind === 'installation') {
+    const apkKey = `${text(task['source_run'])}:${String(task['apk_index'])}`;
+    if (store.reservedApk(actual.instance_id) !== apkKey) {
+      store.event(runId, 'workflow.stage.revalidated', {
+        child_run: child, kind, reusable: false, reason: 'reservation-changed',
+      }, { parent_span_id: span });
+      return false;
+    }
+  }
   const request = { session, package_name: task['target'] };
   const installed = decode('device-inspect-result', await call('device.inspect', request));
   confirmSession(session, installed.session);

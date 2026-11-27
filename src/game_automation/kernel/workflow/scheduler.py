@@ -23,7 +23,10 @@ def workflow_task(root, source_file, instances, credentials, goal, max_turns, st
 
 def workflow_status(store, run_id):
     steps = {}
+    device_preflight = None
     for event in store.iter_events(run_id):
+        if event["kind"] == "workflow.device.preflight":
+            device_preflight = event["payload"]
         if event["kind"].startswith("workflow.stage."):
             payload = event["payload"]
             key = payload["key"]
@@ -34,4 +37,6 @@ def workflow_status(store, run_id):
         if step.get("child_run"):
             step["child_status"] = store.run(step["child_run"])["status"]
     result = {"run_id": run_id, "steps": list(steps.values())}
+    if device_preflight is not None:
+        result["device_preflight"] = device_preflight
     return result

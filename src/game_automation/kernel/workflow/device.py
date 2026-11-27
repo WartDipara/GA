@@ -13,6 +13,18 @@ from .evidence import verify_image
 from .preprocessing import preprocessing_status
 
 
+def device_session_request(instance_index, command_timeout_seconds):
+    request = {
+        "manager_executable": os.environ.get("GAME_AUTO_MUMU_MANAGER") or None,
+        "adb_executable": os.environ.get("GAME_AUTO_ADB") or None,
+        "instance_index": instance_index,
+        "instance_id": None,
+        "serial": None,
+        "command_timeout_seconds": command_timeout_seconds,
+    }
+    return request
+
+
 def ready_apk(store, source_run, index):
     if store.run(source_run)["mode"] != "preprocessing":
         raise FrameworkError(ErrorCode.DEVICE_APK_REQUIRED)
@@ -77,16 +89,10 @@ async def device_session(store, run_id, host, manifest, task):
     if previous:
         request = previous[-1]["request"]
     else:
-        request = {
-            "manager_executable": os.environ.get("GAME_AUTO_MUMU_MANAGER") or None,
-            "adb_executable": os.environ.get("GAME_AUTO_ADB") or None,
-            "instance_index": task["instance_index"],
-            "instance_id": None,
-            "serial": None,
-            "command_timeout_seconds": manifest["application"]["environment"][
-                "command_timeout_seconds"
-            ],
-        }
+        request = device_session_request(
+            task["instance_index"],
+            manifest["application"]["environment"]["command_timeout_seconds"],
+        )
     result = await host.call("emulator.session", request, timeout=0)
     if (
         result["instance_index"] != task["instance_index"]

@@ -3,6 +3,7 @@ import { object, text } from '@game-automation/contracts';
 import { ErrorCode, FrameworkError, frameworkError } from '@game-automation/contracts/errors';
 import { canonical, strings, uid, type Fields } from '../utilities/values.js';
 import { buildWorkflow, type Stage } from './assembly.js';
+import { verifyWorkflowDevices } from './device-preflight.js';
 import type { Execution } from './execution.js';
 import { revalidateDeviceStage } from './revalidation.js';
 
@@ -263,6 +264,19 @@ export class Scheduler {
       }
     const plan = { stages: task.stages, instances: task.instances, order: 'apk-list' };
     this.execution.store.event(this.runId, 'workflow.plan', plan);
+    if (stages.some((stage) => stage.mode === 'device')) {
+      const previous = this.previousChildren.get('preprocess');
+      const reusable = previous && this.execution.store.run(previous)['status'] === 'succeeded'
+        ? previous : undefined;
+      const source = this.children.get('preprocess') ?? reusable;
+      const preparationRuns = task.instances.map((_, index) => {
+        const key = `apk:${index}:prepare`;
+        return this.children.get(key) ?? this.previousChildren.get(key);
+      });
+      await verifyWorkflowDevices(
+        this.execution, this.runId, manifest, task.instances, source, preparationRuns,
+      );
+    }
     let index = 0;
     while (index < stages.length) {
       const stage = stages[index];
