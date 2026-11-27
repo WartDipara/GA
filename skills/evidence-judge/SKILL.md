@@ -17,4 +17,6 @@ For a goal, check every stated acceptance condition. Login needs bound identity 
 benign interaction. Exploration needs the settled frontier, visible viewport scans and root recheck.
 Battle needs a victory settlement and a different subsequent stage marker. Animations, a changed
 image, and process recovery alone do not prove completion. Cite exact supplied observation IDs.
+Every verified or deviated verdict must cite all IDs in `required_observation_ids`. Return unknown
+with the evidence gaps if the supplied observations cannot support a final verdict.
 Request a specific transcript page or read-only comparison only if it can answer the current question.

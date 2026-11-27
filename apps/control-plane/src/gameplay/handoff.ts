@@ -4,12 +4,15 @@ import { ErrorCode, FrameworkError } from '@game-automation/contracts/errors';
 import type { EventQuery } from '../storage/event-repository.js';
 import { redact } from '../utilities/redaction.js';
 import { within } from '../utilities/files.js';
+import { jsonExcerpt } from '../utilities/json-excerpt.js';
 import { type Fields } from '../utilities/values.js';
 import type { Runtime } from './runtime.js';
 import type { Decision, Observation } from './types.js';
 
 type Handoff = ContractMap['test-agent-handoff'];
 export type ContextRequest = NonNullable<Decision['context_request']>;
+const excerptBytes = 1_536;
+const pageBytes = 24 * 1024;
 
 export class Handoffs {
   readonly taskId: string;
@@ -125,11 +128,14 @@ export class Handoffs {
       rows.sort((left, right) => left.seq - right.seq);
     }
     const records: Fields[] = [];
-    for (const event of rows) {
+    // A cursor continues one record; an ordinary page starts each record at its first excerpt.
+    const selected = request.offset === undefined ? rows : rows.slice(-1);
+    for (const event of selected) {
       const record: Fields = { seq: event.seq, event_id: event.event_id, kind: event.kind, turn: event.span_id };
       const ref = event.payload['input_ref'] ?? event.payload['output_ref'];
       if (event.kind === 'ai.item.completed') {
-        this.excerpt(record, text(object(event.payload['item'])['text']), request.offset ?? 0);
+        const content = text(object(event.payload['item'])['text']);
+        Object.assign(record, jsonExcerpt(content, request.offset ?? 0, excerptBytes));
       } else if (request.turn && typeof ref === 'string') {
         const path = within(store.runDirectory(source.run_id), ref);
         try {
@@ -137,23 +143,25 @@ export class Handoffs {
           const artifact = object(raw);
           const content = event.kind === 'call.started' ? artifact['turn'] : artifact;
           const serialized = JSON.stringify(redact(content ?? null));
-          this.excerpt(record, serialized, request.offset ?? 0);
+          Object.assign(record, jsonExcerpt(serialized, request.offset ?? 0, excerptBytes));
         } catch (error) {
           if (!(error instanceof Error) || !('code' in error) || error.code !== 'ENOENT') throw error;
           record['unavailable'] = true;
         }
       } else if (!query.capability) {
-        record['evidence'] = event.payload;
+        const serialized = JSON.stringify(redact(event.payload));
+        Object.assign(record, jsonExcerpt(serialized, request.offset ?? 0, excerptBytes));
       }
       records.push(record);
     }
-    const page = { run_id: source.run_id, records, next_before_sequence: rows[0]?.seq ?? null };
+    const page = { run_id: source.run_id, records, next_before_sequence: records[0]?.['seq'] ?? null };
+    // Trim oldest entries first so the cursor still leads to the omitted records.
+    while (Buffer.byteLength(JSON.stringify(page)) > pageBytes && records.length > 1) {
+      records.shift();
+      page.next_before_sequence = records[0]?.['seq'] ?? null;
+    }
+    if (Buffer.byteLength(JSON.stringify(page)) > pageBytes)
+      throw new FrameworkError(ErrorCode.INVALID_PROTOCOL, 'Transcript record metadata exceeds its byte budget');
     return page;
-  }
-
-  private excerpt(record: Fields, source: string, offset: number): void {
-    const end = offset + 12_000;
-    record['text'] = source.slice(offset, end);
-    record['next_offset'] = source.length > end ? end : null;
   }
 }

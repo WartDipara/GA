@@ -14,6 +14,7 @@ import { atomicJson } from './utilities/files.js';
 import { sha256 } from './utilities/hashing.js';
 import { integer, type Fields } from './utilities/values.js';
 import { Execution } from './workflow/execution.js';
+import { buildWorkflow } from './workflow/assembly.js';
 
 const root = resolve(process.argv[2] ?? '.');
 const expectedVersion = readFileSync(join(root, '.node-version'), 'utf8').trim();
@@ -239,6 +240,8 @@ const server = createServer((socket) => {
     if (method === 'storage.release_device' && (calls.size || executions.size))
       throw new FrameworkError(ErrorCode.RUN_BUSY);
     if (method.startsWith('storage.')) {
+      if (method === 'storage.submit' && object(params['spec'])['kind'] === 'apk_workflow')
+        buildWorkflow(params['spec']);
       const command = { method: method.slice('storage.'.length), input: params };
       return store.accept(command);
     }

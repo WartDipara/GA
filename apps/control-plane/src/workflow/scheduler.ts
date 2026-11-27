@@ -246,7 +246,11 @@ export class Scheduler {
 
   async run(): Promise<void> {
     const { task, stages } = buildWorkflow(this.task);
-    await this.execution.tool('workflow_validate', this.runId, { task });
+    if (stages.some((stage) => stage.mode === 'gameplay')) {
+      await this.execution.tool('workflow_credentials', this.runId, {
+        profile: task.credential_profile,
+      });
+    }
     const context: Context = { outputs: {}, apkIndex: null };
     const manifest = await this.execution.manifest(this.runId);
     const providers = Object.values(object(manifest['plugins'])).flatMap((plugin) =>

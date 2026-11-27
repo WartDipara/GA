@@ -5,16 +5,16 @@ the selected task data. No backup is created by cleanup, since its purpose is to
 
 ```powershell
 # Folders were already deleted manually: inspect and remove their remaining database history.
-uv run game-auto cleanup --missing
-uv run game-auto cleanup --missing --apply
+uv run --locked game-auto cleanup --missing
+uv run --locked game-auto cleanup --missing --apply
 
 # Remove one task, including every execution and its files.
-uv run game-auto cleanup --task-id <task_id>
-uv run game-auto cleanup --task-id <task_id> --apply
+uv run --locked game-auto cleanup --task-id <task_id>
+uv run --locked game-auto cleanup --task-id <task_id> --apply
 
 # Remove all task data, including unregistered task/execution folders.
-uv run game-auto cleanup --all
-uv run game-auto cleanup --all --apply
+uv run --locked game-auto cleanup --all
+uv run --locked game-auto cleanup --all --apply
 ```
 
 Repeat `--task-id` to select multiple tasks. Historical technical task IDs resolve to their business
@@ -52,8 +52,8 @@ irreversible; database records remain until that deletion phase finishes.
 
 ```powershell
 # Inspect an interrupted cleanup, then finish exactly its original scope.
-uv run game-auto cleanup
-uv run game-auto cleanup --apply
+uv run --locked game-auto cleanup
+uv run --locked game-auto cleanup --apply
 ```
 
 Do not add selection flags when resuming a pending cleanup. Retry is idempotent: missing files and

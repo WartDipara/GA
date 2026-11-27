@@ -11,10 +11,10 @@ instance or one another operator is using. Instance creation, cloning, wiping an
 the operator.
 
 ```powershell
-uv run game-auto status <preprocessing_run_id>
-uv run game-auto prepare-device --from-run <preprocessing_run_id> --apk-index 0 --instance <index>
-uv run game-auto status <preparation_run_id>
-uv run game-auto resume <preparation_run_id>
+uv run --locked game-auto status <preprocessing_run_id>
+uv run --locked game-auto prepare-device --from-run <preprocessing_run_id> --apk-index 0 --instance <index>
+uv run --locked game-auto status <preparation_run_id>
+uv run --locked game-auto resume <preparation_run_id>
 ```
 
 `--apk-index` is zero-based, matching preprocessing status entries. A ready item may be selected
@@ -38,8 +38,8 @@ For explicitly reusing a dedicated instance after its prior execution has stoppe
 release the original reservation through the kernel:
 
 ```powershell
-uv run game-auto release-device <reservation_run_id>
-uv run game-auto release-device <reservation_run_id> --apply
+uv run --locked game-auto release-device <reservation_run_id>
+uv run --locked game-auto release-device <reservation_run_id> --apply
 ```
 
 The command requires exclusive execution ownership and rejects active runs or plugin calls. It
@@ -110,7 +110,7 @@ instance identity, and serial. Successful installation does not establish launch
 ## Observe the current display
 
 ```powershell
-uv run game-auto observe --instance <index>
+uv run --locked game-auto observe --instance <index>
 ```
 
 MuMu can place applications on separate Android logical displays. The observer reads

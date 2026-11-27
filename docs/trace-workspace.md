@@ -40,8 +40,8 @@ The read-only viewer can stop or fail without stopping the workflow's authoritat
 Inspect writer overhead or retained evidence without starting a writer, model or device:
 
 ```powershell
-uv run game-auto trace-health <run_id>
-uv run game-auto trace-doctor <run_id>
+uv run --locked game-auto trace-health <run_id>
+uv run --locked game-auto trace-doctor <run_id>
 ```
 
 Writer health snapshots are emitted at most once every five seconds at recording boundaries,
@@ -114,8 +114,8 @@ shows the latest 20 segments per execution with an explicit truncation notice; t
 retains the complete segment chain. Read the same projection from the CLI:
 
 ```powershell
-uv run game-auto trace-session <run_id> --limit 50
-uv run game-auto trace-session <run_id> --before <next_before> --limit 50
+uv run --locked game-auto trace-session <run_id> --limit 50
+uv run --locked game-auto trace-session <run_id> --before <next_before> --limit 50
 ```
 
 ## Retention and metadata export
@@ -127,11 +127,11 @@ debug events. Preview first; applying uses the existing single-writer cleanup jo
 task-owned SQLite rows and directories together. No timer or background purge is installed.
 
 ```powershell
-uv run game-auto trace-retention --days 30
-uv run game-auto trace-pin <run_id> --pin
-uv run game-auto trace-pin <run_id> --unpin
-uv run game-auto trace-retention --days 30 --apply
-uv run game-auto trace-export <run_id>
+uv run --locked game-auto trace-retention --days 30
+uv run --locked game-auto trace-pin <run_id> --pin
+uv run --locked game-auto trace-pin <run_id> --unpin
+uv run --locked game-auto trace-retention --days 30 --apply
+uv run --locked game-auto trace-export <run_id>
 ```
 
 Pinned, running, queued or blocked tasks, unknown-age tasks, unresolved actions, unfinished reports

@@ -75,9 +75,9 @@ detect missing files and changed sizes, not arbitrary same-size corruption.
 ## Restart and report-only repair
 
 ```powershell
-uv run game-auto report <run_id>
-uv run game-auto report --pending
-uv run game-auto status <run_id>
+uv run --locked game-auto report <run_id>
+uv run --locked game-auto report --pending
+uv run --locked game-auto status <run_id>
 ```
 
 These commands never call a model, launch a game or dispatch an Android operation. They require the

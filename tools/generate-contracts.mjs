@@ -50,7 +50,7 @@ for (const name of ['workspace-view', 'history-view', 'history-search']) {
   );
 }
 
-const exported = spawnSync('uv', ['run', 'python', 'tools/export-error-codes.py'], {
+const exported = spawnSync('uv', ['run', '--locked', 'python', 'tools/export-error-codes.py'], {
   encoding: 'utf8',
   windowsHide: true,
 });

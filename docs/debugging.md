@@ -23,7 +23,7 @@ cleanup/compaction finish.
 List recent runs before opening a specific trace:
 
 ```powershell
-uv run game-auto runs --limit 20
+uv run --locked game-auto runs --limit 20
 ```
 
 Each entry includes its ID, task subject, mode, status, stage, and creation time. Both historical
@@ -43,19 +43,19 @@ after creation, including after APK inspection or resume. Existing directories a
 snapshot compatibility checks still apply.
 
 ```powershell
-uv run game-auto status <run_id>
-uv run game-auto context <run_id>
-uv run game-auto context <run_id> --json
-uv run game-auto trace <run_id> --follow
-uv run game-auto inspect <run_id> --span <span_id>
-uv run game-auto export-trace <run_id> --format html
+uv run --locked game-auto status <run_id>
+uv run --locked game-auto context <run_id>
+uv run --locked game-auto context <run_id> --json
+uv run --locked game-auto trace <run_id> --follow
+uv run --locked game-auto inspect <run_id> --span <span_id>
+uv run --locked game-auto export-trace <run_id> --format html
 ```
 
 For a periodically refreshed task view, run this in a separate terminal while work continues:
 
 ```powershell
-uv run game-auto serve-trace <run_id>
-uv run game-auto serve-trace <run_id> --interval 5 --port 0
+uv run --locked game-auto serve-trace <run_id>
+uv run --locked game-auto serve-trace <run_id> --interval 5 --port 0
 ```
 
 Open the printed loopback URL. The default port is 8767 and the refresh interval is three seconds;

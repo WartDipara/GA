@@ -123,7 +123,7 @@ export class PassiveWait {
         { observation_id: observationId, previous: previous.observation_id },
         null, [previous.observation_id],
       );
-      if (verdict.status === 'verified' && verdict.evidence_refs.includes(previous.observation_id)) {
+      if (verdict.status === 'verified') {
         runtime.store.database.transaction(() => {
           runtime.record('gameplay.network.classified', { classification: 'recovered', verdict });
           delete progress.network_wait;

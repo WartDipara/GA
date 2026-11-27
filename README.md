@@ -5,7 +5,7 @@ Run all commands from the repository root.
 ## Requirements
 
 - Windows, Python 3.12 and uv.
-- Node.js from `.node-version` and npm.
+- Node.js from `.node-version` and npm from `package.json` (`devEngines`).
 - Codex CLI on PATH, or selected with `[codex].executable`, signed in locally.
 - MuMu with a dedicated, already-started Android instance for each APK.
 - Android SDK Build Tools (`aapt2`); ADB on PATH or supplied by MuMu.
@@ -17,6 +17,11 @@ uv sync --locked
 npm ci
 npm run build
 ```
+
+Run dependency commands from the repository root. npm workspaces share `package-lock.json`.
+Python and its plugin processes share the environment resolved by `pyproject.toml` and `uv.lock`.
+React renders the trace workspace, Ajv validates TypeScript contracts, and Drizzle owns control
+plane database access. The workflow and capability boundaries use local JSON-RPC.
 
 The build detects the selected Codex CLI version, generates its App Server types, and records the
 version in the artifacts. After changing the CLI, rebuild and use `--new-batch` for resumed work.
@@ -34,7 +39,7 @@ version in the artifacts. After changing the CLI, rebuild and use `--new-batch` 
 3. Save test credentials using the hidden local prompts:
 
 ```powershell
-uv run game-auto credentials default
+uv run --locked game-auto credentials default
 ```
 
 4. Create a private UTF-8 file at `var/inputs/apks.json`:
@@ -48,7 +53,7 @@ uv run game-auto credentials default
 5. Discover the indices of your running MuMu instances:
 
 ```powershell
-uv run game-auto emulators
+uv run --locked game-auto emulators
 ```
 
 Optional local executable overrides: `GAME_AUTO_ADB`, `GAME_AUTO_AAPT2` and
@@ -59,7 +64,7 @@ Optional local executable overrides: `GAME_AUTO_ADB`, `GAME_AUTO_AAPT2` and
 Assign one distinct running instance per URL, in the same order:
 
 ```powershell
-uv run game-auto workflow --input var/inputs/apks.json --instances <index> --goal explore
+uv run --locked game-auto workflow --input var/inputs/apks.json --instances <index> --goal explore
 ```
 
 Use `--credentials <profile>` for another vault profile, `--max-turns <count>` to override
@@ -71,12 +76,12 @@ For downloads only, use `game-auto preprocess --input var/inputs/apks.json`.
 Use the execution ID printed by the command:
 
 ```powershell
-uv run game-auto status <run_id>
-uv run game-auto exploration <run_id> --format json
-uv run game-auto resume <run_id> --input var/inputs/apks.json
-uv run game-auto cancel <run_id>
-uv run game-auto report <run_id>
-uv run game-auto serve-trace <run_id> --port 0
+uv run --locked game-auto status <run_id>
+uv run --locked game-auto exploration <run_id> --format json
+uv run --locked game-auto resume <run_id> --input var/inputs/apks.json
+uv run --locked game-auto cancel <run_id>
+uv run --locked game-auto report <run_id>
+uv run --locked game-auto serve-trace <run_id> --port 0
 ```
 
 After updating code or Skills, use `resume <run_id> --new-batch` to pin the updated dependencies.

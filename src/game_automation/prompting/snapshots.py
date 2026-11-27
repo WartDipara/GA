@@ -32,6 +32,9 @@ def code_hashes(directory):
 
 def implementation_hashes(root, plugins):
     hashes = code_hashes(root / "src/game_automation")
+    for name in ("pyproject.toml", "uv.lock"):
+        dependency = (root / name).resolve()
+        hashes[str(dependency)] = digest(dependency.read_bytes())
     for plugin in plugins.values():
         hashes.update(code_hashes(Path(plugin["cwd"])))
     if (root / "apps/control-plane").is_dir():

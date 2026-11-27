@@ -44,10 +44,10 @@ batch or bypasses action reconciliation. Device reservations remain scoped to th
 workspace; directory grouping does not grant permission to reuse an instance.
 
 ```powershell
-uv run game-auto tasks
-uv run game-auto task-status <task_id>
-uv run game-auto runs
-uv run game-auto status <run_id>
+uv run --locked game-auto tasks
+uv run --locked game-auto task-status <task_id>
+uv run --locked game-auto runs
+uv run --locked game-auto status <run_id>
 ```
 
 The task report indexes all executions and APKs, with links to offline traces. It is rebuilt after
@@ -63,7 +63,7 @@ historical events retain their original IDs and payloads. Execution inputs, acti
 reservations and sessions are retained. Existing progress is assigned to its recorded owning task.
 
 ```powershell
-uv run game-auto migrate-workspaces
+uv run --locked game-auto migrate-workspaces
 ```
 
 The command moves registered `var/runs/<run_id>/` directories into their task's `executions/`

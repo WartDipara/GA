@@ -11,7 +11,7 @@ const readExecutable = [
   'configuration = tomllib.loads(Path("config/application.toml").read_text(encoding="utf-8"))',
   'print(configuration["codex"]["executable"])',
 ].join('\n');
-const configuration = spawnSync('uv', ['run', 'python', '-c', readExecutable], options);
+const configuration = spawnSync('uv', ['run', '--locked', 'python', '-c', readExecutable], options);
 const command = configuration.stdout?.trim();
 if (configuration.status !== 0 || !command) throw new Error('Missing Codex executable setting');
 const detected = spawnSync(command, ['--version'], options);

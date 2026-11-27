@@ -27,10 +27,14 @@ action remains in the ledger and blocks new device inputs until reconciled.
 A handoff includes the task goal, current observation, last verified milestone or interaction,
 pending action, and a versioned index of retained execution records. The lead also receives bound
 identity, subgoals, recent attempts, settled results, and user supplements. A judge receives the
-specific question, action intent, recorded execution, and relevant before and after evidence.
+specific question, action intent, recorded execution, and required observation IDs. A final verdict
+needs every required citation. Missing evidence keeps the decision unknown and the action pending.
 Each core response acknowledges the current handoff version. Key recorded exchanges are provided
 up front. Both core roles can request a scoped transcript page by execution, call span, subgoal,
-action, or observation, with a cursor for older records or a longer excerpt. Retained public model
+action, or observation. Each page is capped at 24 KiB of serialized UTF-8 JSON, and each excerpt at
+1,536 bytes as an encoded JSON string. `next_before_sequence` pages backward. To continue one
+record's text, reuse the filter with `before_sequence` set to its `seq + 1` and `offset` set to its
+`next_offset`. Retained public model
 messages and submitted inputs can be inspected without relying on the provider session. Missing
 historical artifacts are recorded as unavailable.
 
@@ -60,11 +64,11 @@ a simulator, not a game character. Discovery prints its name and index. The prov
 advertised ADB endpoint and verifies stable identity; the kernel never guesses a port.
 
 ```powershell
-uv run game-auto prepare-device --from-run <apk_run> --apk-index 0 --instance <index>
-uv run game-auto credentials default
-uv run game-auto play --prepared-run <device_run> --goal login-and-interact
-uv run game-auto play --prepared-run <device_run> --goal explore
-uv run game-auto play --prepared-run <device_run> --goal advance-battle
+uv run --locked game-auto prepare-device --from-run <apk_run> --apk-index 0 --instance <index>
+uv run --locked game-auto credentials default
+uv run --locked game-auto play --prepared-run <device_run> --goal login-and-interact
+uv run --locked game-auto play --prepared-run <device_run> --goal explore
+uv run --locked game-auto play --prepared-run <device_run> --goal advance-battle
 ```
 
 Add `--adopt-existing` to preparation only for an already installed matching APK. Full SHA-256
@@ -100,8 +104,8 @@ action available for reconciliation. Unresolved installation intents return to d
 The kernel leaves a game with unresolved input available for fresh observation.
 
 ```powershell
-uv run game-auto resume <run_id>
-uv run game-auto resume <run_id> --new-batch
+uv run --locked game-auto resume <run_id>
+uv run --locked game-auto resume <run_id> --new-batch
 ```
 
 Normal resume requires unchanged code and shared Skills. Use `--new-batch` after an update: it links a new batch
@@ -161,9 +165,9 @@ and system processes are not mixed into the game stream.
 Windows are bounded snapshots, not a claim of complete continuous log capture.
 
 ```powershell
-uv run game-auto report <run_id>
-uv run game-auto export-trace <run_id> --format html
-uv run game-auto compare-games <first_run> <second_run>
+uv run --locked game-auto report <run_id>
+uv run --locked game-auto export-trace <run_id> --format html
+uv run --locked game-auto compare-games <first_run> <second_run>
 ```
 
 Gameplay JSON/HTML show agent nodes, decisions, action paths, before and after evidence, AI calls,

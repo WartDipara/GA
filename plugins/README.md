@@ -18,7 +18,8 @@ Plugins request declared dependencies through `host.call` and await event-persis
 acknowledgements. They never access the business database. stdout is protocol-only. A separate
 process is not a security sandbox.
 
-Build TypeScript plugins with `npm ci` and `npm run build`. Their manifests use the pinned Node
+Python plugins inherit the CLI interpreter installed from the root `pyproject.toml` and `uv.lock`.
+Build TypeScript plugins from the root with `npm ci` and `npm run build`. Their manifests use the pinned Node
 runtime and shared bundles under `var/cache/typescript`. Execution admission checks build-source
 hashes before accepting a bundle. Runtime manifests pin TypeScript sources, the dependency lock,
 the bundle and Node identity. Missing or stale builds block admission instead of silently using a

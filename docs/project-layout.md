@@ -32,7 +32,7 @@ src/game_automation/
     capability_router.py        Plugin registration and dependency routing
     plugin_host.py              Client of the TypeScript plugin host
     storage_policy.py           Storage budget configuration rules
-    workflow/                   CLI inputs and remaining stage compatibility tools
+    workflow/                   CLI inputs and leaf-stage adapters for TypeScript orchestration
   plugin_sdk/                   JSON-RPC, bounded commands, images and credential/privacy helpers
   prompting/                    Shared resource resolution and batch-pinned AI inputs
   reporting/

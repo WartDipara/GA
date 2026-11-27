@@ -5,11 +5,11 @@ and inspects the complete APK list, then runs each APK's device and gameplay sta
 Five download workers remain independent of the single active gameplay execution.
 
 ```powershell
-uv run game-auto workflow --input var/inputs/apks.json --instances 0 1
-uv run game-auto status <workflow_run_id>
-uv run game-auto trace <workflow_run_id> --follow
-uv run game-auto resume <workflow_run_id> --input var/inputs/apks.json
-uv run game-auto cancel <workflow_run_id>
+uv run --locked game-auto workflow --input var/inputs/apks.json --instances 0 1
+uv run --locked game-auto status <workflow_run_id>
+uv run --locked game-auto trace <workflow_run_id> --follow
+uv run --locked game-auto resume <workflow_run_id> --input var/inputs/apks.json
+uv run --locked game-auto cancel <workflow_run_id>
 ```
 
 The example requires two APK URLs and two distinct, already running MuMu instances with indices
@@ -39,12 +39,11 @@ establish whole-game coverage or battle settlement.
 ## Composition
 
 `apps/control-plane/src/workflow/assembly.ts` owns the runtime composition. Each `Stage` declares
-its execution mode, required predecessor outputs, scope and capabilities. `WorkflowBuilder`
-validates the ordered stages before any stage executes. The Python `kernel/workflow/assembly.py`
-compatibility bridge still supplies CLI validation and stage input adapters; keep its declarations
-aligned until those adapters migrate. The scheduler passes execution IDs between adapters without
-dispatching on business stage names. Credential preparation and planner image capabilities are
-checked with the other stage requirements before preprocessing starts.
+its execution mode, required predecessor outputs, scope and capabilities. The control plane
+validates the same composition at task submission and execution. Python's `kernel/workflow/inputs.py`
+only prepares inputs for the selected stage. The scheduler passes execution IDs between adapters
+and requests local credential validation when the selected stages include gameplay. Capability
+requirements and credential availability are checked before preprocessing starts.
 
 The default composition is stored in `config/application.toml`:
 
@@ -56,16 +55,16 @@ stages = ["preprocess", "environment", "prepare", "launch", "play", "report"]
 For a shorter execution, override the selection without editing modules:
 
 ```powershell
-uv run game-auto workflow --input var/inputs/apks.json --stages preprocess report
-uv run game-auto workflow --input var/inputs/apks.json --instances 0 --stages preprocess environment prepare report
+uv run --locked game-auto workflow --input var/inputs/apks.json --stages preprocess report
+uv run --locked game-auto workflow --input var/inputs/apks.json --instances 0 --stages preprocess environment prepare report
 ```
 
 The second example requires one APK. Download-only composition needs neither instances nor a
 credential profile. Removing a prerequisite while retaining its consumer is rejected. APK-scoped
 stages form one contiguous group so that each APK finishes that group before the next APK starts.
 Batch stages may follow the group, but cannot consume an individual APK's output as a batch result.
-To connect another existing module, register its runtime `Stage` and compatibility input adapter,
-then include its name in the composition. No scheduler loop or plugin internals need to change.
+To connect another existing module, register its runtime `Stage` and input adapter, then include its
+name in the composition.
 
 After a verified `launch`, `play` runs the [game testing workflow](gameplay.md). Its core Agent
 nodes and device actions settle through the same task-owned state and event writer.

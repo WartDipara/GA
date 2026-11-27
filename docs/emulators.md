@@ -6,9 +6,9 @@ general input control, and game exploration remain separate capabilities. Bound 
 focused-display capture are described in [device preparation](device-preparation.md).
 
 ```powershell
-uv run game-auto emulators
-uv run game-auto emulators --capture
-uv run game-auto emulators --instance <index> --capture
+uv run --locked game-auto emulators
+uv run --locked game-auto emulators --capture
+uv run --locked game-auto emulators --instance <index> --capture
 ```
 
 Discovery runs through the kernel and the `emulator_mumu` process plugin. The command creates a

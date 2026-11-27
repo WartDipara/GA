@@ -181,11 +181,11 @@ export class TestAgents {
   }
 
   private validateResponse<T>(
-    span: string, validate: () => T, parent = this.runtime.step,
+    span: string, validate: () => T, parent = this.runtime.step, accepted = true,
   ): T {
     try {
       const response = validate();
-      this.runtime.record('gameplay.agent.response.accepted', {}, span, parent);
+      if (accepted) this.runtime.record('gameplay.agent.response.accepted', {}, span, parent);
       return response;
     } catch (error) {
       this.runtime.record('gameplay.agent.response.rejected', {
@@ -408,7 +408,7 @@ export class TestAgents {
     question: string,
     evidence: Fields,
     pending: Pending | null = null,
-    historicalObservations: string[] = [],
+    requiredHistory: string[] = [],
   ): Promise<Assessment> {
     const { runtime } = this;
     const observation = view.observation;
@@ -416,16 +416,14 @@ export class TestAgents {
     const handoff = this.handoffs.build(judge.id, observation, question);
     const current = await this.image(runtime.runId, observation.observation_id, observation.evidence_ref);
     const images = [current];
-    let action = null;
-    if (pending) {
-      const before = await this.image(pending.run_id, pending.observation_id, pending.image_ref);
-      images.push(before);
-      action = projectAction(pending.action, before.coordinates);
-    }
+    const required = new Set([current.id, ...requiredHistory]);
+    if (pending) required.add(pending.observation_id);
     const unavailable: string[] = [];
-    for (const id of new Set(historicalObservations)) {
-      if (images.some((item) => item.id === id)) continue;
-      const source = this.handoffs.observation(handoff, id);
+    for (const id of required) {
+      if (id === current.id) continue;
+      const source = pending?.observation_id === id
+        ? { runId: pending.run_id, reference: pending.image_ref }
+        : this.handoffs.observation(handoff, id);
       if (source) {
         const path = within(runtime.store.runDirectory(source.runId), source.reference);
         if (existsSync(path)) {
@@ -435,6 +433,10 @@ export class TestAgents {
       }
       unavailable.push(id);
     }
+    // A comparison cannot settle when an entire required observation is absent.
+    if (unavailable.length) return this.incompleteVerdict(unavailable, [current.id]);
+    const before = pending && images.find((image) => image.id === pending.observation_id);
+    const action = pending && before ? projectAction(pending.action, before.coordinates) : null;
     const supplemental: Fields[] = [];
     const used = new Set<string>();
     for (;;) {
@@ -442,11 +444,14 @@ export class TestAgents {
         handoff: { ...handoff, pending_action: pending ? { action_id: pending.action_id, action, expected_outcome: pending.expected_outcome } : null },
         key_exchanges: this.handoffs.recent(handoff, true),
         action_id: pending?.action_id ?? null,
-        evidence, supplemental, unavailable_observations: unavailable,
+        evidence, supplemental, required_observation_ids: [...required],
         time_budget: runtime.execution.deadline.context(),
       };
       const { response: verdict, span } = await this.call(judge, 'test-evidence-verdict', 'evidence_judge',
         ['evidence-judge'], context, images, observation, question);
+      const missing = verdict.status === 'verified' || verdict.status === 'deviated'
+        ? [...required].filter((id) => !verdict.evidence_refs.includes(id))
+        : [];
       this.validateResponse(span, () => {
         if (verdict.context_sequence !== handoff.through_sequence)
           throw new FrameworkError(ErrorCode.STALE_OBSERVATION, 'Judge did not acknowledge the current handoff');
@@ -454,22 +459,15 @@ export class TestAgents {
         if (verdict.status === 'request_context' && verdict.context_request) return;
         if (!['unknown', 'verified', 'deviated'].includes(verdict.status))
           throw new FrameworkError(ErrorCode.AI_OUTPUT_INVALID, 'Invalid verdict disposition');
-        if (verdict.evidence_refs.some((id) => !images.some((item) => item.id === id)) ||
-            (verdict.status !== 'unknown' && !verdict.evidence_refs.includes(current.id)))
+        if (verdict.evidence_refs.some((id) => !required.has(id)))
           throw new FrameworkError(ErrorCode.AI_OUTPUT_INVALID, 'Verdict must cite supplied observations');
-      });
+      }, runtime.step, missing.length === 0);
       if (verdict.status === 'delegate' && verdict.delegation) {
         supplemental.push(await this.supplement(verdict.delegation, handoff, view, images, used, span));
       } else if (verdict.status === 'request_context' && verdict.context_request) {
         supplemental.push(await this.supplement(verdict.context_request, handoff, view, images, used, span));
       } else if (verdict.status === 'unknown' || verdict.status === 'verified' || verdict.status === 'deviated') {
-        if (verdict.status === 'verified' && unavailable.length) {
-          const result: Assessment = {
-            status: 'unknown', reason: 'Required historical observation is unavailable',
-            evidence_refs: verdict.evidence_refs, missing_evidence: [unavailable.join(', ')],
-          };
-          return result;
-        }
+        if (missing.length) return this.incompleteVerdict(missing, verdict.evidence_refs, span);
         const result = {
           status: verdict.status, reason: verdict.reason, evidence_refs: verdict.evidence_refs,
           missing_evidence: verdict.missing_evidence,
@@ -479,5 +477,16 @@ export class TestAgents {
         throw new FrameworkError(ErrorCode.AI_OUTPUT_INVALID, 'Invalid verdict disposition');
       }
     }
+  }
+
+  private incompleteVerdict(
+    missing: string[], references: Assessment['evidence_refs'], span?: string,
+  ): Assessment {
+    const reason = span ? 'Verdict omitted required observations' : 'Required observations are unavailable';
+    const result: Assessment = {
+      status: 'unknown', reason, evidence_refs: references, missing_evidence: [missing.join(', ')],
+    };
+    this.runtime.record('gameplay.verdict.incomplete', { ...result }, span ?? null, this.runtime.step);
+    return result;
   }
 }

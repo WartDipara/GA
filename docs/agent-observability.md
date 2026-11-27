@@ -12,7 +12,7 @@ projection, not an OTLP exporter or a claim of wire compatibility.
 
 ## Call chains
 
-Run `uv run game-auto serve-trace <run_id>` and open a stage execution from the task workspace.
+Run `uv run --locked game-auto serve-trace <run_id>` and open a stage execution from the task workspace.
 The execution view polls committed evidence every three seconds. It includes:
 
 - An expandable waterfall of workflow stages, ReAct steps, Codex turns and framework tool calls.
@@ -42,9 +42,9 @@ existing context dashboard and raw-event view. Device commands remain in node ev
 rather than becoming thousands of top-level waterfall rows.
 
 ```powershell
-uv run game-auto agent-trace <run_id>
-uv run game-auto inspect <run_id> --span <span_id>
-uv run game-auto export-trace <run_id> --format html
+uv run --locked game-auto agent-trace <run_id>
+uv run --locked game-auto inspect <run_id> --span <span_id>
+uv run --locked game-auto export-trace <run_id> --format html
 ```
 
 Export writes `trace.html`, `agent-trace.json` and the context view under the execution's reports
@@ -82,7 +82,7 @@ calls. Groups use reported Agent role, configured model and an optional opaque c
 No Windows username or game account is inferred for these dimensions.
 
 ```powershell
-uv run game-auto trace-owner <run_id> --actor-ref <opaque_reference>
+uv run --locked game-auto trace-owner <run_id> --actor-ref <opaque_reference>
 ```
 
 Token attribution uses observed provider session-counter deltas. A fresh session establishes a
@@ -101,7 +101,7 @@ separate analysis execution under the same task, using the existing Codex adapte
 `trace-analysis` Skill. Viewing a page does not launch inference.
 
 ```powershell
-uv run game-auto analyze-trace <run_id> --question 'Which operations caused the most delay?'
+uv run --locked game-auto analyze-trace <run_id> --question 'Which operations caused the most delay?'
 ```
 
 The analyst receives metrics, quality coverage and a bounded selection of recorded spans. Omitted
@@ -118,9 +118,9 @@ business goals and unclosed spans. These are not ground-truth model accuracy. Ac
 correctness and task completion use explicitly supplied human labels with visible denominators.
 
 ```powershell
-uv run game-auto review <run_id> --span <span_id> --metric tool_correctness --label pass --evidence <event_id> --note 'Reviewed against the retained outcome'
-uv run game-auto export-dataset <task_id>
-uv run game-auto compare-traces <first_run_id> <second_run_id>
+uv run --locked game-auto review <run_id> --span <span_id> --metric tool_correctness --label pass --evidence <event_id> --note 'Reviewed against the retained outcome'
+uv run --locked game-auto export-dataset <task_id>
+uv run --locked game-auto compare-traces <first_run_id> <second_run_id>
 ```
 
 Reviews append immutable events and reference existing spans and events. The latest label per

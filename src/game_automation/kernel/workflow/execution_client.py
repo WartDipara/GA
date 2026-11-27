@@ -77,21 +77,16 @@ def tool(store, run_id, operation, inputs):
         if operation == "freeze":
             return freeze(store, run_id, parent_run=inputs.get("parent_run"))
         return load(store, run_id)
-    if operation in ("workflow_validate", "workflow_input"):
-        from .assembly import build_workflow
-        from .scheduler import WorkflowContext, validate_workflow
+    if operation == "workflow_credentials":
+        from game_automation.plugin_sdk.credentials import load_profile, profile_path
 
-        if operation == "workflow_validate":
-            validate_workflow(store.root, inputs["task"])
-            return None
-        stages = build_workflow(
-            ["preprocess", "environment", "prepare", "launch", "play", "report"]
-        )
-        stage = next(stage for stage in stages if stage.name == inputs["stage"])
-        context = WorkflowContext(
-            store, run_id, inputs["task"], inputs["outputs"], inputs["apk_index"]
-        )
-        return stage.inputs(context)
+        load_profile(profile_path(store.root, inputs["profile"]))
+        return None
+    if operation == "workflow_input":
+        from .inputs import StageInputs, stage_input
+
+        context = StageInputs(store, inputs["task"], inputs["outputs"], inputs["apk_index"])
+        return stage_input(inputs["stage"], context)
     if operation != "stage":
         raise FrameworkError(ErrorCode.METHOD_NOT_FOUND)
     return asyncio.run(run_stage(store, run_id, inputs))

@@ -21,6 +21,18 @@ export default tseslint.config(
     },
   },
   {
+    files: ['apps/control-plane/src/**/*.ts'],
+    ignores: ['apps/control-plane/src/storage/**'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: ['**/apps/**', '**/plugins/**', '**/packages/*/src/**', 'drizzle-orm', 'drizzle-orm/**', 'node:sqlite'],
+        },
+      ],
+    },
+  },
+  {
     files: ['packages/contracts/**/*.ts'],
     rules: {
       'no-restricted-imports': [
